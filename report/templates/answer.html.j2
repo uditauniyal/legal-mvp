@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Answer</title>
+<style>
+body { font-family: system-ui, Arial; line-height: 1.5; margin: 32px; }
+sup { font-size: 0.8em; }
+blockquote { background: #f7f7f9; padding: 12px; border-radius: 8px; }
+footer { margin-top: 28px; color: #666; font-size: 12px; }
+</style>
+</head>
+<body>
+<h2>Question</h2>
+<p>{{query}}</p>
+<h2>Answer</h2>
+<blockquote>{{answer | safe}}</blockquote>
+<h3>References</h3>
+<ol>
+{% for c in citations %}
+<li><b>{{c.source}}</b>, p.{{c.page}} — {{c.snippet}}</li>
+{% endfor %}
+</ol>
+<footer>Disclaimer: Informational only. Not legal advice.</footer>
+</body>
+</html>
