@@ -1,13 +1,16 @@
-from fastapi import FastAPI, UploadFile, File, Form, Query
+from fastapi import FastAPI, UploadFile, File, Query
 from fastapi.responses import JSONResponse, HTMLResponse
 from typing import List
 from pathlib import Path
-import os
+import hashlib
+import traceback
+import uuid
+
 from core.logging import new_req_id
 from clients.qdrant_client import qdrant, ensure_collection
 from clients.openai_client import embed_texts
 from core.schemas import AnswerJSON
-from ingest.extract import extract_text_pdf, extract_text_docx, extract_text_txt
+from ingest.extract import extract_text_pdf_bytes, extract_text_docx_bytes, extract_text_txt_bytes
 from ingest.chunk import chunk_page
 from ingest.index import index_chunks
 from retrieve.decision import decision_agent, rewrite_query
@@ -21,39 +24,58 @@ from core.config import TOP_K
 
 app = FastAPI(title="Legal MVP")
 
+# Unique build id — proves reload when code changes
+with open(__file__, "rb") as f:
+    BUILD_ID = hashlib.sha1(f.read()).hexdigest()[:8]
+
 @app.on_event("startup")
 def startup():
     ensure_collection(qdrant())
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True}
+    return {"ok": True, "build": BUILD_ID}
 
 @app.post("/ingest")
-async def ingest(files: List[UploadFile] = File(...)):
-    req_id = new_req_id()
-    chunks = []
+async def ingest_files(files: List[UploadFile] = File(...)):
+    all_chunks, errors = [], []
+
     for f in files:
         name = Path(f.filename).name
-        tmp_dir = Path("/tmp")
-        tmp_dir.mkdir(exist_ok=True)
-        tmp = tmp_dir / f"{req_id}-{name}"
-        tmp.write_bytes(await f.read())
+        try:
+            data = await f.read()
+            ext = name.lower().split(".")[-1]
 
-        if name.lower().endswith(".pdf"):
-            pages = extract_text_pdf(str(tmp))
-        elif name.lower().endswith(".docx"):
-            pages = extract_text_docx(str(tmp))
-        else:
-            pages = extract_text_txt(str(tmp))
+            if ext == "pdf":
+                pages = extract_text_pdf_bytes(data)
+            elif ext == "docx":
+                pages = extract_text_docx_bytes(data)
+            elif ext == "txt":
+                pages = extract_text_txt_bytes(data)
+            else:
+                raise ValueError(f"Unsupported file type: {ext}")
 
-        for (page, text) in pages:
-            chunks.extend(chunk_page(name, page, text))
+            for (page, text) in pages:
+                # Assign safe UUIDs for point IDs
+                chunk = chunk_page(name, page, text)
+                for c in chunk:
+                    c["chunk_id"] = str(uuid.uuid4())
+                all_chunks.extend(chunk)
 
-        os.remove(tmp)  # Clean up temp file
+        except Exception:
+            errors.append({"file": name, "traceback": traceback.format_exc()})
 
-    index_chunks(chunks)
-    return {"files": len(files), "chunks": len(chunks), "vectors_indexed": len(chunks)}
+    if all_chunks:
+        try:
+            index_chunks(all_chunks)
+        except Exception:
+            errors.append({"stage": "qdrant_upsert", "traceback": traceback.format_exc()})
+
+    return JSONResponse({
+        "files_received": len(files),
+        "chunks_indexed": len(all_chunks),
+        "errors": errors
+    }, status_code=200 if all_chunks or errors else 400)
 
 @app.post("/query")
 async def query(body: dict, format: str = Query(default="json")):
@@ -66,7 +88,7 @@ async def query(body: dict, format: str = Query(default="json")):
     q_vec = embed_texts([q2])[0]
     points = search(q_vec, top_k=3 * TOP_K, payload_filter=d["filter"])
 
-    # Simple dedupe to keep the roadmap concise.
+    # Dedupe
     seen_ids = set()
     unique_points = []
     for p in points:
@@ -83,7 +105,10 @@ async def query(body: dict, format: str = Query(default="json")):
     try:
         AnswerJSON(**data)
     except Exception as e:
-        return JSONResponse({"error": f"JSON validation failed: {e}", "raw_response": raw}, status_code=500)
+        return JSONResponse(
+            {"error": f"JSON validation failed: {e}", "raw_response": raw},
+            status_code=500
+        )
 
     if format == "html":
         html = render_html(data)
