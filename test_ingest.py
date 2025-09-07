@@ -9,3 +9,4 @@ files = [
 resp = requests.post("http://127.0.0.1:8000/ingest", files=files)
 print("Status:", resp.status_code)
 print("Response:", resp.json())
+
