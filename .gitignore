@@ -1,1 +1,19 @@
-.env 
+# Environment variables
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Qdrant local DB files
+qdrant_storage/
+
+# OS/editor junk
+.vscode/
+*.swp
+*.DS_Store
+ 
+
+
+
+

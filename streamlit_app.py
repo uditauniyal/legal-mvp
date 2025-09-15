@@ -1,10 +1,11 @@
+
 # streamlit_app.py
-# Modern Streamlit UI for Legal MVP (FastAPI + Qdrant RAG)
-# Run: streamlit run streamlit_app.py
+# Modern Streamlit UI for Legal MVP (FastAPI + Qdrant RAG) + Document Upload & Ingestion
 
 import json
 import re
 import time
+import mimetypes
 from datetime import datetime
 from typing import Dict, Any, List
 
@@ -16,6 +17,7 @@ import streamlit as st
 # =========================
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"   # your backend base URL
 QUERY_PATH       = "/query"                  # POST endpoint (expects {"query": "..."} JSON)
+INGEST_PATH      = "/ingest"                 # POST endpoint (multipart form: files=<file> ...)
 
 st.set_page_config(
     page_title="Legal MVP – RAG Demo",
@@ -29,90 +31,32 @@ st.set_page_config(
 CSS = """
 <style>
 :root{
-  --primary:#1e40af; /* blue-800 */
-  --primary-600:#2563eb; /* blue-600 */
-  --muted:#64748b;  /* slate-500 */
-  --bg:#f6f8fb;     /* light background */
+  --primary:#1e40af;
+  --primary-600:#2563eb;
+  --muted:#64748b;
+  --bg:#f6f8fb;
   --card-bg:#ffffff;
   --shadow: 0 10px 24px rgba(2,6,23,0.06);
   --radius:18px;
 }
-[data-testid="stAppViewContainer"]{
-  background: var(--bg);
-}
-.block-container{
-  padding-top: 2.2rem;
-  padding-bottom: 3.2rem;
-  max-width: 880px;
-}
-h1,h2,h3,h4{
-  letter-spacing: .1px;
-}
-.big-hero{
-  text-align: center;
-  margin-bottom: 1.2rem;
-}
-.big-hero .emoji{
-  font-size: 44px;
-  line-height: 1;
-}
-.big-hero .title{
-  font-size: 34px;
-  font-weight: 800;
-  color: var(--primary);
-  margin-top: .2rem;
-}
-.big-hero .subtitle{
-  color: var(--muted);
-  margin-top: .25rem;
-  font-size: 15px;
-}
-
-.card{
-  background: var(--card-bg);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 18px 18px;
-  border: 1px solid rgba(2,6,23,0.05);
-}
+[data-testid="stAppViewContainer"]{ background: var(--bg); }
+.block-container{ padding-top: 2.2rem; padding-bottom: 3.2rem; max-width: 880px; }
+h1,h2,h3,h4{ letter-spacing: .1px; }
+.big-hero{ text-align: center; margin-bottom: 1.2rem; }
+.big-hero .emoji{ font-size: 44px; line-height: 1; }
+.big-hero .title{ font-size: 34px; font-weight: 800; color: var(--primary); margin-top: .2rem; }
+.big-hero .subtitle{ color: var(--muted); margin-top: .25rem; font-size: 15px; }
+.card{ background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 18px;
+       border: 1px solid rgba(2,6,23,0.05); }
 .card + .card{ margin-top:14px; }
-
-.answer{
-  font-size: 16px;
-  line-height: 1.6;
-}
+.answer{ font-size: 16px; line-height: 1.6; }
 sup{ font-size: .8em; color: var(--primary-600); }
-
-.small-meta{
-  color: var(--muted);
-  font-size: 12px;
-  margin-top: 6px;
-}
-
-footer{
-  color: var(--muted);
-  font-size: 13px;
-  text-align: center;
-  margin-top: 32px;
-}
-
-.stTextArea textarea{
-  border-radius: 14px !important;
-  border: 1px solid rgba(2,6,23,0.08) !important;
-}
-
-.stButton>button{
-  background: var(--primary-600);
-  color: #fff;
-  border-radius: 12px;
-  padding: 0.6rem 1.1rem;
-  border: none;
-  box-shadow: var(--shadow);
-}
-.stButton>button:hover{
-  background: #1d4ed8;
-}
-
+.small-meta{ color: var(--muted); font-size: 12px; margin-top: 6px; }
+footer{ color: var(--muted); font-size: 13px; text-align: center; margin-top: 32px; }
+.stTextArea textarea{ border-radius: 14px !important; border: 1px solid rgba(2,6,23,0.08) !important; }
+.stButton>button{ background: var(--primary-600); color: #fff; border-radius: 12px; padding: 0.6rem 1.1rem;
+                  border: none; box-shadow: var(--shadow); }
+.stButton>button:hover{ background: #1d4ed8; }
 @media (max-width: 640px){
   .block-container{ padding-left: 14px; padding-right: 14px; }
   .big-hero .title{ font-size: 26px; }
@@ -139,12 +83,22 @@ def call_backend(base_url: str, query: str, timeout: int = 90) -> requests.Respo
     url = base_url.rstrip("/") + QUERY_PATH
     return requests.post(url, json={"query": query}, timeout=timeout)
 
+def ingest_documents(base_url: str, uploaded_files: List[Any], timeout: int = 300) -> requests.Response:
+    """Send selected files to FastAPI /ingest as multipart form-data."""
+    url = base_url.rstrip("/") + INGEST_PATH
+    form_files = []
+    for f in uploaded_files:
+        data = f.getvalue()
+        mt = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
+        form_files.append(("files", (f.name, data, mt)))
+    return requests.post(url, files=form_files, timeout=timeout)
+
 def ensure_session():
     if "history" not in st.session_state:
         st.session_state.history: List[Dict[str, Any]] = []
 
 # =========================
-# Sidebar (Settings)
+# Sidebar (Settings + Ingestion)
 # =========================
 with st.sidebar:
     st.header("⚙️ Settings")
@@ -152,6 +106,43 @@ with st.sidebar:
     answer_style = st.radio("Answer style", ["Detailed", "Summary"], horizontal=True)
     show_raw = st.toggle("Show raw JSON", value=False)
     gen_html = st.toggle("Also fetch HTML report", value=False, help="Uses ?format=html (if supported)")
+
+    st.divider()
+    st.subheader("📄 Upload & Ingest Documents")
+    uploaded_files = st.file_uploader(
+        "Upload PDF / DOCX / TXT",
+        type=["pdf", "docx", "txt"],
+        accept_multiple_files=True,
+        help="Files will be indexed in Qdrant via your FastAPI /ingest endpoint.",
+    )
+    ingest_btn = st.button("⬆️ Upload & Ingest", use_container_width=True, disabled=not uploaded_files)
+
+    if ingest_btn:
+        with st.spinner("Uploading and ingesting…"):
+            try:
+                resp_ing = ingest_documents(base_url, uploaded_files)
+            except requests.exceptions.RequestException as e:
+                st.error(f"Ingestion request failed: {e}")
+                resp_ing = None
+
+        if resp_ing is None:
+            pass
+        elif resp_ing.status_code != 200:
+            try:
+                err_json = resp_ing.json()
+                st.error("Ingestion failed.")
+                st.code(json.dumps(err_json, indent=2, ensure_ascii=False), language="json")
+            except Exception:
+                st.error(f"Ingestion failed: {resp_ing.text}")
+        else:
+            try:
+                body = resp_ing.json()
+            except Exception:
+                body = {"raw": resp_ing.text}
+            st.success("Ingestion successful ✅")
+            st.caption("Response:")
+            st.code(json.dumps(body, indent=2, ensure_ascii=False), language="json")
+
     st.divider()
     if st.button("🗑️ Clear history", use_container_width=True):
         st.session_state.history = []
@@ -209,7 +200,6 @@ if submit:
         if resp is None:
             pass
         elif resp.status_code != 200:
-            # Try to surface backend error nicely
             try:
                 err_json = resp.json()
                 st.error(f"Backend error {resp.status_code}")
@@ -217,7 +207,6 @@ if submit:
             except Exception:
                 st.error(f"Backend error {resp.status_code}: {resp.text}")
         else:
-            # Parse JSON answer
             try:
                 data = resp.json()
             except Exception:
@@ -226,7 +215,6 @@ if submit:
                 data = None
 
             if data:
-                # Save to history
                 st.session_state.history.insert(0, {
                     "query": user_query.strip(),
                     "style": answer_style,
@@ -251,14 +239,12 @@ if st.session_state.history:
     st.markdown(answer_html, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Small meta row
     st.markdown(
         f'<div class="small-meta">Style: <b>{latest["style"]}</b> • Latency: <b>{latency_ms} ms</b></div>',
         unsafe_allow_html=True,
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Citations expander
     with st.expander("📚 Citations / Sources"):
         if citations:
             for i, c in enumerate(citations, start=1):
@@ -271,12 +257,10 @@ if st.session_state.history:
         else:
             st.info("No citations returned.")
 
-    # Optional raw JSON
     if show_raw:
         st.subheader("Raw JSON")
         st.code(json.dumps(data, indent=2, ensure_ascii=False), language="json")
 
-    # Optional HTML report fetch (if your backend supports ?format=html)
     if gen_html:
         try:
             url = base_url.rstrip("/") + QUERY_PATH + "?format=html"
@@ -303,7 +287,7 @@ if st.session_state.history:
 # =========================
 if len(st.session_state.history) > 1:
     st.subheader("History")
-    for item in st.session_state.history[1:5]:  # show last 4 more
+    for item in st.session_state.history[1:5]:
         a_html = superscript_markers(item["data"].get("answer", ""))
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.markdown(f"**🧑‍⚖️ {item['query']}**")
@@ -322,3 +306,4 @@ st.markdown(
     '<footer>Built with ❤️ using FastAPI + Streamlit + Qdrant.</footer>',
     unsafe_allow_html=True,
 )
+
