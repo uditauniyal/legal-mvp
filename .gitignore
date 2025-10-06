@@ -4,6 +4,14 @@
 # Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+
+# Logs
+*.log
 
 # Qdrant local DB files
 qdrant_storage/
@@ -12,8 +20,10 @@ qdrant_storage/
 .vscode/
 *.swp
 *.DS_Store
- 
-
-
-
+__pycache__/
+qdrant_storage/
+*.pyc
+out.html
+part_a*
+.env~
 

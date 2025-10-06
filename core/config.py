@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
 EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-3-small")
 GEN_MODEL   = os.getenv("GEN_MODEL", "gpt-4o-mini")

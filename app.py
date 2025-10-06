@@ -1,10 +1,17 @@
+# Load .env early so OPENAI_API_KEY is available everywhere
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env from the project root (where app.py lives)
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=True)
+
 from fastapi import FastAPI, UploadFile, File, Query
 from fastapi.responses import JSONResponse, HTMLResponse
 from typing import List
-from pathlib import Path
 import hashlib
 import traceback
 import uuid
+from pathlib import Path
 
 from core.logging import new_req_id
 from clients.qdrant_client import qdrant, ensure_collection
@@ -36,6 +43,12 @@ def startup():
 def healthz():
     return {"ok": True, "build": BUILD_ID}
 
+@app.get("/diag/env")
+def diag_env():
+    """Check if OPENAI_API_KEY is loaded correctly"""
+    import os
+    return {"openai_key_set": bool(os.getenv("OPENAI_API_KEY"))}
+
 @app.post("/ingest")
 async def ingest_files(files: List[UploadFile] = File(...)):
     all_chunks, errors = [], []
@@ -56,7 +69,6 @@ async def ingest_files(files: List[UploadFile] = File(...)):
                 raise ValueError(f"Unsupported file type: {ext}")
 
             for (page, text) in pages:
-                # Assign safe UUIDs for point IDs
                 chunk = chunk_page(name, page, text)
                 for c in chunk:
                     c["chunk_id"] = str(uuid.uuid4())
