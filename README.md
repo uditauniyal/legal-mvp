@@ -41,26 +41,27 @@
 flowchart TD
   U[User] -->|query JSON| API[FastAPI /query]
   subgraph Monolith
-    API --> DEC[Decision Agent\n(corpus filter + section booster)]
-    DEC --> EMB[Embedding Agent\n(text-embedding-3-small)]
-    EMB -->|q_vec| RET[Retriever\nQdrant search k=24]
-    RET --> MMR[MMR + Dedupe]
-    MMR --> PACK[Evidence Packer\n[1]..[k] snippets]
-    PACK --> LLM[Answer Synthesizer\ngpt-4o-mini (JSON-only)]
-    LLM --> VAL[JSON Validator\n(repair once if needed)]
+    API --> DEC["Decision Agent (corpus filter + section booster)"]
+    DEC --> EMB["Embedding Agent (text-embedding-3-small)"]
+    EMB -->|q_vec| RET["Retriever (Qdrant search k=24)"]
+    RET --> MMR["MMR + Dedupe"]
+    MMR --> PACK["Evidence Packer [1..k] snippets"]
+    PACK --> LLM["Answer Synthesizer (gpt-4o-mini, JSON-only)"]
+    LLM --> VAL["JSON Validator (repairs once if needed)"]
   end
-  subgraph Vector DB
-    QD[Qdrant (1536-d cosine)]
+  subgraph "Vector DB"
+    QD["Qdrant (1536-d cosine)"]
   end
   RET <-->|vectors| QD
   subgraph Ingestion
-    UPLOAD[(PDF/DOCX/TXT)]
-    UPLOAD --> EX[Extract+OCR (bytes)]
-    EX --> CH[Chunker\n350–500 tokens + overlap]
-    CH --> IE[Indexer\nOpenAI embed + Qdrant upsert]
+    UPLOAD["PDF/DOCX/TXT"]
+    UPLOAD --> EX["Extract + OCR (bytes)"]
+    EX --> CH["Chunker (350–500 tokens + overlap)"]
+    CH --> IE["Indexer (OpenAI embed + Qdrant upsert)"]
     IE --> QD
   end
   VAL -->|{query, answer, citations[]}| U
+
 ```
 
 **Key points**
