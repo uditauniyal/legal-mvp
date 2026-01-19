@@ -1,5 +1,6 @@
 # Environment variables
 .env
+.env~
 
 # Python cache
 __pycache__/
@@ -12,6 +13,7 @@ venv/
 
 # Logs
 *.log
+debug_output.txt
 
 # Qdrant local DB files
 qdrant_storage/
@@ -20,10 +22,6 @@ qdrant_storage/
 .vscode/
 *.swp
 *.DS_Store
-__pycache__/
-qdrant_storage/
-*.pyc
 out.html
 part_a*
-.env~
-
+x

@@ -4,6 +4,9 @@ from langdetect import detect
 SENT_SPLIT = re.compile(r'(?<=[.?!])\s+')
 
 def chunk_page(doc_name, page, text, target_tokens=450, overlap_sentences=1):
+    # Normalize "41.", "41A.", "41 A." at start of lines to "Section 41A."
+    text = re.sub(r'(?m)^(\d+\s?[A-Za-z]?)\s*\.', r'Section \1.', text)
+
     sents = [s.strip() for s in SENT_SPLIT.split(text) if s.strip()]
     chunks, cur, cur_len = [], [], 0
 

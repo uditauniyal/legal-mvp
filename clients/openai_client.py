@@ -7,7 +7,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     resp = client.embeddings.create(model=EMBED_MODEL, input=texts)
     return [d.embedding for d in resp.data]
 
-def chat_json(messages: list[dict], max_tokens=800):
+def chat_json(messages: list[dict], max_tokens=2048):
     return client.chat.completions.create(
         model=GEN_MODEL,
         temperature=0,

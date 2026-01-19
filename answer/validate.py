@@ -11,5 +11,5 @@ def parse_or_repair(raw: str):
         repaired = chat_json([
             {"role": "system", "content": REPAIR_SYS},
             {"role": "user", "content": REPAIR_USER.format(raw)}
-        ], max_tokens=900)
+        ], max_tokens=2048)
         return json.loads(repaired)

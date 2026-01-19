@@ -20,14 +20,11 @@ from core.schemas import AnswerJSON
 from ingest.extract import extract_text_pdf_bytes, extract_text_docx_bytes, extract_text_txt_bytes
 from ingest.chunk import chunk_page
 from ingest.index import index_chunks
-from retrieve.decision import decision_agent, rewrite_query
-from retrieve.search import search
-from retrieve.pack import build_snippets
-from answer.prompt import build_messages
-from answer.llm import get_json_answer
-from answer.validate import parse_or_repair
+from agents.router import RouterAgent
+from agents.retriever import RetrievalAgent
+from agents.answer import AnswerAgent
+
 from report.render import render_html
-from core.config import TOP_K
 
 app = FastAPI(title="Legal MVP")
 
@@ -89,41 +86,37 @@ async def ingest_files(files: List[UploadFile] = File(...)):
         "errors": errors
     }, status_code=200 if all_chunks or errors else 400)
 
+# Initialize Agents
+router_agent = RouterAgent()
+retrieval_agent = RetrievalAgent()
+answer_agent = AnswerAgent()
+
 @app.post("/query")
 async def query(body: dict, format: str = Query(default="json")):
     q = body.get("query", "").strip()
     if not q:
         return JSONResponse({"error": "empty query"}, status_code=400)
 
-    d = decision_agent(q)
-    q2 = rewrite_query(q, d["boosts"])
-    q_vec = embed_texts([q2])[0]
-    points = search(q_vec, top_k=3 * TOP_K, payload_filter=d["filter"])
+    # 1. Plan
+    plan = router_agent.route(q)
+    
+    # 2. Retrieve
+    context = retrieval_agent.retrieve(plan)
+    
+    # 3. Answer
+    # Detect style from body if provided, else default
+    style = body.get("style", "Detailed")
+    data = answer_agent.answer(q, context, style=style)
 
-    # Dedupe
-    seen_ids = set()
-    unique_points = []
-    for p in points:
-        if p.id not in seen_ids:
-            seen_ids.add(p.id)
-            unique_points.append(p)
-
-    snippets = build_snippets(unique_points[:TOP_K])
-
-    messages = build_messages(q, snippets)
-    raw = get_json_answer(messages)
-    data = parse_or_repair(raw)
-
-    try:
-        AnswerJSON(**data)
-    except Exception as e:
-        return JSONResponse(
-            {"error": f"JSON validation failed: {e}", "raw_response": raw},
-            status_code=500
-        )
-
+    # 4. Render
     if format == "html":
-        html = render_html(data)
-        return HTMLResponse(content=html, media_type="text/html")
+        # We need to adapt the data structure for render_html if necessary
+        # render_html expects 'answer' and 'citations' keys, which AnswerAgent returns.
+        try:
+            html = render_html(data)
+            return HTMLResponse(content=html, media_type="text/html")
+        except Exception as e:
+            # Fallback if render fails
+            return JSONResponse({"error": f"HTML Render failed: {e}", "data": data}, status_code=500)
 
     return JSONResponse(data)
