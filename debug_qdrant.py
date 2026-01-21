@@ -4,15 +4,15 @@ from qdrant_client.models import Filter
 
 client = qdrant()
 
-query = "Section 41A"
-print(f"Querying: {query}")
+query = "punishment" # Generic query
+print(f"Querying generic term to check BNS presence...")
 
 try:
     # 1. Embed
     q_vec = embed_texts([query])[0]
     
-    # 2. Filter (mimic decision_agent)
-    payload_filter = {"must": [{"key":"corpus","match":{"value": "BNSS"}}]}
+    # 2. Filter for BNS
+    payload_filter = {"must": [{"key":"corpus","match":{"value": "BNS"}}]}
     flt = Filter(**payload_filter)
     
     # 3. Search
@@ -20,22 +20,17 @@ try:
         collection_name=COLLECTION, 
         query_vector=q_vec, 
         query_filter=flt,
-        limit=20,
+        limit=5,
         with_payload=True
     )
     
+    print(f"BNS Docs Found: {len(res)}")
     with open("debug_output.txt", "w", encoding="utf-8") as f:
-        f.write(f"Search results for '{query}': {len(res)}\n")
-        found = False
+        f.write(f"BNS Search Results: {len(res)}\n")
+        if len(res) == 0:
+            f.write("No documents found with corpus='BNS'.\n")
         for i, hit in enumerate(res):
-            text = hit.payload.get('text', '')
-            f.write(f"\n[{i+1}] Score: {hit.score}\n")
-            f.write(f"Page: {hit.payload.get('page')}\n")
-            f.write(f"Text: {text[:200]}...\n")
-            
-            if "41A" in text:
-                f.write(" [MATCH FOUND in text]\n")
-                found = True
+            f.write(f"\n[{i+1}] {hit.payload.get('doc_name')} (Score: {hit.score})\n")
 
 except Exception as e:
     import traceback

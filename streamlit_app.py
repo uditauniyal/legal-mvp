@@ -239,6 +239,29 @@ if st.session_state.history:
     st.markdown(answer_html, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # --- Paralegal Dashboard (New UI) ---
+    ctx = data.get("paralegal_context")
+    if ctx:
+        st.markdown("### 🏛️ Paralegal Dashboard")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Scenario", ctx.get("scenario", "N/A"))
+            st.metric("Persona", ctx.get("persona", "N/A"))
+        with col2:
+            st.metric("Urgency", ctx.get("urgency", "N/A"))
+            st.metric("Complexity", ctx.get("complexity", "N/A"))
+        with col3:
+            st.metric("Financial", ctx.get("financial_status", "Unknown"))
+        
+        if ctx.get("missing_facts"):
+            st.warning(f"⚠️ Missing Facts: {', '.join(ctx.get('missing_facts'))}")
+            
+    # --- PDF Report Download ---
+    report_url = data.get("report_url")
+    if report_url:
+        full_report_url = base_url.rstrip("/") + report_url
+        st.link_button("📄 Download Formal Legal Report (PDF)", full_report_url)
+    
     st.markdown(
         f'<div class="small-meta">Style: <b>{latest["style"]}</b> • Latency: <b>{latency_ms} ms</b></div>',
         unsafe_allow_html=True,
@@ -250,7 +273,7 @@ if st.session_state.history:
             for i, c in enumerate(citations, start=1):
                 source = c.get("source", "Unknown")
                 page = c.get("page", "?")
-                snippet = (c.get("snippet") or "").strip().replace("\n", " ")
+                snippet = (c.get("text") or c.get("snippet") or "").strip().replace("\n", " ")
                 if len(snippet) > 600:
                     snippet = snippet[:600] + "…"
                 st.markdown(f"**[{i}] {source}**, p.{page} — {snippet}")
@@ -306,4 +329,3 @@ st.markdown(
     '<footer>Built with ❤️ using FastAPI + Streamlit + Qdrant.</footer>',
     unsafe_allow_html=True,
 )
-

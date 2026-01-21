@@ -86,10 +86,15 @@ async def ingest_files(files: List[UploadFile] = File(...)):
         "errors": errors
     }, status_code=200 if all_chunks or errors else 400)
 
+from agents.reporter import ReporterAgent
+from agents.intake import IntakeAgent
+
 # Initialize Agents
+intake_agent = IntakeAgent()
 router_agent = RouterAgent()
 retrieval_agent = RetrievalAgent()
 answer_agent = AnswerAgent()
+reporter_agent = ReporterAgent()
 
 @app.post("/query")
 async def query(body: dict, format: str = Query(default="json")):
@@ -97,26 +102,56 @@ async def query(body: dict, format: str = Query(default="json")):
     if not q:
         return JSONResponse({"error": "empty query"}, status_code=400)
 
-    # 1. Plan
-    plan = router_agent.route(q)
+    # 1. Intake (Analysis & Triage)
+    case_context = intake_agent.analyze(q)
     
-    # 2. Retrieve
+    # 2. Router (Corpus Selection)
+    plan = router_agent.route(case_context)
+    
+    # 3. Retrieve
     context = retrieval_agent.retrieve(plan)
     
-    # 3. Answer
-    # Detect style from body if provided, else default
+    # 4. Answer
     style = body.get("style", "Detailed")
     data = answer_agent.answer(q, context, style=style)
 
-    # 4. Render
+    # 5. Report (Paralegal Mode PDF)
+    # Include Paralegal Context ALWAYS (so Dashboard works even if PDF fails)
+    data["paralegal_context"] = {
+        "scenario": case_context.scenario,
+        "issues": case_context.legal_issues,
+        "persona": case_context.user_persona,
+        "complexity": case_context.complexity,
+        "urgency": case_context.urgency,
+        "financial_status": case_context.financial_status,
+        "missing_facts": case_context.missing_facts
+    }
+
+    report_filename = f"report_{uuid.uuid4().hex[:8]}.pdf"
+    report_path = Path("static") / report_filename
+    report_path.parent.mkdir(exist_ok=True)
+    
+    try:
+        reporter_agent.generate_report(q, plan, data, filename=str(report_path))
+        data["report_url"] = f"/static/{report_filename}"
+    except Exception as e:
+        print(f"Report Generation Failed: {e}")
+        data["report_error"] = str(e)
+
+    # 6. Render
     if format == "html":
-        # We need to adapt the data structure for render_html if necessary
-        # render_html expects 'answer' and 'citations' keys, which AnswerAgent returns.
         try:
             html = render_html(data)
             return HTMLResponse(content=html, media_type="text/html")
         except Exception as e:
-            # Fallback if render fails
             return JSONResponse({"error": f"HTML Render failed: {e}", "data": data}, status_code=500)
 
     return JSONResponse(data)
+
+# Serve static files for reports
+try:
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+except RuntimeError:
+    pass # Already mounted or directory issue handled explicitly
+

@@ -1,79 +1,72 @@
 import re
 from typing import Literal, Optional, List
 from pydantic import BaseModel
+from agents.intake import CaseContext
 
 # --- Data Models ---
 class QueryPlan(BaseModel):
     original_query: str
     rewritten_query: str
     intent: Literal["statute", "case_law", "comparison", "general"]
-    target_corpus: Optional[str] = None  # "BNS", "BNSS", "IPC", "Constitution", etc.
+    target_corpus: Optional[str] = None
     entities: List[str] = []
     boost_terms: List[str] = []
+    # Context passed through from Intake
+    case_context: Optional[CaseContext] = None
 
 # --- Regex Patterns ---
-# Detects "Section 41", "Article 21", "Order 39 Rule 1"
 SEC_RE = re.compile(r'(?i)\b(section|sec|article|art|order|rule)\s+(\d+[A-Za-z]?)')
-# Detects specific act names
 ACT_MAP = {
     "ipc": "BNS", "bns": "BNS", "penal code": "BNS",
     "crpc": "BNSS", "bnss": "BNSS", "criminal procedure": "BNSS",
     "iea": "BSA", "bsa": "BSA", "evidence act": "BSA",
     "constitution": "Constitution"
 }
-# Detects case law indicators
 CASE_RE = re.compile(r'(?i)(\s+v\.\s+|\s+vs\.\s+|judgment|appeal|petition|scc|air\s+\d+)')
 
 class RouterAgent:
-    def __init__(self):
-        pass
-
-    def route(self, query: str) -> QueryPlan:
+    def route(self, context: CaseContext) -> QueryPlan:
+        query = context.original_query
         q_lower = query.lower()
         intent = "general"
         target_corpus = None
         entities = []
         boosts = []
 
-        # 1. Detect Corpus (Statute)
+        # 1. Corpus Mapping (Rule based is fast & accurate)
         for key, corpus in ACT_MAP.items():
             if key in q_lower:
                 target_corpus = corpus
                 break
         
-        # 2. Extract Entities (Section numbers)
+        # 2. Extract Entities
         sec_matches = SEC_RE.findall(query)
         for label, num in sec_matches:
-            # Standardize "Section 41"
             normalized = f"{label.capitalize()} {num}"
             entities.append(normalized)
             boosts.append(normalized)
-            # High priority boost
             boosts.append(f"{label.capitalize()} {num}.") 
             intent = "statute"
 
-        # 3. Detect Case Law
-        if CASE_RE.search(query):
+        # 3. Case Law Detection
+        if CASE_RE.search(query) or "judgment" in q_lower:
             intent = "case_law"
             target_corpus = "Judgments"
 
-        # 4. Fallback Logic
-        if target_corpus and intent == "general":
-            # If user mentioned an Act (e.g. "IPC") but no section, it's still a legal statute query
-            intent = "statute"
+        # 4. Fallback based on Domain from Intake
+        if not target_corpus:
+            if "Criminal" in context.predicted_legal_domain:
+                target_corpus = "BNS" # Default to Penal Code for criminal
+            elif "Civil" in context.predicted_legal_domain:
+                target_corpus = "BNSS" # Or some civil code if we had it
 
+        # 5. Enrich Context with Intake Issues
+        boosts.extend(context.legal_issues)
 
-        # 5. Comparison Logic (Simple)
-        if "difference between" in q_lower or " vs " in q_lower:
-            if intent == "statute":
-                intent = "comparison"
-
-        # Construct Rewritten Query
-        # We prepend boosts to make them prominent for vector search (if simple concatenation)
-        # But for valid SQL-like filtering, we use the structured 'target_corpus'
+        # 6. Rewriting
         rewritten = query
         if boosts:
-            rewritten = f"{' '.join(boosts)} {query}"
+             rewritten = f"{' '.join(context.legal_issues)} {' '.join(entities)} {query}"
 
         return QueryPlan(
             original_query=query,
@@ -81,5 +74,7 @@ class RouterAgent:
             intent=intent,
             target_corpus=target_corpus,
             entities=entities,
-            boost_terms=boosts
+            boost_terms=boosts,
+            case_context=context
         )
+

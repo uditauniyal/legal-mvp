@@ -25,3 +25,8 @@ qdrant_storage/
 out.html
 part_a*
 x
+
+# Generated Reports
+*.pdf
+!tests/data/*.pdf
+
