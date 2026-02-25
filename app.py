@@ -108,12 +108,12 @@ async def query(body: dict, format: str = Query(default="json")):
     # 2. Router (Corpus Selection)
     plan = router_agent.route(case_context)
     
-    # 3. Retrieve
-    context = retrieval_agent.retrieve(plan)
+    # 3. Retrieve (now returns RetrievalResult with confidence scoring)
+    retrieval = retrieval_agent.retrieve(plan)
     
-    # 4. Answer
+    # 4. Answer (includes refusal gate)
     style = body.get("style", "Detailed")
-    data = answer_agent.answer(q, context, style=style)
+    data = answer_agent.answer(q, retrieval, style=style)
 
     # 5. Report (Paralegal Mode PDF)
     # Include Paralegal Context ALWAYS (so Dashboard works even if PDF fails)
@@ -127,16 +127,18 @@ async def query(body: dict, format: str = Query(default="json")):
         "missing_facts": case_context.missing_facts
     }
 
-    report_filename = f"report_{uuid.uuid4().hex[:8]}.pdf"
-    report_path = Path("static") / report_filename
-    report_path.parent.mkdir(exist_ok=True)
-    
-    try:
-        reporter_agent.generate_report(q, plan, data, filename=str(report_path))
-        data["report_url"] = f"/static/{report_filename}"
-    except Exception as e:
-        print(f"Report Generation Failed: {e}")
-        data["report_error"] = str(e)
+    # Only generate PDF if the system did NOT refuse
+    if not data.get("refused", False):
+        report_filename = f"report_{uuid.uuid4().hex[:8]}.pdf"
+        report_path = Path("static") / report_filename
+        report_path.parent.mkdir(exist_ok=True)
+        
+        try:
+            reporter_agent.generate_report(q, plan, data, filename=str(report_path))
+            data["report_url"] = f"/static/{report_filename}"
+        except Exception as e:
+            print(f"Report Generation Failed: {e}")
+            data["report_error"] = str(e)
 
     # 6. Render
     if format == "html":

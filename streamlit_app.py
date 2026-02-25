@@ -235,6 +235,25 @@ if st.session_state.history:
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown(f"**🧑‍⚖️ Question:** {q_text}")
+
+    # --- Confidence Badge & Refusal Banner ---
+    confidence = data.get("confidence", None)
+    refused = data.get("refused", False)
+
+    if refused:
+        st.error("🚫 **Answer Refused** — The system did not find enough reliable legal sources to "
+                 "provide a trustworthy answer. This prevents hallucinated legal advice.")
+    
+    if confidence is not None:
+        pct = round(confidence * 100, 1)
+        if confidence >= 0.55:
+            badge = f"🟢 **High Confidence** ({pct}%)"
+        elif confidence >= 0.38:
+            badge = f"🟡 **Medium Confidence** ({pct}%)"
+        else:
+            badge = f"🔴 **Low Confidence** ({pct}%)"
+        st.markdown(f"📊 Retrieval Quality: {badge}")
+
     st.markdown('<div class="answer">', unsafe_allow_html=True)
     st.markdown(answer_html, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
@@ -252,15 +271,18 @@ if st.session_state.history:
             st.metric("Complexity", ctx.get("complexity", "N/A"))
         with col3:
             st.metric("Financial", ctx.get("financial_status", "Unknown"))
+            if confidence is not None:
+                st.metric("Confidence", f"{round(confidence * 100, 1)}%")
         
         if ctx.get("missing_facts"):
             st.warning(f"⚠️ Missing Facts: {', '.join(ctx.get('missing_facts'))}")
             
-    # --- PDF Report Download ---
-    report_url = data.get("report_url")
-    if report_url:
-        full_report_url = base_url.rstrip("/") + report_url
-        st.link_button("📄 Download Formal Legal Report (PDF)", full_report_url)
+    # --- PDF Report Download (only if not refused) ---
+    if not refused:
+        report_url = data.get("report_url")
+        if report_url:
+            full_report_url = base_url.rstrip("/") + report_url
+            st.link_button("📄 Download Formal Legal Report (PDF)", full_report_url)
     
     st.markdown(
         f'<div class="small-meta">Style: <b>{latest["style"]}</b> • Latency: <b>{latency_ms} ms</b></div>',

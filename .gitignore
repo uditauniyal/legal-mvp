@@ -27,6 +27,20 @@ part_a*
 x
 
 # Generated Reports
+static/
 *.pdf
 !tests/data/*.pdf
 
+# Large / debug files
+full_codebase.py
+debug_scores.py
+debug_qdrant.py
+check_pdfs.py
+fix_corpus_tags.py
+fix_embeddings.py
+extract_results.py
+parse_results.py
+results.csv
+ingest_debug.log
+testing_results/
+app_backup.py

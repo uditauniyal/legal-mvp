@@ -13,7 +13,6 @@ def chat_json(messages: list[dict], max_tokens=2048, model=None):
     return client.chat.completions.create(
         model=model,
         temperature=0,
-        response_format={"type": "json_object"},
         messages=messages,
-        max_tokens=max_tokens
+        max_completion_tokens=max_tokens
     ).choices[0].message.content

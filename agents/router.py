@@ -17,10 +17,11 @@ class QueryPlan(BaseModel):
 # --- Regex Patterns ---
 SEC_RE = re.compile(r'(?i)\b(section|sec|article|art|order|rule)\s+(\d+[A-Za-z]?)')
 ACT_MAP = {
-    "ipc": "BNS", "bns": "BNS", "penal code": "BNS",
+    "ipc": "BNS", "bns": "BNS", "penal code": "BNS", "nyaya sanhita": "BNS",
     "crpc": "BNSS", "bnss": "BNSS", "criminal procedure": "BNSS",
     "iea": "BSA", "bsa": "BSA", "evidence act": "BSA",
-    "constitution": "Constitution"
+    "constitution": "Constitution",
+    "consumer protection": "Unknown",
 }
 CASE_RE = re.compile(r'(?i)(\s+v\.\s+|\s+vs\.\s+|judgment|appeal|petition|scc|air\s+\d+)')
 
@@ -33,11 +34,19 @@ class RouterAgent:
         entities = []
         boosts = []
 
-        # 1. Corpus Mapping (Rule based is fast & accurate)
+        # 1. Corpus Mapping — collect ALL matching corpora
+        matched_corpora = set()
         for key, corpus in ACT_MAP.items():
             if key in q_lower:
-                target_corpus = corpus
-                break
+                matched_corpora.add(corpus)
+
+        # If exactly ONE corpus matched, use it as a filter
+        # If MULTIPLE matched (e.g., "IPC" + "CrPC"), don't filter — search everything
+        if len(matched_corpora) == 1:
+            target_corpus = matched_corpora.pop()
+        elif len(matched_corpora) > 1:
+            target_corpus = None  # Multi-corpus query — search everything
+            print(f"[Router] Multi-corpus query detected: {matched_corpora} → no filter")
         
         # 2. Extract Entities
         sec_matches = SEC_RE.findall(query)
@@ -51,14 +60,15 @@ class RouterAgent:
         # 3. Case Law Detection
         if CASE_RE.search(query) or "judgment" in q_lower:
             intent = "case_law"
-            target_corpus = "Judgments"
+            # Don't force target_corpus to "Judgments" — we may not have judgment docs
+            # Let vector similarity find the most relevant statutory provisions instead
 
-        # 4. Fallback based on Domain from Intake
-        if not target_corpus:
+        # 4. Fallback based on Domain from Intake (only if no corpus matched at all)
+        if not target_corpus and not matched_corpora:
             if "Criminal" in context.predicted_legal_domain:
-                target_corpus = "BNS" # Default to Penal Code for criminal
+                target_corpus = "BNS"
             elif "Civil" in context.predicted_legal_domain:
-                target_corpus = "BNSS" # Or some civil code if we had it
+                target_corpus = None  # Don't filter — search everything for civil queries
 
         # 5. Enrich Context with Intake Issues
         boosts.extend(context.legal_issues)
@@ -67,6 +77,8 @@ class RouterAgent:
         rewritten = query
         if boosts:
              rewritten = f"{' '.join(context.legal_issues)} {' '.join(entities)} {query}"
+
+        print(f"[Router] Intent: {intent} | Corpus: {target_corpus} | Entities: {entities}")
 
         return QueryPlan(
             original_query=query,
@@ -77,4 +89,5 @@ class RouterAgent:
             boost_terms=boosts,
             case_context=context
         )
+
 

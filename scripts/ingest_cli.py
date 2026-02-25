@@ -32,10 +32,29 @@ def chunk_page(doc_name, page, text, target_tokens=450, overlap_sentences=1):
     return out
 
 def guess_corpus(doc_name, text):
-    n = (doc_name + " " + text[:200]).lower()
-    if any(k in n for k in ["bns", "nyaya", "ipc"]): return "BNS"
-    if any(k in n for k in ["bnss", "crpc", "procedure"]): return "BNSS"
-    if any(k in n for k in ["bsa", "evidence", "iea"]): return "BSA"
-    if any(k in n for k in ["constitution", "article "]): return "Constitution"
-    if any(k in n for k in [" v. ", "scc", "air ", "judgment", "appeal"]): return "Judgments"
+    n = (doc_name + " " + text[:300]).lower()
+
+    # Known documents by filename
+    if "repealedfileopen" in doc_name.lower():
+        return "BNS"  # Old IPC → map to BNS corpus
+    if "bharatiya_nyaya_sanhita" in doc_name.lower():
+        return "BNS"
+    if "criminal_procedure" in doc_name.lower() or "crpc" in doc_name.lower():
+        return "BNSS"
+    if "consumer_protection" in doc_name.lower() or "a2019-35" in doc_name.lower():
+        return "ConsumerProtection"
+
+    # Keyword-based fallback
+    if any(k in n for k in ["bns", "nyaya sanhita", "ipc", "penal code", "indian penal"]):
+        return "BNS"
+    if any(k in n for k in ["bnss", "crpc", "criminal procedure", "code of criminal"]):
+        return "BNSS"
+    if any(k in n for k in ["bsa", "evidence", "iea", "indian evidence"]):
+        return "BSA"
+    if any(k in n for k in ["constitution", "article "]):
+        return "Constitution"
+    if any(k in n for k in [" v. ", "scc", "air ", "judgment", "appeal"]):
+        return "Judgments"
+    if any(k in n for k in ["consumer protection", "consumer commission"]):
+        return "ConsumerProtection"
     return "Unknown"
