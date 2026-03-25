@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">⚖️ Legal MVP</h1>
-  <p align="center"><strong>Agentic RAG System for Indian Legal Q&A</strong></p>
-  <p align="center">FastAPI · Qdrant · OpenAI · Streamlit · Multi-Agent Architecture</p>
+  <p align="center"><strong>Multi-Agent RAG System for Indian Legal Advisory</strong></p>
+  <p align="center">FastAPI · Qdrant · OpenAI · Streamlit · Five-Agent Architecture · Composite Confidence Scoring</p>
 </p>
 
 <p align="center">
@@ -10,30 +10,38 @@
   <img src="https://img.shields.io/badge/Qdrant-Vector_DB-purple" alt="Qdrant"/>
   <img src="https://img.shields.io/badge/OpenAI-GPT--4o--mini-black?logo=openai" alt="OpenAI"/>
   <img src="https://img.shields.io/badge/Streamlit-UI-red?logo=streamlit" alt="Streamlit"/>
+  <img src="https://img.shields.io/badge/Confidence-Composite_Scoring-orange" alt="Confidence"/>
 </p>
 
-> A production-minded, multi-agent **Retrieval-Augmented Generation** system for Indian law. Upload legal documents → Ingest into vector store → Ask questions in natural language → Receive **grounded answers with inline citations**. Includes a full **Paralegal Mode** with case intake, intelligent routing, and automated report generation.
+> A production-grade, multi-agent **Retrieval-Augmented Generation** system purpose-built for Indian law. Upload legal documents → Ingest into vector store → Ask questions in natural language → Receive **grounded answers with inline citations and confidence-calibrated disclaimers**. Features a **composite confidence scoring system** that fuses three orthogonal retrieval signals to drive adaptive system behaviour across the entire pipeline.
 
 ---
 
 ## Table of Contents
 
 - [System Overview](#system-overview)
+- [What's New (v2)](#whats-new-v2)
 - [Architecture](#architecture)
   - [High-Level Architecture](#high-level-architecture)
-  - [Dual Operating Modes](#dual-operating-modes)
+  - [Communication Architecture](#communication-architecture)
 - [Agent Deep Dive](#agent-deep-dive)
-  - [Router Agent](#-router-agent)
-  - [Retriever Agent](#-retriever-agent)
-  - [Answer Agent](#-answer-agent)
-  - [Intake Agent](#-intake-agent--paralegal-mode)
-  - [Reporter Agent](#-reporter-agent--paralegal-mode)
-- [Supporting Modules](#supporting-modules)
-  - [Decision Engine](#decision-engine)
-  - [MMR Diversifier](#mmr-diversifier)
-  - [Evidence Packer](#evidence-packer)
-  - [JSON Validator](#json-validator)
+  - [Agent 1: Intake Agent](#-agent-1-intake-agent)
+  - [Agent 2: Router Agent](#-agent-2-router-agent)
+  - [Agent 3: Retriever Agent](#-agent-3-retriever-agent)
+  - [Agent 4: Answer Agent](#-agent-4-answer-agent)
+  - [Agent 5: Reporter Agent](#-agent-5-reporter-agent)
+- [Confidence Scoring System (Deep Dive)](#confidence-scoring-system-deep-dive)
+  - [The Problem](#the-problem)
+  - [Three Orthogonal Signals](#three-orthogonal-signals)
+  - [Confidence Tier Thresholds](#confidence-tier-thresholds)
+  - [Impact on System Behaviour](#impact-on-system-behaviour)
 - [Ingestion Pipeline](#ingestion-pipeline)
+  - [Text Extraction](#stage-1-text-extraction)
+  - [Chunking](#stage-2-chunking)
+  - [Embedding](#stage-3-embedding)
+  - [Indexing](#stage-4-indexing)
+- [Validation Results](#validation-results)
+- [Ingested Legal Corpus](#ingested-legal-corpus)
 - [Data Flow & Sequence Diagrams](#data-flow--sequence-diagrams)
 - [Directory Layout](#directory-layout)
 - [Prerequisites](#prerequisites)
@@ -41,9 +49,10 @@
 - [Configuration](#configuration)
 - [API Reference](#api-reference)
 - [Streamlit UI](#streamlit-ui)
+- [Design Decisions & Trade-Offs](#design-decisions--trade-offs)
 - [Evaluation Protocol](#evaluation-protocol)
 - [Troubleshooting](#troubleshooting)
-- [Roadmap](#roadmap)
+- [Future Work](#future-work)
 - [License](#license)
 - [Acknowledgements](#acknowledgements)
 
@@ -51,20 +60,38 @@
 
 ## System Overview
 
-Legal MVP is built around a **five-agent architecture** that orchestrates the entire lifecycle of legal question-answering — from case intake to cited report generation. The system operates in two modes:
+Legal MVP is built around a **five-agent sequential pipeline** that orchestrates the complete lifecycle of legal question-answering — from case triage to cited report generation. Each agent has a single, well-defined responsibility, making every component independently testable, replaceable, and auditable.
 
-| Mode | Agents Involved | Use Case |
-|------|----------------|----------|
-| **Standard Q&A** | Router → Retriever → Answer | Direct legal questions with cited responses |
-| **Paralegal Mode** | Intake → Router → Retriever → Answer → Reporter | Full case workflow: intake, research, analysis, and report |
+| Agent | Role | Method |
+|-------|------|--------|
+| **1. Intake** | Case triage & persona classification | LLM + regex override |
+| **2. Router** | Corpus routing, entity extraction, query rewriting | Deterministic regex (no LLM) |
+| **3. Retriever** | Vector search, reranking, confidence scoring | 7-step pipeline |
+| **4. Answer** | Confidence-aware answer generation | LLM with tier-based prompts |
+| **5. Reporter** | Formal PDF report creation | fpdf2 with Unicode sanitization |
 
-**Key capabilities:**
+**Key innovations:**
 
+- **Composite confidence scoring** — Weighted fusion of three orthogonal signals (top-k quality, score gap consistency, entity coverage) that drives adaptive behaviour across the entire pipeline
+- **Deterministic routing** — Regex-based corpus selection eliminates non-deterministic LLM routing errors in high-stakes legal domains
+- **Calibrated refusal** — System refuses to answer when zero usable chunks survive filtering, rather than hallucinating
 - **Grounded answers** — Every claim backed by numbered `[n]` citations with source document, page, and snippet
-- **Agentic routing** — Intelligent classification of queries to the right legal corpus and retrieval strategy
-- **Paralegal automation** — Structured case intake, intelligent evidence gathering, and professional report generation
-- **Indian law focus** — Covers BNS, BNSS, BSA, CPA, CrPC, Constitution, and judicial precedents
-- **Production-ready** — FastAPI backend, Docker-based vector DB, Windows-compatible, robust error handling
+- **Tier-based disclaimers** — Confidence score directly modifies LLM prompt to distinguish sourced claims from general knowledge
+- **Indian law focus** — Covers BNS, BNSS, BSA, CrPC, Constitution, Consumer Protection Act, IPC (legacy), and judicial precedents
+
+---
+
+## What's New (v2)
+
+| Change | Before | After | Impact |
+|--------|--------|-------|--------|
+| **Confidence formula** | Mean of all 15 chunks | Weighted composite (top-5 + gap + entities) | 47.0% → 70.6% for valid queries |
+| **Chunk filtering** | All 15 sent to LLM | Adaptive: within 0.15 of top + 0.35 floor | Reduced hallucination risk |
+| **Disclaimers** | Same prompt always | Tier-based prompt modification | LLM distinguishes sourced vs. general |
+| **UI thresholds** | 70% / 40% / <40% | 55% / 38% / <38% | Calibrated to legal text score distribution |
+| **Entity reranking** | None | Router-extracted entities boost chunks | Section-specific queries hit the right provisions |
+| **Section normalization** | None | Bare numbers → "Section X" during chunking | Dramatically improved section-query retrieval |
+| **Corpus auto-tagging** | Manual | Keyword-based `guess_corpus()` | Automatic BNS/BNSS/BSA/Constitution tagging |
 
 ---
 
@@ -72,437 +99,306 @@ Legal MVP is built around a **five-agent architecture** that orchestrates the en
 
 ### High-Level Architecture
 
+Two primary data flows converge at Qdrant: the **Ingestion Pipeline** (documents in) and the **Query Pipeline** (questions answered).
+
 ```mermaid
 flowchart TD
     subgraph UI["🧑 Interface Layer"]
         USER["👤 User"]
-        STUI["🖥️ Streamlit UI<br/><i>streamlit_app.py</i>"]
+        STUI["🖥️ Streamlit UI<br/><i>streamlit_app.py · port 8501</i>"]
         CURL["⌨️ cURL / HTTP Client"]
     end
 
-    subgraph API["🌐 API Gateway"]
-        FA["⚡ FastAPI Server<br/><i>app.py</i>"]
+    subgraph API["🌐 Application Layer"]
+        FA["⚡ FastAPI Orchestrator<br/><i>app.py · port 8000</i><br/>/query · /ingest · /healthz"]
     end
 
-    subgraph Agents["🤖 Agent Layer — agents/"]
-        direction TB
-        INTAKE["📝 Intake Agent<br/><i>agents/intake.py</i>"]
-        ROUTER["🧭 Router Agent<br/><i>agents/router.py</i>"]
-        RETRIEVER["🎯 Retriever Agent<br/><i>agents/retriever.py</i>"]
-        ANSWER["💬 Answer Agent<br/><i>agents/answer.py</i>"]
-        REPORTER["📊 Reporter Agent<br/><i>agents/reporter.py</i>"]
+    subgraph Agents["🤖 Five-Agent Sequential Pipeline"]
+        direction LR
+        INTAKE["📝 Intake<br/><i>agents/intake.py</i><br/>LLM triage"]
+        ROUTER["🧭 Router<br/><i>agents/router.py</i><br/>Regex routing"]
+        RETRIEVER["🎯 Retriever<br/><i>agents/retriever.py</i><br/>7-step pipeline"]
+        ANSWER["💬 Answer<br/><i>agents/answer.py</i><br/>Confidence-aware"]
+        REPORTER["📊 Reporter<br/><i>agents/reporter.py</i><br/>PDF generation"]
+        INTAKE --> ROUTER --> RETRIEVER --> ANSWER --> REPORTER
     end
 
-    subgraph Retrieval["🔍 Retrieval Engine — retrieve/"]
-        DEC["🧠 Decision Engine<br/><i>retrieve/decision.py</i>"]
-        SEARCH["🔎 Vector Search<br/><i>retrieve/search.py</i>"]
-        MMR["🔀 MMR Diversifier<br/><i>retrieve/mmr.py</i>"]
-        PACK["📋 Evidence Packer<br/><i>retrieve/pack.py</i>"]
+    subgraph Ingest["📥 Ingestion Pipeline"]
+        EXT["🔍 Extract<br/><i>ingest/extract.py</i><br/>PyMuPDF + OCR"]
+        CHK["✂️ Chunk<br/><i>ingest/chunk.py</i><br/>~450 tokens + section norm"]
+        IDX["📦 Index<br/><i>ingest/index.py</i><br/>Batch embed + upsert"]
+        EXT --> CHK --> IDX
     end
 
-    subgraph AnswerGen["✍️ Answer Generation — answer/"]
-        PROMPT["📜 Prompt Builder<br/><i>answer/prompt.py</i>"]
-        LLM["🤖 LLM Synthesizer<br/><i>answer/llm.py</i>"]
-        VALID["✅ JSON Validator<br/><i>answer/validate.py</i>"]
-    end
-
-    subgraph Ingest["📥 Ingestion Pipeline — ingest/"]
-        EXT["🔍 Extractor<br/><i>ingest/extract.py</i>"]
-        CHK["✂️ Chunker<br/><i>ingest/chunk.py</i>"]
-        IDX["📦 Indexer<br/><i>ingest/index.py</i>"]
-    end
-
-    subgraph Infra["🗄️ Infrastructure"]
-        QD[("🔷 Qdrant<br/>1536-d Cosine<br/>Docker :6333")]
-        OAI["🤖 OpenAI API<br/>Embeddings + Chat"]
-    end
-
-    subgraph Core["⚙️ Core — core/ + clients/"]
-        CFG["📝 Config<br/><i>core/config.py</i>"]
-        LOG["📊 Logger<br/><i>core/logging.py</i>"]
-        OC["OpenAI Client<br/><i>clients/openai_client.py</i>"]
-        QC["Qdrant Client<br/><i>clients/qdrant_client.py</i>"]
+    subgraph Infra["🗄️ External Services"]
+        QD[("🔷 Qdrant<br/>1536-dim Cosine<br/>Docker :6333")]
+        OAI["🤖 OpenAI API<br/>text-embedding-3-small<br/>GPT-4o-mini (T=0)"]
+        OCR["📝 Tesseract OCR<br/>eng+hin+tam+tel"]
     end
 
     USER --> STUI & CURL
-    STUI & CURL --> FA
-
-    FA -->|"POST /query"| ROUTER
-    FA -->|"Paralegal Mode"| INTAKE
-    FA -->|"POST /ingest"| EXT
-
-    INTAKE -->|"structured case"| ROUTER
-    ROUTER -->|"classified query"| RETRIEVER
-    RETRIEVER --> DEC --> SEARCH --> MMR --> PACK
-    RETRIEVER -->|"evidence"| ANSWER
-    ANSWER --> PROMPT --> LLM --> VALID
-    ANSWER -->|"cited answer"| REPORTER
-    REPORTER -->|"final report"| FA
-
-    EXT --> CHK --> IDX
-
-    SEARCH <--> QD
+    STUI & CURL -->|"HTTP POST"| FA
+    FA --> INTAKE
+    FA --> EXT
+    RETRIEVER <-->|"search"| QD
     IDX --> QD
-    LLM <--> OAI
+    RETRIEVER <--> OAI
+    ANSWER <--> OAI
     IDX <--> OAI
+    EXT -.->|"fallback"| OCR
+    REPORTER -->|"JSON + PDF"| FA
+    FA -->|"response"| STUI & CURL
 
-    Core -.-> Agents
-    Core -.-> Retrieval
-    Core -.-> AnswerGen
-    Core -.-> Ingest
-
-    style UI fill:#e8f4f8,stroke:#2196F3
-    style API fill:#fff3e0,stroke:#FF9800
     style Agents fill:#fce4ec,stroke:#E91E63
-    style Retrieval fill:#e8f5e9,stroke:#4CAF50
-    style AnswerGen fill:#f3e5f5,stroke:#9C27B0
     style Ingest fill:#e0f2f1,stroke:#009688
     style Infra fill:#ede7f6,stroke:#673AB7
-    style Core fill:#f5f5f5,stroke:#9E9E9E
 ```
 
----
+### Communication Architecture
 
-### Dual Operating Modes
-
-The system operates in two distinct modes, each using a different subset of agents:
-
-```mermaid
-flowchart LR
-    subgraph Mode1["⚡ Mode 1: Standard Q&A"]
-        direction LR
-        Q1["❓ Query"] --> R1["🧭 Router"] --> RET1["🎯 Retriever"] --> A1["💬 Answer"]
-        A1 --> OUT1["📨 JSON Response<br/>{query, answer, citations}"]
-    end
-
-    subgraph Mode2["📋 Mode 2: Paralegal Mode"]
-        direction LR
-        C2["📝 Case Details"] --> I2["📝 Intake"] --> R2["🧭 Router"]
-        R2 --> RET2["🎯 Retriever"] --> A2["💬 Answer"]
-        A2 --> REP2["📊 Reporter"]
-        REP2 --> OUT2["📄 Case Report<br/>+ Dashboard"]
-    end
-
-    style Mode1 fill:#e8f5e9,stroke:#4CAF50
-    style Mode2 fill:#fff3e0,stroke:#FF9800
-```
-
-| Feature | Standard Q&A | Paralegal Mode |
-|---------|-------------|----------------|
-| **Entry point** | Direct question | Structured case intake |
-| **Agents used** | 3 (Router → Retriever → Answer) | 5 (all agents) |
-| **Output** | JSON with answer + citations | Full case report + dashboard |
-| **Best for** | Quick legal queries | Comprehensive case analysis |
-| **Interaction** | Single-turn | Multi-turn with structured input |
+The Streamlit frontend (port 8501) communicates with the FastAPI backend (port 8000) via HTTP POST. The backend orchestrates the five-agent pipeline sequentially and returns a JSON response containing the answer, citations, confidence score, paralegal context, and optional report URL. Qdrant (port 6333) is accessed directly by the backend via the `qdrant-client` Python SDK.
 
 ---
 
 ## Agent Deep Dive
 
-The five agents in `agents/` form the backbone of the system. Each agent is a specialized module with a distinct role in the legal Q&A pipeline.
+### 📝 Agent 1: Intake Agent
 
-### 🧭 Router Agent
+**File:** `agents/intake.py` · **Method:** LLM-based (GPT-4o-mini, temperature=0, max 600 tokens)
 
-**File:** `agents/router.py`
-
-The Router Agent is the **orchestrator** and entry point for all queries. It classifies the incoming query, determines which legal corpus to target, applies section-specific boosting rules, and routes the request to the Retriever Agent with the appropriate configuration.
+The Intake Agent triages the user's query by classifying scenario, expertise level, urgency, financial status, complexity, legal domain, potential issues, and missing facts. Returns a `CaseContext` Pydantic object.
 
 ```mermaid
 flowchart TD
-    Q["Incoming Query"] --> CLASSIFY{"Classify<br/>Query Type"}
+    Q["Raw User Query"] --> LLM["GPT-4o-mini Triage<br/>(temp=0, max 600 tokens)"]
+    LLM --> CC["CaseContext Object"]
+    CC --> REGEX{"Paralegal Override<br/>Regex Check"}
+    REGEX -->|"Contains Section/Article/FIR/<br/>Bail/Writ/Quash/BNS/IPC"| FORCE["Force persona = 'Paralegal'"]
+    REGEX -->|"No technical terms"| PASS["Keep LLM classification"]
+    FORCE --> OUT["Final CaseContext"]
+    PASS --> OUT
 
-    CLASSIFY -->|"Statutory Question"| CORPUS["Identify Target Corpus"]
-    CLASSIFY -->|"Case Law Question"| JUDG["Route to Judgments"]
-    CLASSIFY -->|"Cross-cutting"| MULTI["Multi-corpus Search"]
-
-    CORPUS --> BOOST{"Section Boosting<br/>Rules"}
-    JUDG --> BOOST
-    MULTI --> BOOST
-
-    BOOST -->|"§82 → add §83"| REWRITE["Query Rewriting"]
-    BOOST -->|"§125 → maintenance"| REWRITE
-    BOOST -->|"§21 → CPA filter"| REWRITE
-    BOOST -->|"No match"| DIRECT["Pass Through"]
-
-    REWRITE --> RET["🎯 Retriever Agent"]
-    DIRECT --> RET
-
-    style CLASSIFY fill:#fff9c4,stroke:#F9A825
-    style BOOST fill:#e1f5fe,stroke:#0288D1
+    style REGEX fill:#fff9c4,stroke:#F9A825
 ```
 
-**Responsibilities:**
+**CaseContext schema:**
 
-- **Query classification** — Determines if the query is statutory, case-law, procedural, or cross-cutting
-- **Corpus routing** — Maps query keywords to specific legal corpora (BNS/BNSS/BSA, CPA, CrPC, Constitution, Judgments)
-- **Section boosting** — Injects related sections for companion provisions (e.g., §82 proclamation → also boost §83 attachment)
-- **Query rewriting** — Prepends boosted terms to improve semantic retrieval
+| Field | Type | Example Values |
+|-------|------|---------------|
+| `original_query` | str | "My sister died after marriage..." |
+| `scenario` | str | "Dowry Death", "Neighbor Nuisance" |
+| `user_persona` | str | "Layman", "Paralegal" |
+| `urgency` | str | "Immediate", "Deferred" |
+| `financial_status` | str | "Low Income", "Affluent", "Unknown" |
+| `complexity` | str | "Low", "Medium", "High" |
+| `predicted_legal_domain` | str | "Criminal", "Civil", "Constitutional" |
+| `legal_issues` | List[str] | ["Dowry death", "Cruelty by husband"] |
+| `missing_facts` | List[str] | ["Date of marriage", "FIR status"] |
 
-**Boosting rules:**
+**Paralegal override:** After the LLM produces CaseContext, a deterministic regex check runs. If the query contains technical terms (`Section \d+`, `Article \d+`, `vs.`, `FIR`, `Bail`, `Writ`, `Quash`, `CrPC`, `IPC`, `BNS`, etc.), `user_persona` is forced to `'Paralegal'` regardless of LLM classification.
 
-| Detected Pattern | Injected Boost | Reason |
-|-----------------|----------------|--------|
-| §82 (proclamation) | §83 (attachment of property) | Companion provisions always read together |
-| §125 | "maintenance" context | Enriches semantic search for family law |
-| §21 (misleading ads) | CPA corpus filter | Routes to Consumer Protection Act |
-| Forms/Annexures | De-prioritize FORM pages | Prefer substantive statute body text |
+**Fallback:** If the LLM call fails (network error, JSON parse failure), the agent produces a safe default CaseContext and applies the paralegal override.
+
+---
+
+### 🧭 Agent 2: Router Agent
+
+**File:** `agents/router.py` · **Method:** Entirely deterministic (no LLM)
+
+The Router Agent determines which corpus to search, extracts legal entities, classifies query intent, and rewrites the query for optimal embedding similarity. **This is a deliberate design choice:** in legal contexts, routing errors could lead to citing the wrong statute. Regex is deterministic, sub-millisecond, and predictable.
+
+```mermaid
+flowchart TD
+    CC["CaseContext from Intake"] --> CORPUS{"Corpus Mapping<br/>(keyword scan)"}
+
+    CORPUS -->|"ipc, bns, penal code"| BNS["BNS corpus filter"]
+    CORPUS -->|"crpc, bnss, procedure"| BNSS["BNSS corpus filter"]
+    CORPUS -->|"iea, bsa, evidence"| BSA["BSA corpus filter"]
+    CORPUS -->|"constitution"| CONST["Constitution filter"]
+    CORPUS -->|"Multiple match"| NONE["No filter (cross-corpus)"]
+
+    BNS & BNSS & BSA & CONST & NONE --> ENTITY["Entity Extraction<br/><code>(section|article|order|rule)\s+(\d+[A-Za-z]?)</code>"]
+
+    ENTITY --> INTENT{"Intent Classification"}
+    INTENT -->|"Section/Article match"| STATUTE["statute"]
+    INTENT -->|"v./vs./judgment"| CASELAW["case_law"]
+    INTENT -->|"Multiple corpora"| COMPARE["comparison"]
+    INTENT -->|"No triggers"| GENERAL["general"]
+
+    STATUTE & CASELAW & COMPARE & GENERAL --> REWRITE["Query Rewriting<br/>Prepend entities + issues"]
+
+    REWRITE --> OUT["QueryPlan → Retriever"]
+
+    style CORPUS fill:#e1f5fe,stroke:#0288D1
+    style INTENT fill:#fff9c4,stroke:#F9A825
+```
 
 **Query rewrite example:**
 
 ```
-Input:  "What is the procedure under Section 83 CrPC?"
-Output: "Section 83 CrPC attachment property || What is the procedure under Section 83 CrPC?"
+Input query: "My sister died within 2 years of marriage. Her in-laws were demanding a car as dowry."
+Intake issues: ['Dowry death', 'Cruelty']
+Extracted entities: ['Section 304B']
+
+Rewritten: "Dowry death Cruelty Section 304B My sister died within 2 years of marriage..."
 ```
 
 ---
 
-### 🎯 Retriever Agent
+### 🎯 Agent 3: Retriever Agent
 
 **File:** `agents/retriever.py`
 
-The Retriever Agent manages the entire evidence-gathering pipeline. It coordinates four sub-modules — Decision Engine, Vector Search, MMR Diversification, and Evidence Packing — to produce a curated, diverse, and numbered evidence block.
+The Retriever Agent is the **most significant component** of the system's intelligence. It executes a **7-step pipeline** that searches, filters, reranks, and scores retrieved chunks to produce a confidence-calibrated evidence block.
 
 ```mermaid
 flowchart TD
-    IN["Boosted Query<br/>+ Corpus Filters<br/><i>from Router Agent</i>"] --> EMBED
+    IN["QueryPlan from Router<br/>(rewritten query + corpus filter + entities)"]
 
-    subgraph RetrieverAgent["🎯 Retriever Agent Pipeline"]
-        EMBED["🔢 Embed Query<br/><i>text-embedding-3-small</i><br/>→ 1536-d vector"]
+    subgraph Pipeline["🎯 7-Step Retrieval Pipeline"]
+        S1["<b>Step 1 — Embed</b><br/>Query → 1536-dim vector<br/><i>text-embedding-3-small</i>"]
+        S2["<b>Step 2 — Search</b><br/>Qdrant cosine similarity<br/>limit=15, optional corpus filter"]
+        S3["<b>Step 3 — Fallback</b><br/>If filtered search = 0 results<br/>→ retry without filter"]
+        S4["<b>Step 4 — Rerank</b><br/>Promote chunks containing<br/>Router-extracted entities to top"]
+        S5["<b>Step 5 — Filter</b><br/>Adaptive threshold:<br/><code>max(top_score − 0.15, 0.35)</code><br/>Minimum 3 chunks always pass"]
+        S6["<b>Step 6 — Score</b><br/>Composite confidence from<br/>3 orthogonal signals (§7)"]
+        S7["<b>Step 7 — Return</b><br/>RetrievalResult with chunks,<br/>confidence, metadata"]
 
-        SEARCH["🔎 Vector Search<br/><i>retrieve/search.py</i><br/>Qdrant cosine · k=24"]
-
-        MMR_S["🔀 MMR Diversify<br/><i>retrieve/mmr.py</i><br/>λ·relevance − (1−λ)·redundancy<br/>→ top 6–8 chunks"]
-
-        DEDUP["🧹 Deduplication<br/>Remove near-identical<br/>snippets from same page"]
-
-        PACK_S["📋 Evidence Packer<br/><i>retrieve/pack.py</i><br/>Numbered [1]..[k]<br/>~400 chars per snippet"]
-
-        EMBED --> SEARCH --> MMR_S --> DEDUP --> PACK_S
+        S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
     end
 
-    PACK_S --> OUT["Evidence Block<br/>ready for Answer Agent"]
+    IN --> S1
+    S7 --> OUT["RetrievalResult → Answer Agent"]
+    S2 <-->|"similarity search"| QD[("🔷 Qdrant")]
 
-    QD[("🔷 Qdrant")] <-->|"similarity<br/>search"| SEARCH
-
-    style RetrieverAgent fill:#e8f5e9,stroke:#4CAF50
+    style Pipeline fill:#e8f5e9,stroke:#4CAF50
 ```
 
-**Stage-by-stage breakdown:**
+**RetrievalResult schema:**
 
-| Stage | Module | Input | Output | Details |
-|-------|--------|-------|--------|---------|
-| **1. Embed** | `clients/openai_client.py` | Boosted query string | 1536-d vector | `text-embedding-3-small` model |
-| **2. Search** | `retrieve/search.py` | Query vector + corpus filter | 24 candidate chunks | Qdrant cosine similarity |
-| **3. MMR** | `retrieve/mmr.py` | 24 candidates | 6–8 diverse chunks | Maximal Marginal Relevance |
-| **4. Dedupe** | `retrieve/mmr.py` | 6–8 chunks | Deduplicated set | Removes near-identical snippets |
-| **5. Pack** | `retrieve/pack.py` | Diverse chunks | Numbered evidence block | `[1]` source, page, snippet format |
+| Field | Type | Description |
+|-------|------|-------------|
+| `chunks` | List[ScoredPoint] | Filtered chunks passed to Answer agent |
+| `confidence` | float (0–1) | Composite: 55% top-k + 15% gap + 30% entity |
+| `top_k_mean` | float | Mean score of top 5 retrieved chunks |
+| `score_gap` | float | Score difference between best and 5th chunk |
+| `entity_coverage` | float | Fraction of entities found in top 5 chunk texts |
+| `max_score` | float | Highest single chunk score |
+| `total_chunks` | int | Chunks after filtering (sent to LLM) |
+| `total_retrieved` | int | Raw chunks from Qdrant (before filtering) |
+| `refused` | bool | True only if zero chunks survived filtering |
 
 ---
 
-### 💬 Answer Agent
+### 💬 Agent 4: Answer Agent
 
 **File:** `agents/answer.py`
 
-The Answer Agent synthesizes grounded legal answers from the evidence block. It constructs a strict prompt, calls the LLM with JSON-mode enforcement, and validates the output through a repair-capable JSON validator.
+The Answer Agent generates structured legal advice using GPT-4o-mini, with **response style dynamically adjusted based on the confidence tier** from the Retriever.
 
 ```mermaid
 flowchart TD
-    IN["Evidence Block [1]..[k]<br/>+ Original Query"] --> PROMPT
+    IN["RetrievalResult + Original Query"]
 
-    subgraph AnswerAgent["💬 Answer Agent Pipeline"]
-        PROMPT["📜 Prompt Builder<br/><i>answer/prompt.py</i><br/>━━━━━━━━━━━━━━<br/>System: legal assistant rules<br/>User: evidence + question"]
+    IN --> GATE{"Refusal Gate<br/>refused=True OR<br/>chunks empty?"}
+    GATE -->|"Yes"| REFUSE["Return REFUSAL_MESSAGE<br/>(no LLM tokens consumed)"]
+    GATE -->|"No"| TIER{"Confidence Tier?"}
 
-        LLM["🤖 LLM Call<br/><i>answer/llm.py</i><br/>━━━━━━━━━━━━━━<br/>gpt-4o-mini<br/>temperature=0<br/>max_tokens=500<br/>response_format=json"]
+    TIER -->|"≥ 55%"| HIGH["<b>HIGH</b><br/>Normal system prompt<br/>7-section structured response<br/>🟢 Green badge"]
+    TIER -->|"≥ 38%"| MEDIUM["<b>MEDIUM</b><br/>MEDIUM_DISCLAIMER prepended<br/>Distinguish sourced vs. general<br/>🟡 Yellow badge"]
+    TIER -->|"< 38%"| LOW["<b>LOW</b><br/>LOW_DISCLAIMER prepended<br/>General guidance only<br/>🔴 Red badge"]
 
-        VAL["✅ JSON Validator<br/><i>answer/validate.py</i><br/>━━━━━━━━━━━━━━<br/>Parse → Validate Schema<br/>→ Auto-repair (1 try)"]
+    HIGH & MEDIUM & LOW --> LLM["GPT-4o-mini<br/>temp=0, JSON mode"]
+    LLM --> VALIDATE["JSON Validator<br/>Parse → Validate → Auto-repair"]
+    VALIDATE --> OUT["AnswerData<br/>{answer, citations, confidence}"]
 
-        PROMPT --> LLM --> VAL
-    end
-
-    VAL --> OUT["Structured Response<br/>{query, answer, citations[]}"]
-
-    style AnswerAgent fill:#f3e5f5,stroke:#9C27B0
+    style GATE fill:#ffcdd2,stroke:#E53935
+    style HIGH fill:#c8e6c9,stroke:#43A047
+    style MEDIUM fill:#fff9c4,stroke:#F9A825
+    style LOW fill:#ffcdd2,stroke:#E53935
 ```
 
-**Prompt design:**
+**Answer structure:** The system prompt instructs GPT-4o-mini to produce seven sections: (1) Try an Informal Solution First, (2) Gather Evidence, (3) Immediate Police Help, (4) Relevant Legal Provisions (tabulated), (5) Administrative & Civil Remedies, (6) Practical Tips, (7) Offer to Draft.
 
-```
-┌─────────────────────────────────────────┐
-│  SYSTEM PROMPT                          │
-│  • You are a legal research assistant   │
-│  • Answer ONLY from provided evidence   │
-│  • Use [n] inline citations             │
-│  • Admit when evidence is insufficient  │
-│  • Output strict JSON format:           │
-│    {query, answer, citations[]}         │
-└─────────────────────────────────────────┘
-                    +
-┌─────────────────────────────────────────┐
-│  USER PROMPT                            │
-│  Evidence:                              │
-│  [1] Source: file.pdf | Page: 20        │
-│  "The District Commission may order..." │
-│  [2] Source: file.pdf | Page: 7         │
-│  "Consumer rights include..."           │
-│                                         │
-│  Question: {user_query}                 │
-└─────────────────────────────────────────┘
-```
-
-**Output schema:**
-
-```json
-{
-  "query": "What actions can the District Commission take?",
-  "answer": "The District Commission may direct the seller to remove the defect [1], replace the goods [1], or return the price paid [2].",
-  "citations": [
-    {"source": "a2019-35.pdf", "page": 20, "snippet": "...relevant excerpt..."},
-    {"source": "a2019-35.pdf", "page": 7,  "snippet": "...relevant excerpt..."}
-  ]
-}
-```
-
-**LLM Configuration:**
+**LLM configuration:**
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | Model | `gpt-4o-mini` | Fast, cost-effective, strong at structured output |
 | Temperature | `0` | Deterministic, factual responses |
-| Max tokens | `500` | Prevents verbose outputs; keeps answers concise |
 | Response format | `{"type": "json_object"}` | Enforces valid JSON at the API level |
 
 ---
 
-### 📝 Intake Agent — Paralegal Mode
-
-**File:** `agents/intake.py`
-
-The Intake Agent is the entry point for **Paralegal Mode**. It conducts a structured case intake — gathering key details about the legal matter, parties involved, relevant facts, and desired outcomes — then formats this information into a structured case object that the Router Agent can process.
-
-```mermaid
-flowchart TD
-    CLIENT["👤 Client / User"] -->|"Case details"| INTAKE
-
-    subgraph IntakeAgent["📝 Intake Agent"]
-        INTAKE["Parse & Structure<br/>Case Information"]
-
-        EXTRACT_FACTS["Extract Key Facts<br/>━━━━━━━━━━━━━━<br/>• Parties involved<br/>• Nature of dispute<br/>• Relevant dates<br/>• Jurisdiction"]
-
-        CLASSIFY_CASE["Classify Case Type<br/>━━━━━━━━━━━━━━<br/>• Criminal vs Civil<br/>• Statutory area<br/>• Urgency level"]
-
-        FORMULATE["Formulate Legal<br/>Questions<br/>━━━━━━━━━━━━━━<br/>• Break case into<br/>  researchable queries<br/>• Prioritize issues"]
-
-        INTAKE --> EXTRACT_FACTS --> CLASSIFY_CASE --> FORMULATE
-    end
-
-    FORMULATE --> ROUTER["🧭 Router Agent"]
-
-    style IntakeAgent fill:#fff3e0,stroke:#FF9800
-```
-
-**Responsibilities:**
-
-- **Case information parsing** — Extracts structured data from free-form case descriptions
-- **Fact extraction** — Identifies parties, dispute nature, dates, and jurisdictional details
-- **Case classification** — Determines the legal domain (criminal, civil, consumer, constitutional) and urgency
-- **Query formulation** — Breaks the case down into discrete, researchable legal questions for the Retriever Agent
-
----
-
-### 📊 Reporter Agent — Paralegal Mode
+### 📊 Agent 5: Reporter Agent
 
 **File:** `agents/reporter.py`
 
-The Reporter Agent is the **final stage** in Paralegal Mode. It takes the cited answers produced by the Answer Agent and compiles them into a comprehensive, professional legal report or dashboard view.
-
-```mermaid
-flowchart TD
-    IN["Cited Answers<br/>from Answer Agent"] --> REPORTER
-
-    subgraph ReporterAgent["📊 Reporter Agent"]
-        REPORTER["Compile Results"]
-
-        STRUCTURE["Structure Report<br/>━━━━━━━━━━━━━━<br/>• Case summary<br/>• Legal analysis<br/>• Applicable provisions<br/>• Citations & references"]
-
-        FORMAT["Format Output<br/>━━━━━━━━━━━━━━<br/>• HTML report<br/>• Dashboard view<br/>• Downloadable format"]
-
-        DASHBOARD["Generate Dashboard<br/>━━━━━━━━━━━━━━<br/>• Case strength indicators<br/>• Key provisions listed<br/>• Action items"]
-
-        REPORTER --> STRUCTURE --> FORMAT --> DASHBOARD
-    end
-
-    DASHBOARD --> OUT["📄 Final Report<br/>+ 📊 Dashboard"]
-
-    style ReporterAgent fill:#e8eaf6,stroke:#3F51B5
-```
-
-**Responsibilities:**
-
-- **Result compilation** — Aggregates answers and citations from multiple legal queries into a unified view
-- **Report structuring** — Organizes findings into case summary, legal analysis, applicable provisions, and references
-- **Output formatting** — Generates HTML reports (via Jinja2 templates in `report/`) and dashboard views
-- **Action items** — Highlights key legal provisions, potential arguments, and recommended next steps
+Generates a formal PDF advisory report using **fpdf2** with four sections: Case Summary, Relevant Statutes, Legal Analysis, and References. A robust `clean_text()` function handles Unicode-to-Latin-1 conversion (currency symbols, smart quotes, dashes). Reports are **only generated when the system does not refuse**.
 
 ---
 
-## Supporting Modules
+## Confidence Scoring System (Deep Dive)
 
-These modules in `retrieve/` and `answer/` provide the low-level functionality that the agents orchestrate.
-
-### Decision Engine
-
-**File:** `retrieve/decision.py`
-
-Rule-based corpus filter and section booster — no LLM calls required.
+The composite confidence scoring system is the **major innovation** of Legal MVP v2. It addresses a fundamental failure mode in RAG systems: high average retrieval scores masking poor relevance.
 
 ```mermaid
-flowchart LR
-    Q["Query"] --> KW["Keyword Detection"]
-    KW -->|"BNS, BNSS, BSA,<br/>Constitution"| CR["Criminal &<br/>Constitutional"]
-    KW -->|"CPA, Consumer<br/>Protection"| CP["Consumer<br/>Protection"]
-    KW -->|"CrPC, Criminal<br/>Procedure"| CPC["Criminal<br/>Procedure"]
-    KW -->|"No match"| ALL["All Corpora"]
+flowchart TD
+    subgraph Signals["Three Orthogonal Signals"]
+        direction LR
+        S1["<b>Signal 1: Top-5 Mean</b><br/>Weight: 55%<br/><code>mean(top_5_scores)</code><br/><i>Best retrieval quality,<br/>ignores tail noise</i>"]
+        S2["<b>Signal 2: Score Gap</b><br/>Weight: 15%<br/><code>1 − min(gap/0.3, 1)</code><br/><i>Penalizes 'lucky hit'<br/>retrievals</i>"]
+        S3["<b>Signal 3: Entity Coverage</b><br/>Weight: 30%<br/><code>hits / total_entities</code><br/><i>Do top chunks contain<br/>queried entities?</i>"]
+    end
+
+    S1 & S2 & S3 --> FORMULA["<b>Composite Formula</b><br/><code>confidence = 0.55 × top5_mean + 0.15 × (1 − gap) + 0.30 × entity_cov</code><br/>Clamped to [0.0, 1.0], rounded to 4 decimal places"]
+
+    FORMULA --> TIER{"Confidence Tier"}
+    TIER -->|"≥ 0.55"| HIGH["🟢 <b>HIGH</b><br/>Normal generation<br/>No disclaimers"]
+    TIER -->|"≥ 0.38"| MED["🟡 <b>MEDIUM</b><br/>Soft disclaimer<br/>Distinguish sourced vs. general"]
+    TIER -->|"< 0.38"| LOW["🔴 <b>LOW</b><br/>Strong disclaimer<br/>Recommend lawyer"]
+
+    style Signals fill:#f5f5f5,stroke:#9E9E9E
+    style FORMULA fill:#e3f2fd,stroke:#1976D2
+    style HIGH fill:#c8e6c9,stroke:#43A047
+    style MED fill:#fff9c4,stroke:#F9A825
+    style LOW fill:#ffcdd2,stroke:#E53935
 ```
 
-### MMR Diversifier
+### The Problem
 
-**File:** `retrieve/mmr.py`
+In the previous implementation, confidence was the simple mean of all 15 retrieved chunk scores. This suffered from a critical flaw: a query retrieving 3 genuinely relevant chunks (0.50–0.52) alongside 12 mediocre chunks (0.40–0.45) would produce a mean of ~0.44 ("medium confidence") despite having good top results. Conversely, uniformly mediocre results (all 0.42–0.44) produced a similar mean despite having no genuinely relevant content.
 
-Applies **Maximal Marginal Relevance** to balance relevance with diversity:
+### Three Orthogonal Signals
 
-```
-Score(d) = λ × Sim(d, query) − (1 − λ) × max[Sim(d, already_selected)]
-```
+**Signal 1: Top-5 Mean (Weight: 55%)** — Only the top 5 chunks are averaged, capturing best-case retrieval quality while ignoring tail noise. In legal retrieval, the top 3–5 chunks typically contain relevant provisions while chunks 6–15 are tangentially related.
 
-Takes 24 candidates → outputs 6–8 diverse, non-redundant chunks.
+**Signal 2: Score Gap Penalty (Weight: 15%)** — Penalizes "lucky hit" retrievals where one chunk scored much higher than the rest. Formula: `gap_penalty = min((top_score − 5th_score) / 0.3, 1.0)`. When all top-5 score similarly (gap ≈ 0), full 0.15 contributed. Gap of 0.3+: contributes 0.
 
-### Evidence Packer
+**Signal 3: Entity Coverage (Weight: 30%)** — Measures whether top chunks actually contain the specific legal entities mentioned in the query. If no entities were extracted, defaults to 1.0 (neutral). Formula: `entity_coverage = count(top-5 chunks containing any entity) / count(entities)`.
 
-**File:** `retrieve/pack.py`
+### Confidence Tier Thresholds
 
-Formats chunks into numbered evidence blocks: `[1] Source: file.pdf | Page: 20 | "snippet..."` — each capped at ~400 characters.
+Calibrated against the actual score distribution of `text-embedding-3-small` on legal text (typical scores: 0.35–0.55, not the 0.8+ common in general-domain retrieval).
 
-### JSON Validator
+| Tier | Threshold | Calibration Rationale |
+|------|-----------|----------------------|
+| **HIGH** | ≥ 55% | Achievable only when top-5 chunks are genuinely relevant AND entities match |
+| **MEDIUM** | ≥ 38% | Partial relevance; corpus has related content but may lack the exact provision |
+| **LOW** | < 38% | Corpus likely does not contain the specific laws needed for authoritative answer |
 
-**File:** `answer/validate.py`
+### Impact on System Behaviour
 
-```mermaid
-flowchart LR
-    IN["LLM Output"] --> P{"Valid JSON?"}
-    P -->|"✅"| S{"Has query +<br/>answer +<br/>citations?"}
-    P -->|"❌"| R["Auto-repair"]
-    R --> P2{"Repaired?"}
-    P2 -->|"✅"| S
-    P2 -->|"❌"| ERR["Error"]
-    S -->|"✅"| OK["✅ Valid"]
-    S -->|"❌"| ERR
-```
+1. **Chunk filtering** — Only chunks within 0.15 of top score AND above 0.35 reach the LLM, reducing hallucination risk
+2. **Prompt selection** — Tier-specific disclaimers prepended to system prompt instruct LLM to distinguish sourced vs. general knowledge
+3. **UI display** — Colour-coded confidence badge (green/yellow/red) with percentage gives users immediate reliability feedback
+4. **PDF reports** — Only generated when the system does not refuse. Confidence displayed in Paralegal Dashboard
 
 ---
 
 ## Ingestion Pipeline
 
-The ingestion pipeline (`ingest/`) transforms raw legal documents into searchable vectors:
+The ingestion pipeline transforms raw legal documents into searchable vector embeddings stored in Qdrant through a four-stage process.
 
 ```mermaid
 flowchart LR
@@ -510,116 +406,157 @@ flowchart LR
         PDF["PDF"] & DOCX["DOCX"] & TXT["TXT"]
     end
 
-    subgraph Extract["🔍 Extract"]
-        E["Byte-based reading<br/>OCR fallback<br/>(Tesseract guarded)"]
+    subgraph Extract["🔍 Extract<br/><i>ingest/extract.py</i>"]
+        E["PyMuPDF primary<br/>Tesseract OCR fallback<br/>(if page < 20 chars, 300 DPI)<br/>eng+hin+tam+tel"]
     end
 
-    subgraph Chunk["✂️ Chunk"]
-        C["350–500 tokens<br/>1–2 sentence overlap<br/>Metadata attached"]
+    subgraph Chunk["✂️ Chunk<br/><i>ingest/chunk.py</i>"]
+        C["~450 tokens target<br/>1-sentence overlap<br/>Section normalization<br/>Corpus auto-tagging"]
     end
 
-    subgraph Index["📦 Index"]
-        I["Batch embed<br/>(text-embedding-3-small)<br/>Qdrant upsert"]
+    subgraph Embed["🔢 Embed<br/><i>clients/openai_client.py</i>"]
+        EM["text-embedding-3-small<br/>1536 dimensions<br/>Batch size: 64"]
     end
 
-    PDF & DOCX & TXT --> E --> C --> I --> QD[("🔷 Qdrant")]
+    subgraph Index["📦 Index<br/><i>ingest/index.py</i>"]
+        I["Qdrant upsert<br/>UUID point IDs<br/>Full metadata payload"]
+    end
+
+    PDF & DOCX & TXT --> E --> C --> EM --> I --> QD[("🔷 Qdrant<br/>legal_mvp")]
 ```
 
-**Chunk metadata payload:**
+### Stage 1: Text Extraction
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `doc_name` | string | Source filename |
-| `page` | int | Page number in source |
-| `chunk_id` | UUID | Unique chunk identifier |
-| `chunk_index` | int | Sequential index within document |
-| `corpus` | string | Legal corpus (BNS, CPA, CrPC, etc.) |
-| `lang_detected` | string | Detected language |
-| `text` | string | Chunk content |
+**File:** `ingest/extract.py`
+
+| Format | Primary Method | Fallback | Output |
+|--------|---------------|----------|--------|
+| PDF | PyMuPDF `page.get_text('text')` | Tesseract OCR if page < 20 chars; 300 DPI | `list[tuple[page_num, text]]` |
+| DOCX | python-docx `Document(BytesIO)` | None (all text in paragraphs) | `list[tuple[1, full_text]]` |
+| TXT | UTF-8 decode, `errors='ignore'` | N/A | `list[tuple[1, full_text]]` |
+
+The OCR fallback is guarded by a `_tesseract_ok()` check verifying the tesseract binary exists on PATH. OCR supports `eng+hin+tam+tel` for multilingual Indian legal documents.
+
+### Stage 2: Chunking
+
+**File:** `ingest/chunk.py`
+
+**Sentence-aware splitting:** Text is split at sentence boundaries using the regex `(?<=[.?!])\s+`. Sentences are grouped into chunks targeting ~450 tokens with 1-sentence overlap. The 450-token target balances two concerns: chunks under 200 tokens lose legal context (provisions reference preceding clauses with pronouns like "such person"), while chunks over 600 tokens dilute embedding focus.
+
+**Section normalization:** A critical legal-domain optimization — bare numbers at line starts (e.g., `41.` or `41A.`) are normalized to `Section 41.` using the regex `(?m)^\s*(\d+\s?[A-Za-z]?)\s*\.` This dramatically improves retrieval when users query specific sections.
+
+**Corpus auto-tagging:** Each chunk is automatically tagged with a corpus label by `guess_corpus()`:
+
+| Keywords Detected | Corpus Tag | Legal Source |
+|------------------|-----------|-------------|
+| bns, nyaya, ipc | BNS | Bharatiya Nyaya Sanhita / Indian Penal Code |
+| bnss, crpc, procedure | BNSS | Bharatiya Nagarik Suraksha Sanhita / CrPC |
+| bsa, evidence, iea | BSA | Bharatiya Sakshya Adhiniyam / Indian Evidence Act |
+| constitution, article | Constitution | Constitution of India |
+| v., scc, air, judgment | Judgments | Supreme Court / High Court case law |
+| (none of the above) | Unknown | Unclassified corpus |
+
+### Stage 3: Embedding
+
+**File:** `clients/openai_client.py`
+
+Chunks are embedded using OpenAI's `text-embedding-3-small` (1536 dimensions) in batches of 64. The small model was chosen over `text-embedding-3-large` for cost efficiency (~1/5 the cost) with sufficient discrimination for legal text.
+
+### Stage 4: Indexing
+
+**File:** `ingest/index.py`
+
+Embedded chunks are upserted into Qdrant's `legal_mvp` collection as `PointStruct` objects with UUID primary identifiers. Full metadata (`doc_name`, `page`, `text`, `corpus`, `lang_detected`, `original_chunk_id`) is stored in the payload. The collection uses 1536-dimension cosine similarity and is auto-created on startup via `ensure_collection()`.
+
+---
+
+## Validation Results
+
+### Test Case 1: Dowry Death Query (HIGH Confidence)
+
+**Query:** "My sister died within 2 years of marriage. Her in-laws were demanding a car as dowry."
+
+| Signal | Value | Interpretation |
+|--------|-------|---------------|
+| Top-5 Mean | 0.499 | Chunks contain Section 304B (Dowry Death) — direct hit |
+| Score Gap | 0.037 | Very consistent across top 5; all chunks genuinely relevant |
+| Entity Coverage | 1.00 | No specific entities in query; defaults to neutral |
+| **Composite** | **70.6% (HIGH)** | Correct: corpus HAS the relevant statutes |
+
+**Previous system** (simple mean of 15): **47.0%**. The old metric was diluted by tail chunks. New composite correctly elevated to 70.6%.
+
+### Test Case 2: FIR Quashing Query (MEDIUM Confidence)
+
+**Query:** "Can an FIR for Section 307 IPC be quashed on compromise? Summarize Narinder Singh vs State of Punjab."
+
+| Signal | Value | Interpretation |
+|--------|-------|---------------|
+| Top-5 Mean | ~0.40 | Chunks about IPC Sections 209, 158, 73 — tangentially related |
+| Score Gap | Small | Consistently mediocre; no lucky hit |
+| Entity Coverage | Low | "Narinder Singh" and "Section 307" NOT found in top chunks |
+| **Composite** | **43.3% (MEDIUM)** | Correct: corpus does NOT contain the judgment text |
+
+The LLM transparently stated it could not find the specific judgment text and used general knowledge with caveats — precisely the medium-confidence behaviour.
+
+---
+
+## Ingested Legal Corpus
+
+| Document | Pages | Corpus Tag | Description |
+|----------|-------|-----------|-------------|
+| Bharatiya Nyaya Sanhita (BNS), 2023 | 102 | BNS | New Indian penal code (Act 45/2023) replacing IPC |
+| Indian Penal Code (IPC), 1860 (Repealed) | 119 | BNS | Legacy penal code for old-to-new section comparison |
+| Code of Criminal Procedure (CrPC), 1973 | ~200+ | BNSS | Criminal procedure: FIR, arrest, bail, trial, appeals |
+| Consumer Protection Act, 2019 | 39 | Unknown | Consumer disputes, commissions, mediation, e-commerce |
 
 ---
 
 ## Data Flow & Sequence Diagrams
 
-### Standard Q&A Mode — Full Sequence
+### Query Pipeline — Full Sequence
 
 ```mermaid
 sequenceDiagram
     actor User
     participant API as FastAPI
-    participant Router as 🧭 Router<br/>Agent
-    participant Retriever as 🎯 Retriever<br/>Agent
+    participant Intake as 📝 Intake
+    participant Router as 🧭 Router
+    participant Retriever as 🎯 Retriever
     participant QD as 🔷 Qdrant
-    participant Answer as 💬 Answer<br/>Agent
+    participant Answer as 💬 Answer
+    participant Reporter as 📊 Reporter
     participant OAI as 🤖 OpenAI
 
     User->>API: POST /query {"query": "..."}
 
-    API->>Router: Route query
-    Note over Router: Classify query type<br/>Select corpus filter<br/>Apply section boosters<br/>Rewrite query
+    API->>Intake: analyze(query)
+    Note over Intake: LLM triage → CaseContext<br/>Paralegal regex override
 
-    Router->>Retriever: boosted_query + filters
+    Intake->>Router: CaseContext
+    Note over Router: Regex corpus routing<br/>Entity extraction<br/>Query rewriting
+
+    Router->>Retriever: QueryPlan
 
     Retriever->>OAI: Embed query
     OAI-->>Retriever: q_vec (1536-d)
 
-    Retriever->>QD: Search(q_vec, k=24, filters)
-    QD-->>Retriever: 24 candidate chunks
+    Retriever->>QD: Search(q_vec, limit=15, filter?)
+    QD-->>Retriever: 15 candidate chunks
 
-    Note over Retriever: MMR diversification<br/>Deduplication<br/>Pack evidence [1]..[k]
+    Note over Retriever: Step 3: Fallback if 0 results<br/>Step 4: Entity reranking<br/>Step 5: Adaptive filtering<br/>Step 6: Composite confidence<br/>Step 7: Package result
 
-    Retriever->>Answer: Evidence block + original query
+    Retriever->>Answer: RetrievalResult (chunks + confidence)
+
+    Note over Answer: Refusal gate check<br/>Tier-based prompt selection<br/>GREEN/YELLOW/RED
 
     Answer->>OAI: System prompt + evidence + query
-    Note over OAI: gpt-4o-mini<br/>temp=0, JSON mode
-    OAI-->>Answer: Raw JSON
+    OAI-->>Answer: Cited JSON answer
 
-    Note over Answer: Validate JSON<br/>Auto-repair if needed
+    Answer->>Reporter: AnswerData
+    Note over Reporter: PDF generation<br/>Unicode sanitization
 
-    Answer-->>API: {query, answer, citations[]}
-    API-->>User: JSON response
-```
-
-### Paralegal Mode — Full Sequence
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant API as FastAPI
-    participant Intake as 📝 Intake<br/>Agent
-    participant Router as 🧭 Router<br/>Agent
-    participant Retriever as 🎯 Retriever<br/>Agent
-    participant QD as 🔷 Qdrant
-    participant Answer as 💬 Answer<br/>Agent
-    participant Reporter as 📊 Reporter<br/>Agent
-    participant OAI as 🤖 OpenAI
-
-    User->>API: Submit case details
-    API->>Intake: Raw case information
-
-    Note over Intake: Extract key facts<br/>Classify case type<br/>Formulate legal questions
-
-    Intake->>Router: Structured case + questions[]
-
-    loop For each legal question
-        Router->>Retriever: boosted_query + filters
-        Retriever->>OAI: Embed query
-        OAI-->>Retriever: q_vec
-        Retriever->>QD: Search(q_vec, k=24)
-        QD-->>Retriever: Candidates
-        Note over Retriever: MMR → Pack evidence
-        Retriever->>Answer: Evidence block
-        Answer->>OAI: Prompt + evidence
-        OAI-->>Answer: Cited answer
-        Answer-->>Router: {answer, citations}
-    end
-
-    Router->>Reporter: All answers + case context
-
-    Note over Reporter: Compile report<br/>Structure analysis<br/>Generate dashboard
-
-    Reporter-->>API: 📄 Case Report + Dashboard
-    API-->>User: Final report
+    Reporter-->>API: {answer, citations, confidence, report_url}
+    API-->>User: JSON response + optional PDF
 ```
 
 ---
@@ -629,57 +566,45 @@ sequenceDiagram
 ```
 legal-mvp/
 │
-├── app.py                        # ⚡ FastAPI application (routes: /ingest, /query, /healthz, /diag)
-├── streamlit_app.py              # 🖥️ Streamlit demo UI (upload + query + history)
-├── app_backup.py                 # Backup of main application
+├── app.py                        # ⚡ FastAPI orchestrator: /ingest, /query, /healthz, /diag/env
+├── streamlit_app.py              # 🖥️ Streamlit UI: confidence badges, paralegal dashboard
+├── docker-compose.yml            # 🐳 Qdrant v1.12.4 container @ port 6333
 │
-├── agents/                       # 🤖 AGENT LAYER — Core agentic architecture
-│   ├── __init__.py               #   Agent registry & exports
-│   ├── router.py                 #   🧭 Router Agent: query classification, corpus routing, boosting
-│   ├── retriever.py              #   🎯 Retriever Agent: search orchestration, MMR, evidence packing
-│   ├── answer.py                 #   💬 Answer Agent: LLM synthesis, JSON validation
-│   ├── intake.py                 #   📝 Intake Agent: Paralegal mode case intake & structuring
-│   └── reporter.py               #   📊 Reporter Agent: Paralegal mode report & dashboard generation
+├── agents/                       # 🤖 FIVE-AGENT PIPELINE
+│   ├── intake.py                 #   📝 Agent 1: LLM triage → CaseContext + paralegal override
+│   ├── router.py                 #   🧭 Agent 2: Regex routing, entity extraction, query rewriting
+│   ├── retriever.py              #   🎯 Agent 3: 7-step pipeline, composite confidence scoring
+│   ├── answer.py                 #   💬 Agent 4: Confidence-aware generation, refusal gate
+│   └── reporter.py               #   📊 Agent 5: PDF report with clean_text() Unicode handling
 │
 ├── core/                         # ⚙️ Core Services
-│   ├── config.py                 #   Environment variables, model names, feature flags
-│   └── logging.py                #   Tolerant logging with req_id safety
+│   ├── config.py                 #   Environment: EMBED_MODEL, GEN_MODEL, QDRANT_URL, TOP_K
+│   ├── logging.py                #   Structured logging with ReqIdDefaultFilter
+│   └── schemas.py                #   Pydantic: Citation, AnswerJSON, CaseContext
 │
-├── clients/                      # 🔌 External Service Clients
-│   ├── openai_client.py          #   Embeddings (text-embedding-3-small) + Chat (gpt-4o-mini)
-│   └── qdrant_client.py          #   Collection CRUD, upsert, similarity search
+├── clients/                      # 🔌 External Clients
+│   ├── openai_client.py          #   embed_texts() batch embedding, chat_json() for LLM
+│   └── qdrant_client.py          #   qdrant() client, ensure_collection() auto-create
 │
 ├── ingest/                       # 📥 Ingestion Pipeline
-│   ├── extract.py                #   PDF/DOCX/TXT byte-based extraction + OCR guard
-│   ├── chunk.py                  #   Token-based chunking (350–500) with overlap & metadata
-│   └── index.py                  #   Batch embedding + Qdrant upsert
+│   ├── extract.py                #   PDF (PyMuPDF + OCR), DOCX, TXT — all byte-based
+│   ├── chunk.py                  #   ~450 token chunks, section normalization, corpus tagging
+│   └── index.py                  #   Batch embed + Qdrant upsert (batch=64, UUID IDs)
 │
-├── retrieve/                     # 🔎 Retrieval Sub-modules
-│   ├── decision.py               #   Decision Engine: corpus filter + section boosting rules
-│   ├── search.py                 #   Qdrant cosine similarity search (k=24)
-│   ├── mmr.py                    #   Maximal Marginal Relevance diversification + deduplication
-│   └── pack.py                   #   Evidence Packer: numbered snippet formatting [1]..[k]
+├── retrieve/                     # 🔎 Legacy Retrieval (v1 modules)
+│   ├── decision.py               #   Rule-based routing (superseded by agents/router.py)
+│   ├── search.py                 #   Qdrant k=24 search (superseded by agents/retriever.py)
+│   ├── mmr.py                    #   MMR diversification
+│   └── pack.py                   #   Evidence packer [1]..[k]
 │
-├── answer/                       # ✍️ Answer Generation Sub-modules
-│   ├── prompt.py                 #   System + user prompt templates (strict JSON enforcement)
-│   ├── llm.py                    #   LLM call wrapper (gpt-4o-mini, temp=0, JSON mode)
-│   └── validate.py               #   JSON parser with auto-repair capability
+├── answer/                       # ✍️ Legacy Answer (v1 modules)
+│   ├── prompt.py                 #   Jinja2 prompts (superseded by agents/answer.py)
+│   ├── llm.py                    #   LLM wrapper
+│   └── validate.py               #   JSON parser with auto-repair
 │
-├── report/                       # 📊 Report Generation
-│   ├── render.py                 #   Jinja2-based HTML report renderer
-│   └── templates/
-│       └── answer.html.j2        #   HTML answer report template
-│
-├── scripts/                      # 🛠️ Utility Scripts (smoke tests, CLI tools)
-├── tests/                        # 🧪 Test Suite
-│
-├── docker-compose.yml            # 🐳 Qdrant container @ port 6333
+├── scripts/                      # 🛠️ CLI: ingest_cli.py, query_cli.py
+├── tests/                        # 🧪 Unit tests for router agent
 ├── requirements.txt              # 📦 Python dependencies
-├── check_pdfs.py                 # PDF diagnostic utility
-├── debug_qdrant.py               # Qdrant debug/inspection tool
-├── full_codebase.py              # Codebase consolidation script
-├── smoke_ingest.sh               # Ingestion smoke test
-├── test_ingest.py                # Ingestion test script
 └── .gitignore
 ```
 
@@ -720,15 +645,13 @@ streamlit run streamlit_app.py
 
 | Service | URL | Expected |
 |---------|-----|----------|
-| API Health | http://127.0.0.1:8000/healthz | `{"ok": true}` |
-| API Diagnostics | http://127.0.0.1:8000/diag/env | `{"openai_key_set": true}` |
-| Streamlit UI | http://localhost:8501 | Web interface |
+| API Health | `http://127.0.0.1:8000/healthz` | `{"ok": true}` |
+| API Diagnostics | `http://127.0.0.1:8000/diag/env` | `{"openai_key_set": true}` |
+| Streamlit UI | `http://localhost:8501` | Web interface |
 
 ---
 
 ## Configuration
-
-Create a `.env` file in the project root:
 
 ```env
 OPENAI_API_KEY=sk-...
@@ -740,76 +663,67 @@ USE_TRANSLATION=false
 LANGS_OCR=eng+hin+tam+tel
 ```
 
-> The app loads `.env` at startup (top of `app.py`) so all keys are available before clients initialize.
-
 ---
 
 ## API Reference
 
-### `POST /ingest` — Document Ingestion
-
-Upload one or more legal documents for processing and indexing.
-
-**Request:** `multipart/form-data` with `files` field (PDF, DOCX, TXT)
-
-```json
-// Response
-{
-  "files_received": 3,
-  "chunks_indexed": 128,
-  "errors": []
-}
-```
-
-### `POST /query` — Legal Q&A
-
-Ask a question; receive a grounded JSON answer with inline citations.
-
-```json
-// Request
-{"query": "What actions can the District Commission take for a defective product?"}
-
-// Response
-{
-  "query": "What actions can the District Commission take for a defective product?",
-  "answer": "The District Commission may direct the seller to remove the defect [1], replace the goods [1], or return the price paid [2].",
-  "citations": [
-    {"source": "a2019-35.pdf", "page": 20, "snippet": "..."},
-    {"source": "a2019-35.pdf", "page": 7,  "snippet": "..."}
-  ]
-}
-```
-
-> Append `?format=html` for a pre-rendered HTML report.
-
-### `GET /healthz` → `{"ok": true}`
-
-### `GET /diag/env` → `{"openai_key_set": true}`
+| Method | Endpoint | Description | Request / Response |
+|--------|----------|-------------|-------------------|
+| `GET` | `/healthz` | Health check | `{"ok": true, "build": "abc12345"}` |
+| `GET` | `/diag/env` | Verify API key | `{"openai_key_set": true}` |
+| `POST` | `/ingest` | Upload & index docs | multipart form → `{files_received, chunks_indexed, errors}` |
+| `POST` | `/query` | Ask legal question | `{query, style?}` → `{answer, citations, confidence, refused, paralegal_context, report_url}` |
+| `GET` | `/static/*` | Serve PDF reports | Returns generated PDF file |
 
 ---
 
 ## Streamlit UI
 
-The Streamlit interface (`streamlit_app.py`) provides a modern, mobile-friendly demo experience:
+The Streamlit application (`streamlit_app.py`, port 8501) provides a polished web interface:
 
-- **Sidebar:** Backend URL, answer style (Detailed/Summary), raw JSON toggle, document upload & ingest, clear history
-- **Main area:** Query text area, answer cards with inline `[n]` superscripts, collapsible citation expander, HTML report download, conversation history
+- **Sidebar:** Backend URL config, answer style toggle (Detailed/Summary), raw JSON toggle, document upload (PDF/DOCX/TXT multi-file), Ingest button
+- **Main area:** Query textarea, **confidence badge with percentage** (green/yellow/red), formatted answer with `[n]` superscripts, **Paralegal Dashboard** (scenario, persona, urgency, complexity, financial, confidence as metric widgets), missing facts warning, **PDF download button**, expandable citations
+- **History:** Last 5 queries stored in session state, rendered as compact cards
+
+---
+
+## Design Decisions & Trade-Offs
+
+### Why Regex-Based Routing (Not LLM)?
+
+Routing errors in legal contexts could lead to citing the wrong statute. Regex is deterministic, sub-millisecond, and predictable. Trade-off: reduced flexibility for unusual phrasings, mitigated by Intake domain fallback.
+
+### Why Not Refuse on Low Confidence?
+
+Only refuses at zero chunks. Low-confidence queries still get answers with strong disclaimers. Even general guidance pointing toward the right type of lawyer is more helpful than flat refusal.
+
+### Why text-embedding-3-small?
+
+~1/5 cost of the large model with sufficient discrimination for legal text. Legal queries occupy a narrow semantic space, reducing the marginal benefit of higher-dimensional embeddings.
+
+### Why Monolithic Architecture?
+
+Agents communicate via function calls (not network), eliminating inter-service latency. Qdrant is the only external dependency, deployed via Docker Compose.
+
+### Why 450-Token Chunks?
+
+Empirically determined. Shorter chunks split provisions across boundaries; longer chunks produce semantically broad embeddings. 1-sentence overlap preserves boundary context.
 
 ---
 
 ## Evaluation Protocol
 
-**Recommended setup:** 30–50 queries across corpora (CPA, CrPC, BNS, etc.) with 20% "trick" questions
+**Recommended setup:** 30–50 queries across corpora (CPA, CrPC, BNS, etc.) with 20% "trick" questions (out-of-corpus queries that should trigger MEDIUM/LOW confidence)
 
 | Metric | Description | Target |
 |--------|-------------|--------|
 | **Correctness** | % factually correct answers | ≥ 85% |
 | **Groundedness** | Every claim has supporting citation | 100% |
 | **Citation accuracy** | Citations truly support their claims | ≥ 90% |
+| **Confidence calibration** | HIGH queries are correct, LOW queries are OOD | ≥ 80% alignment |
 | **Recall@k** | Gold snippet in top-k results | ≥ 80% |
 | **MRR** | Mean reciprocal rank of first relevant chunk | ≥ 0.7 |
-| **Latency p50** | Median response time | ≤ 3s |
-| **Latency p95** | 95th percentile response time | ≤ 5s |
+| **Latency p50 / p95** | Response time | ≤ 3s / ≤ 5s |
 
 ---
 
@@ -820,27 +734,28 @@ The Streamlit interface (`streamlit_app.py`) provides a modern, mobile-friendly 
 | **401 OpenAI / invalid key** | Ensure `.env` has `OPENAI_API_KEY=sk-…`; verify via `GET /diag/env` |
 | **Logger KeyError: req_id** | Handled by tolerant formatter — see `core/logging.py` |
 | **Git Bash `curl (26)`** (Windows) | Use `curl.exe` (PowerShell) or Streamlit uploader |
-| **Mis-grounded forms/annexures** | Add section boosters in Decision Engine; de-rank "FORM No." pages |
+| **Low confidence on valid queries** | Check corpus auto-tagging; verify section normalization in chunks |
+| **All queries get MEDIUM** | Embedding model may need recalibration; check Qdrant collection dimensions |
 | **UI timeouts** | Increase Streamlit timeout (120–180s); reduce prompt/context size |
 
 ---
 
-## Roadmap
+## Future Work
 
-- [ ] **Corpus expansion** — BNS/BNSS/BSA (new criminal codes), IPC §§141/415/503/320, HMA, Limitation Act
-- [ ] **Judgment metadata** — Extract parties, bench, year, citation fields into vector payload
-- [ ] **RAG eval harness** — Automated correctness & groundedness scoring pipeline
+- [ ] **Multilingual support** — `USE_TRANSLATION` flag exists but is inactive. Hindi, Tamil, Telugu query support via cross-lingual embeddings or translation preprocessing
+- [ ] **Case law expansion** — Current corpus focuses on statutes. Adding SC/HC judgments would enable high-confidence case law responses
+- [ ] **Cross-encoder reranking** — Replacing entity-match reranking with a cross-encoder (e.g., `ms-marco-MiniLM`) for improved reranking quality
+- [ ] **Agentic follow-up** — Using `missing_facts` from Intake to proactively ask clarifying questions before answer generation
+- [ ] **Evaluation framework** — Systematic eval suite with labelled query-answer pairs for retrieval recall, answer accuracy, and confidence calibration
 - [ ] **Auth & quotas** — Per-tenant API keys, rate limiting
 - [ ] **Full containerization** — Dockerfile for FastAPI + Streamlit (compose with Qdrant)
 - [ ] **Caching layer** — Redis-based embedding and result cache for repeated queries
-- [ ] **Multi-language support** — Hindi, Tamil, Telugu legal documents with translation layer
-- [ ] **Paralegal Mode enhancements** — Multi-turn conversation, case timeline builder, precedent comparison
 
 ---
 
 ## License
 
-This repository is provided for educational and research use.
+This repository is provided for academic and research use.
 
 ---
 
@@ -850,8 +765,11 @@ This repository is provided for educational and research use.
 - **[FastAPI](https://fastapi.tiangolo.com/)** + **Uvicorn** — Modern async Python web framework
 - **[Streamlit](https://streamlit.io/)** — Rapid prototyping UI framework
 - **[OpenAI](https://openai.com/)** — Embeddings (`text-embedding-3-small`) and chat completions (`gpt-4o-mini`)
+- **[fpdf2](https://py-pdf.github.io/fpdf2/)** — PDF report generation
+- **[PyMuPDF](https://pymupdf.readthedocs.io/)** — PDF text extraction
+- **[Tesseract](https://github.com/tesseract-ocr/tesseract)** — OCR fallback for scanned documents
 
 ---
 
-<p align="center"><i>Upload docs → Ingest → Ask → Get grounded answers with citations.</i></p>
-<p align="center"><b>Legal MVP — simple, explainable, and fast legal AI.</b></p>
+<p align="center"><i>Upload docs → Ingest → Ask → Get grounded, confidence-calibrated answers with citations.</i></p>
+<p align="center"><b>Legal MVP — grounded, transparent, and confidence-aware legal AI.</b></p>
