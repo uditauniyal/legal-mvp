@@ -9,6 +9,12 @@ class QueryPlan(BaseModel):
     rewritten_query: str
     intent: Literal["statute", "case_law", "comparison", "general"]
     target_corpus: Optional[str] = None
+    # Several corpora at once. Needed because continuing conduct spanning
+    # 1 July 2024 genuinely answers to two codes, and picking one drops half
+    # the answer. Empty means "use target_corpus"; when both are set this
+    # wins, so the Phase H interventions can widen a filter the Router set
+    # without having to rewrite the Router.
+    target_corpora: List[str] = []
     entities: List[str] = []
     boost_terms: List[str] = []
     # --- logging field (C3) ---

@@ -155,6 +155,15 @@ def main() -> None:
                          "be in flight at once. Keep this low: every worker is a "
                          "separate billed call to the same provider, and the point "
                          "of the run is reproducible numbers, not speed.")
+    ap.add_argument("--intervention", default="baseline",
+                    choices=["baseline", "date", "mapper", "both"],
+                    help="which Phase H components to enable. baseline is the "
+                         "Phase G pipeline unchanged, and every intervention "
+                         "number is a delta against it.")
+    ap.add_argument("--reference-date", default="2026-08-23",
+                    help="what 'last month' is measured from. Fixed rather than "
+                         "today's date so a re-run in December reproduces "
+                         "August exactly.")
     ap.add_argument("--limit", type=int, default=0, help="run only the first N")
     ap.add_argument("--category", help="restrict to one category")
     ap.add_argument("--dry-run", action="store_true", help="list what would run, send nothing")
@@ -180,6 +189,7 @@ def main() -> None:
 
     print(f"  query set   {args.queryset.relative_to(ROOT)}  ({len(queries)} to run)")
     print(f"  git         {sha}{'  DIRTY' if dirty else '  clean'}")
+    print(f"  mode        {args.intervention}   (reference date {args.reference_date})")
 
     if args.dry_run:
         print("\n  would run:")
@@ -214,7 +224,8 @@ def main() -> None:
         print(f"  resuming    {run_dir.name}  ({len(done)} already done)")
     else:
         stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
-        run_dir = RUNS / f"eval_{stamp}_{sha}{'_DIRTY' if dirty else ''}"
+        tag = "" if args.intervention == "baseline" else f"_{args.intervention}"
+        run_dir = RUNS / f"eval_{stamp}_{sha}{tag}{'_DIRTY' if dirty else ''}"
         run_dir.mkdir(parents=True, exist_ok=True)
         done = set()
 
@@ -237,7 +248,9 @@ def main() -> None:
             t0 = time.time()
             resp = requests.post(
                 f"{args.url}/query",
-                json={"query": q["text"], "query_id": q["query_id"]},
+                json={"query": q["text"], "query_id": q["query_id"],
+                      "intervention": args.intervention,
+                      "reference_date": args.reference_date},
                 timeout=args.timeout,
             )
             resp.raise_for_status()
@@ -253,6 +266,8 @@ def main() -> None:
                 "n_citations": len(data.get("citations") or []),
                 "retrieved_docs": sorted({c.get("source") for c in (data.get("citations") or [])}),
                 "citation_audit": audit,
+                "intervention": args.intervention,
+                "reference_date": args.reference_date,
                 "latency_s": round(elapsed, 1),
                 "error": None,
             }

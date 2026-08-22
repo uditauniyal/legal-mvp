@@ -161,14 +161,24 @@ class RetrievalAgent:
         q_vec, self.last_embed_meta = embed_one(plan.rewritten_query)
 
         # 2. Build Filter
+        #
+        # target_corpora (a list) wins over target_corpus (a single value)
+        # when set. Qdrant expresses "any of these" as match:{any:[...]},
+        # which is what continuing conduct needs: incidents either side of
+        # 1 July 2024 answer to different codes, so both must be searchable
+        # in one pass rather than by running the query twice and merging.
+        corpora = list(plan.target_corpora or ([plan.target_corpus] if plan.target_corpus else []))
         must_filters = []
-        if plan.target_corpus:
-            must_filters.append({"key": "corpus", "match": {"value": plan.target_corpus}})
+        if len(corpora) == 1:
+            must_filters.append({"key": "corpus", "match": {"value": corpora[0]}})
+        elif len(corpora) > 1:
+            must_filters.append({"key": "corpus", "match": {"any": corpora}})
         payload_filter = {"must": must_filters} if must_filters else None
         flt = Filter(**payload_filter) if payload_filter else None
 
         # 3. Search Qdrant
-        print(f"[Retrieval] Query: '{plan.rewritten_query[:80]}...' | Filter: {plan.target_corpus}")
+        print(f"[Retrieval] Query: '{plan.rewritten_query[:80]}...' "
+              f"| Filter: {corpora or None}")
         res = self.client.search(
             collection_name=COLLECTION,
             query_vector=q_vec,
@@ -179,13 +189,13 @@ class RetrievalAgent:
 
         # 4. Fallback: no results with filter → try without
         filter_fallback_fired = False
-        if not res and plan.target_corpus:
+        if not res and corpora:
             # The filter matched nothing, so we drop it entirely. Previously
             # this happened silently; now it is recorded, because an
             # unfiltered search runs over an index that is ~48% CrPC and the
             # base rate alone then dominates the results.
             filter_fallback_fired = True
-            print(f"[Retrieval] No results with filter '{plan.target_corpus}'. Searching all...")
+            print(f"[Retrieval] No results with filter {corpora}. Searching all...")
             res = self.client.search(
                 collection_name=COLLECTION,
                 query_vector=q_vec,
@@ -291,7 +301,7 @@ class RetrievalAgent:
             scores_raw=[round(float(x), 6) for x in all_scores],
             filter_fallback_fired=filter_fallback_fired,
             entity_coverage_default_used=conf.get("entity_coverage_default_used", False),
-            filter_applied=plan.target_corpus,
+            filter_applied=(corpora[0] if len(corpora) == 1 else corpora or None),
             embed_provider=getattr(self.last_embed_meta, "provider_name", None),
         )
 

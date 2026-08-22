@@ -13,6 +13,11 @@ import traceback
 import uuid
 from pathlib import Path
 
+import os
+from datetime import date as _date
+
+from core.dates import resolve as resolve_era
+from core.statute_mapper import map_query
 from core.logging import new_req_id
 from clients.qdrant_client import qdrant, ensure_collection
 from clients.openai_client import embed_texts
@@ -155,6 +160,43 @@ async def query(body: dict, format: str = Query(default="json")):
             entities=plan.entities,
             boost_terms=plan.boost_terms,
             rewritten_query=plan.rewritten_query)
+
+    # 2.5 Phase H interventions — OFF unless explicitly switched on.
+    #
+    #     Every Phase H number is a DELTA against the Phase G baseline, so the
+    #     baseline has to stay runnable on demand. If the old path could not
+    #     be reproduced, "the mapper improved things by 12 points" would be a
+    #     claim with nothing to measure against.
+    #
+    #     Modes: baseline (default) · date · mapper · both
+    #     Set per-request via {"intervention": "..."} or globally via the
+    #     INTERVENTION environment variable, so a whole evaluation run is
+    #     pinned to one mode rather than depending on what each caller sends.
+    mode = (body.get("intervention") or os.getenv("INTERVENTION") or "baseline").lower()
+    date_verdict = None
+    mapping = None
+    if mode in ("date", "mapper", "both"):
+        # The reference date is passed in, never read from the clock inside
+        # the logic, so a re-run in December reproduces August exactly.
+        ref = body.get("reference_date")
+        ref = _date.fromisoformat(ref) if ref else _date.today()
+        date_verdict = resolve_era(q, ref)
+
+        if mode in ("mapper", "both"):
+            mapping = map_query(q, date_verdict.era)
+            if mapping.target_corpora:
+                plan.target_corpora = mapping.target_corpora
+                plan.target_corpus = (mapping.target_corpora[0]
+                                      if len(mapping.target_corpora) == 1 else None)
+                plan.decision_path = f"{plan.decision_path}+statute_mapper"
+
+    # core/run_logger.py already reserves "date" and "mapper" stage buckets —
+    # they were declared when the schema was designed and have been empty
+    # until now. Recording the mode in both means a row can always be
+    # attributed to the configuration that produced it, which is what makes
+    # baseline and intervention runs safe to analyse side by side.
+    rec.set("date", mode=mode, **(date_verdict.as_log() if date_verdict else {}))
+    rec.set("mapper", mode=mode, **(mapping.as_log() if mapping else {}))
 
     # 3. Retrieve (now returns RetrievalResult with confidence scoring)
     retrieval = retrieval_agent.retrieve(plan)

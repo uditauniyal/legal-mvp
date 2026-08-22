@@ -4783,3 +4783,98 @@ QS=[
 ```bash
 ./venv/Scripts/python.exe -m pytest tests/test_statute_mapper.py -q 2>&1 | tail -20
 ```
+
+`2026-08-23 03:47:20` · **cmd** — Run full suite and commit H2
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -3 && git add -A && git -c core.quotepath=false commit -q -m "$(cat <<'MSG'
+H2: Statute Mapper â€” search the code that GOVERNS, not the one named
+
+"What is the punishment under Section 420 IPC? This happened last month."
+
+The Router sees "IPC", filters to the IPC, returns IPC 420. Every step
+behaves correctly and the answer is still repealed law: the conduct is
+after 1 July 2024, so BNS 318(4) governs. The filter is faithful to the
+WORDS and has no way to know the words are out of date. That is the gap.
+
+Phase G showed why the filter i
+… [truncated, 1773 more chars]
+```
+
+`2026-08-23 03:48:10` · **cmd** — Update fallback and logging for multi-corpus filter
+```bash
+python - <<'PY'
+import pathlib
+p = pathlib.Path("agents/retriever.py"); t = p.read_text(encoding="utf-8")
+t = t.replace('        if not res and plan.target_corpus:',
+              '        if not res and corpora:')
+t = t.replace('''            print(f"[Retrieval] No results with filter '{plan.target_corpus}'. Searching all...")''',
+              '''            print(f"[Retrieval] No results with filter {corpora}. Searching all...")''')
+t = t.replace('            filter_applied=plan.target_corpus,',
+              '            filter_applied=(corpora[0] if len(corpora) == 1 else corpora or None)
+… [truncated, 217 more chars]
+```
+
+`2026-08-23 03:48:24` · **cmd** — Read the app pipeline around routing
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+L=open('app.py',encoding='utf-8').readlines()
+for i in range(128,166): print('%3d %s'%(i+1,L[i].rstrip()))
+"
+```
+
+`2026-08-23 03:48:43` · **cmd** — Check app.py imports
+```bash
+grep -n "^import\|^from" app.py | head -20
+```
+
+`2026-08-23 03:48:55` · **cmd** — Add intervention imports to app.py
+```bash
+python - <<'PY'
+import pathlib
+p = pathlib.Path("app.py"); t = p.read_text(encoding="utf-8")
+t = t.replace("from core.logging import new_req_id",
+"""import os as _os_unused  # noqa: F401  (os already imported below if present)
+from datetime import date as _date
+
+from core.dates import resolve as resolve_era
+from core.statute_mapper import map_query
+from core.logging import new_req_id""", 1)
+p.write_text(t, encoding="utf-8")
+print("os imported already:", "\nimport os\n" in t)
+PY
+grep -n "^import os" app.py || echo "NO os import"
+```
+
+`2026-08-23 03:49:07` · **cmd** — Check whether the run logger allows a new stage bucket
+```bash
+grep -n "def set\|STAGES\|buckets\|def new_record" -A 12 core/run_logger.py | head -40
+```
+
+`2026-08-23 03:49:42` · **cmd** — Verify app imports and run tests
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import app
+print('app imports OK, build', app.BUILD_ID)
+" && ./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -3
+```
+
+`2026-08-23 03:50:06` · **cmd** — Wire intervention flags through the runner
+```bash
+python - <<'PY'
+import pathlib
+p = pathlib.Path("scripts/run_eval.py"); t = p.read_text(encoding="utf-8")
+
+t = t.replace(
+'''                json={"query": q["text"], "query_id": q["query_id"]},''',
+'''                json={"query": q["text"], "query_id": q["query_id"],
+                      "intervention": args.intervention,
+                      "reference_date": args.reference_date},''')
+
+# stamp the mode into the run directory name
+t = t.replace(
+'''        run_dir = RUNS / f"eval_{stamp}_{sha}{'_DIRTY' if dirty else ''}"''',
+'''        tag = "" if args.intervention == "baseline" else f"_{
+… [truncated, 873 more chars]
+```
