@@ -4414,3 +4414,88 @@ print("layman rows joined:", len(rows))
 sho
 … [truncated, 767 more chars]
 ```
+
+`2026-08-23 03:06:18` · **cmd** — Wire in the new tables and commit
+```bash
+python - <<'PY'
+import pathlib
+p = pathlib.Path("scripts/analyze_eval.py"); t = p.read_text(encoding="utf-8")
+t = t.replace("    table_cross_statute(R, rows)\n    table_date(R, rows)",
+              "    table_parametric_leak(R, rows)\n    table_cross_statute(R, rows)\n"
+              "    table_neutral_lean(R, rows)\n    table_date(R, rows)")
+p.write_text(t, encoding="utf-8")
+print("wired:", "table_parametric_leak(R, rows)" in t and "table_neutral_lean(R, rows)" in t)
+PY
+git add -A && git -c core.quotepath=false commit -q -m "$(cat <<'MSG'
+analyze_eval: report strict AND lenient retrieval; ad
+… [truncated, 1259 more chars]
+```
+
+`2026-08-23 03:06:28` · **cmd** — Resume the generated query set
+```bash
+./venv/Scripts/python.exe scripts/run_eval.py --queryset eval/generated_queryset.jsonl --url http://127.0.0.1:8002 --workers 3 --resume runs/eval_2026-08-23_0256_5184e78 > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen.log 2>&1
+```
+
+`2026-08-23 03:06:37` · **cmd** — Confirm the resume started and is skipping
+```bash
+head -8 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen.log
+```
+
+`2026-08-23 03:06:45` · **cmd** — Check resume progress
+```bash
+cat /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen.log 2>/dev/null | head -10; echo "rows now: $(wc -l < runs/eval_2026-08-23_0256_5184e78/eval_summary.jsonl)"
+```
+
+`2026-08-23 03:07:03` · **cmd** — Run analysis and show first section
+```bash
+./venv/Scripts/python.exe scripts/analyze_eval.py --runs runs/eval_2026-08-23_0215_5184e78 runs/eval_2026-08-23_0231_5184e78 > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/report.txt 2>&1; sed -n '1,60p' /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/report.txt
+```
+
+`2026-08-23 03:07:14` · **cmd** — Show the middle of the report
+```bash
+sed -n '60,135p' /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/report.txt
+```
+
+`2026-08-23 03:07:23` · **cmd** — Show the rest of the report
+```bash
+sed -n '135,210p' /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/report.txt
+```
+
+`2026-08-23 03:08:00` · **cmd** — Check generated progress and paired filter usage
+```bash
+tail -2 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen.log; echo "rows: $(wc -l < runs/eval_2026-08-23_0256_5184e78/eval_summary.jsonl)/200"
+echo "=== filter applied on paired set ==="
+./venv/Scripts/python.exe -c "
+import sys,io,json,collections,glob; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+recs={}
+for p in glob.glob('runs/**/queries.jsonl',recursive=True):
+    for l in open(p,encoding='utf-8'):
+        r=json.loads(l); recs[r['req_id']]=r
+c=collections.Counter()
+for l in open('runs/eval_2026-08-23_
+… [truncated, 256 more chars]
+```
+
+`2026-08-23 03:08:38` · **cmd** — Test whether embeddings alone distinguish IPC from BNS
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/unfiltered.py <<'PY'
+import sys, io, json, collections, math
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+from clients.openai_client import embed_texts
+from clients.qdrant_client import COLLECTION, qdrant
+
+rows = [json.loads(l) for l in open("eval/paired_queryset.jsonl", encoding="utf-8")]
+num = [r for r in rows if r["variant"] in ("ipc_numbered", "bns_numbered")]
+c = qdrant()
+
+def wilson(k, n):
+    if n == 0: return 0, 0, 0
+    z
+… [truncated, 1570 more chars]
+```
+
+`2026-08-23 03:09:42` · **cmd** — Run the filter ablation as a repo script
+```bash
+./venv/Scripts/python.exe scripts/ablate_filter.py 2>&1 | tail -22
+```
