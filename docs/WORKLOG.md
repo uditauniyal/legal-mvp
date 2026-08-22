@@ -262,3 +262,66 @@ Reconstructed from git; no contemporaneous log was kept.
 | 2025-08-26 | `c1c9bcb` | Initial commit |
 
 Undated, inferred from artefacts: all stored vectors were once zeros (`fix_embeddings.py` exists to repair it) — **any evaluation predating that fix is void**; and `fix_corpus_tags.py` was run at some point to patch corpus labels in the database.
+
+---
+
+## 2026-08-23 (session 2) — Phase E complete, three query sets built
+
+### What changed
+
+Phase E as agreed, plus two defects found while verifying it. No scope changes.
+
+| | Fix | Evidence it was real |
+|---|---|---|
+| E1 | Layman date gold labels | 23 of 24 `bns_era` rows carried IPC gold. A system citing CURRENT law scored wrong; citing REPEALED law scored right. The experiment ran backwards. |
+| E2 | `panel_prose_jaccard` matching rule | Returned **0.0 on perfect grounding** for its entire life. Compared `Provision.key` exactly, and statutory text never names its own statute, so the panel side was always `?:section:302` against the prose side's `IPC:section:302`. |
+| E3 | `entity_coverage` bounds | Counted CHUNKS, divided by ENTITIES. Reached 5.0 for a value weighted at 0.30 in a composite capped at 1.0 — the cap absorbed the error and the score looked plausible. |
+| E4 | `top_score` after reranking | Read `res[0].score` after step 5 reorders by entity match, not score. A promoted hit at 0.31 against a real best of 0.58 dropped the adaptive threshold by 0.27 and stopped the filter filtering. |
+| E5 | "vintage error" → corpus-vintage mismatch | The `RECODIFICATION` map was legally correct all along; only the label was wrong. Now split by direction (`cited_successor` / `cited_predecessor`) because they have different causes. |
+| E6 | Contents filter + footnote parsing | 14 table-of-contents entries survived on dashes borrowed from the NEXT sub-heading (`B.–AID`). Separately, 13 amendment footnotes parsed as sections, and **all 13 collided with a real section number** — a query for IPC 8 could return a 1950 Adaptation Order note instead of the definition of gender. |
+| E7 | Refusal gate | An out-of-corpus NI Act query returned HIGH confidence **0.73**. |
+| E8 | Router domain fallback | `if "Criminal": target_corpus = "BNS"` made the IPC unreachable for any query not naming it. Found while verifying E7. |
+
+### The measurement that decided E7
+
+15 probe queries against the rebuilt index:
+
+| | max similarity |
+|---|---|
+| in corpus, lowest — *"my landlord is not returning my deposit"* (CPA **is** indexed) | **0.278** |
+| out of corpus, highest — *"grounds for divorce under the Hindu Marriage Act"* | **0.519** |
+| nonsense, highest — *"how do I bake a chocolate cake"* | 0.208 |
+
+The out-of-corpus query scores **higher than five of six legitimate ones**. The distributions are inverted, not merely overlapping, so **no similarity threshold can implement a corpus-boundary check**. Any cutoff rejecting the Hindu Marriage Act query rejects most real work.
+
+This is a negative result worth reporting, not a tuning problem. The gate was therefore built on **named-statute detection**, which is deterministic: if the user says "Negotiable Instruments Act" and we never indexed it, that is certain. Its stated limitation is that layman queries name nothing — which is what the Router and the Phase H Date Resolver are for.
+
+The score floor that remains (`NONSENSE_FLOOR = 0.25`) catches non-legal input only and is documented as a garbage filter, never as a corpus check.
+
+### Index rebuilt
+
+1933 → **1899 points**. IPC 615→595, CrPC 756→742. Zero duplicate ids. `$0.0058`.
+
+### Query sets
+
+| Set | Rows | What it tests |
+|---|---|---|
+| `layman_queryset.jsonl` | 120 | the access-to-justice claim. 30 situations × 4 date conditions. 8 CPA rows are controls (unchanged by the recodification); 5 rows are honestly unanswerable (BNSS not ingested). |
+| `paired_queryset.jsonl` | **99 (new)** | **the thesis.** 33 verified IPC↔BNS provision pairs × 3 phrasings. Same offence, same wording, only the numbering scheme differs. |
+| `generated_queryset.jsonl` | 200 | instrument calibration; gold certain by construction. |
+
+`data/recodification_map.json` is new — 33 IPC→BNS entries whose targets were located in this index and whose bare-Act text was read to confirm the subject matches, plus 10 CrPC→BNSS entries marked `unverified_not_in_corpus`.
+
+### Tests
+
+52 → **89 passing.** Nine tests that pinned the old defects were rewritten to assert the corrected behaviour, each recording the value it used to assert. Every metric expectation is now worked out by hand in its docstring — a metric test whose expectation came from running the code proves only that the code is deterministic.
+
+### Next
+
+Phase G: run all three sets, produce the E1–E6 tables.
+
+### Still open
+
+- **BNSS and BSA are not ingested.** 5 layman rows and all 10 CrPC→BNSS map entries are unreachable by construction. Stated in Limitations, not hidden.
+- `score_gap` rewards uniform irrelevance — flat, uniformly bad scores earn the full 0.15 for "consistency". Pinned in a test rather than fixed, because it is one of the three signals under ablation in E6.
+- 68 of 120 layman rows are `needs_review` and should not be counted until someone with legal training has checked them.

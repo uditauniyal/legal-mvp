@@ -36,8 +36,23 @@ def router():
 # --- corpus selection, branch by branch -----------------------------------
 
 def test_single_act_named_selects_that_corpus(router):
+    """A query naming the IPC must search the IPC.
+
+    This asserted "BNS" until the Phase E fix, because ACT_MAP contained
+    "ipc" -> "BNS". That single entry meant every IPC-numbered query was
+    answered out of the successor code -- the exact cross-statute failure the
+    paper is about, present in the instrument rather than in the finding.
+    """
     plan = router.route(ctx("What is Section 420 IPC?"))
-    assert plan.target_corpus == "BNS"          # ACT_MAP maps ipc -> BNS
+    assert plan.target_corpus == "IPC"
+    assert plan.decision_path == "act_map_single"
+
+
+def test_bns_query_selects_bns(router):
+    """The other half of the pair. Both must hold, or the router is simply
+    biased toward one code rather than reading the query."""
+    plan = router.route(ctx("What is Section 318 BNS?"))
+    assert plan.target_corpus == "BNS"
     assert plan.decision_path == "act_map_single"
 
 
@@ -50,7 +65,7 @@ def test_two_acts_named_drops_the_filter(router):
 
 def test_no_act_named_falls_back_to_domain(router):
     plan = router.route(ctx("police arrested my brother", domain="Criminal"))
-    assert plan.decision_path == "domain_fallback_criminal"
+    assert plan.decision_path == "domain_fallback_criminal_no_filter"
 
 
 def test_civil_domain_searches_everything(router):
@@ -84,18 +99,39 @@ def test_no_entities_when_none_mentioned(router):
 
 # --- the defect this router currently has ---------------------------------
 
-def test_DEFECT_procedural_query_routed_to_penal_code(router):
-    """docs/GAPS.md #6 -- 'Criminal' is treated as a synonym for the penal code.
+def test_procedural_query_is_not_forced_into_the_penal_code(router):
+    """docs/GAPS.md #6, fixed. Was pinned at "BNS".
 
-    Arrest, bail, FIR and jurisdiction are PROCEDURE (CrPC/BNSS), not offence
-    definitions (IPC/BNS). This test pins the wrong behaviour so that fixing
-    it in Phase E is visible rather than silent.
+    Two separate errors lived in that one line:
+
+      1. 'Criminal' was treated as a synonym for the PENAL code. Arrest, bail,
+         FIR and jurisdiction are PROCEDURE (CrPC/BNSS), not offence
+         definitions, so procedural queries were filtered into a corpus that
+         cannot answer them.
+
+      2. Even for a genuine offence query, choosing BNS over IPC requires the
+         event date, which the Router does not have. Hard-coding one made the
+         IPC unreachable for every query that did not name it -- and laypeople
+         never name a code.
+
+    The corrected behaviour is to apply NO corpus filter, which is honest
+    about the ambiguity. Narrowing it correctly needs the date, and that is
+    the Date Resolver's job in Phase H.
     """
     plan = router.route(ctx("can police arrest without a warrant", domain="Criminal"))
-    assert plan.target_corpus == "BNS", (
-        "Expected the current (incorrect) penal-code routing. If this now "
-        "fails, the domain fallback was fixed -- update to assert BNSS/CRPC."
-    )
+    assert plan.target_corpus is None
+    assert plan.decision_path == "domain_fallback_criminal_no_filter"
+
+
+def test_ipc_is_reachable_without_naming_it(router):
+    """The regression that matters for the date experiment.
+
+    Under the old fallback, a query about conduct in 2023 -- governed by the
+    IPC -- was filtered to BNS and could not retrieve the IPC at all. The
+    result would have measured the router's default, not the system.
+    """
+    plan = router.route(ctx("husband beats me. This happened in March 2023.", domain="Criminal"))
+    assert plan.target_corpus != "BNS"
 
 
 def test_decision_path_is_always_set(router):

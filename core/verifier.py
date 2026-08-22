@@ -16,9 +16,30 @@ TERMINOLOGY (established, so the paper is findable)
     ungrounded      it is NOT — "extrinsic hallucination" (Ji et al. 2023)
     out_of_corpus   the Act itself was never indexed, so the model could not
                     possibly have retrieved it
-    vintage error   right law, wrong numbering scheme — e.g. citing BNSS 35
-                    when the corpus holds CrPC 41. Specific to jurisdictions
-                    that have recodified.
+    corpus-vintage mismatch
+                    the answer cites one side of a recodification pair while
+                    the index holds only the other — e.g. citing BNSS 35 when
+                    the corpus holds CrPC 41. Specific to jurisdictions that
+                    have recodified.
+
+                    NOT called a "vintage error". Whether the citation is
+                    legally wrong depends on when the conduct happened, which
+                    this module does not know. What it CAN say is that the
+                    cited provision was unreachable from this index — a
+                    property of the corpus, not a verdict on the law. The two
+                    are separate findings and conflating them would overclaim.
+
+                    Counted in two directions, because they are different
+                    failures with different causes:
+
+                      cited_successor    cited BNSS/BNS, index holds CrPC/IPC.
+                                         The model reached past the corpus into
+                                         its training data for the newer code.
+
+                      cited_predecessor  cited CrPC/IPC, index holds only the
+                                         successor. The model fell back to the
+                                         repealed numbering that dominates the
+                                         legal corpora it was trained on.
 
     Note: ungrounded is NOT the same as wrong. A provision can be correct law
     and still be ungrounded, because groundedness is about whether the SOURCES
@@ -44,7 +65,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Iterable
 
-from core.citations import Provision, extract_provisions, provision_in
+from core.citations import (
+    Provision, extract_provisions, provision_in, same_provision,
+)
 
 
 @dataclass
@@ -74,7 +97,7 @@ class AuditResult:
     out_of_corpus: list[Provision] = field(default_factory=list)
     retrieved: list[Provision] = field(default_factory=list)
     panel: list[Provision] = field(default_factory=list)
-    vintage_errors: list[dict] = field(default_factory=list)
+    vintage_mismatches: list[dict] = field(default_factory=list)
 
     # strict metrics (headline)
     ungrounded_rate: float = 0.0
@@ -97,7 +120,13 @@ class AuditResult:
             "ungrounded_rate_lenient": round(self.ungrounded_rate_lenient, 4),
             "out_of_corpus_rate": round(self.out_of_corpus_rate, 4),
             "panel_prose_jaccard": round(self.panel_prose_jaccard, 4),
-            "n_vintage_errors": len(self.vintage_errors),
+            "n_vintage_mismatch": len(self.vintage_mismatches),
+            # Reported separately: they are different failures, and a single
+            # total would let one direction mask the other.
+            "n_cited_successor": sum(
+                1 for v in self.vintage_mismatches if v["relation"] == "cited_successor"),
+            "n_cited_predecessor": sum(
+                1 for v in self.vintage_mismatches if v["relation"] == "cited_predecessor"),
         }
 
 
@@ -108,33 +137,94 @@ REVERSE_RECODIFICATION = {v: k for k, v in RECODIFICATION.items()}
 
 
 def _vintage_relation(cited: str | None, corpus_acts: set[str]) -> tuple[str, str] | None:
-    """If a cited Act is the other half of a recodification pair that IS in the
-    corpus, report the direction. Returns (act_in_corpus, relation)."""
+    """Detect a corpus-vintage mismatch and name its direction.
+
+    Fires only when the cited Act is ABSENT from the index and its
+    recodification partner is PRESENT. Both conditions matter:
+
+      - if the cited Act is in the index, there is no mismatch to report; the
+        citation may still be ungrounded, but that is the other metric's job
+      - if neither side is indexed, the citation is simply out_of_corpus, and
+        calling it a vintage mismatch would attribute it to the recodification
+        when the real cause is that we never loaded the statute
+
+    With the current index (IPC, BNS, CrPC, CPA) both halves of the IPC/BNS
+    pair are present, so that pair never fires -- correctly. The reachable
+    case is a BNSS citation against a CrPC-only index.
+
+    Returns (act_present_in_corpus, relation).
+    """
     if not cited:
         return None
-    if cited in REVERSE_RECODIFICATION:                 # cited the NEW code
-        old = REVERSE_RECODIFICATION[cited]
-        if old in corpus_acts and cited not in corpus_acts:
-            return old, "new_to_old"
-    if cited in RECODIFICATION:                         # cited the OLD code
-        new = RECODIFICATION[cited]
-        if new in corpus_acts and cited not in corpus_acts:
-            return new, "old_to_new"
+    if cited in REVERSE_RECODIFICATION:                 # cited the SUCCESSOR code
+        predecessor = REVERSE_RECODIFICATION[cited]
+        if predecessor in corpus_acts and cited not in corpus_acts:
+            return predecessor, "cited_successor"
+    if cited in RECODIFICATION:                         # cited the PREDECESSOR code
+        successor = RECODIFICATION[cited]
+        if successor in corpus_acts and cited not in corpus_acts:
+            return successor, "cited_predecessor"
     return None
 
 
-def _jaccard(a: Iterable[str], b: Iterable[str]) -> float:
-    """Overlap of two sets: |intersection| / |union|.
+def _dedupe(provs: Iterable[Provision]) -> list[Provision]:
+    """Collapse exact repeats, preserving order. A provision cited three times
+    in one answer is one provision, not three."""
+    seen: set[str] = set()
+    out: list[Provision] = []
+    for p in provs:
+        if p.key not in seen:
+            seen.add(p.key)
+            out.append(p)
+    return out
+
+
+def _jaccard(a: Iterable[Provision], b: Iterable[Provision]) -> float:
+    """Overlap of two provision sets: |intersection| / |union|.
 
     1.0 = identical, 0.0 = completely disjoint. Both empty counts as 1.0 —
     nothing claimed and nothing shown is consistent, not divergent.
+
+    WHY THIS IS NOT set(a.key) & set(b.key)
+        It used to be, and it returned 0.0 on PERFECT grounding.
+
+        Statutory text never names its own statute. A retrieved chunk reads
+        "Section 302. Punishment for murder.—", so it parses with
+        statute=None and key '?:section:302'. The prose reads "Section 302
+        IPC" and parses to 'IPC:section:302'. String equality on those keys
+        is never satisfied, so the metric measured nothing and reported a
+        confident zero.
+
+        same_provision() already encodes the right rule -- an unattributed
+        reference matches on kind and number, because we cannot rule out that
+        it belongs to the statute it is being compared against. This function
+        now uses that rule, which makes the metric agree with the grounding
+        check sitting beside it instead of contradicting it.
+
+    WHY GREEDY ONE-TO-ONE MATCHING
+        The rule is not transitive: '?:section:302' matches both
+        'IPC:section:302' and 'BNS:section:302'. Counting every satisfied
+        pair would let one item on the left consume several on the right and
+        push the ratio above 1.0. Matching each left item to at most one
+        unclaimed right item keeps |intersection| <= min(|a|, |b|), so the
+        result stays in [0, 1].
     """
-    sa, sb = set(a), set(b)
+    sa, sb = _dedupe(a), _dedupe(b)
     if not sa and not sb:
         return 1.0
     if not sa or not sb:
         return 0.0
-    return len(sa & sb) / len(sa | sb)
+
+    unclaimed = list(sb)
+    intersection = 0
+    for p in sa:
+        for i, q in enumerate(unclaimed):
+            if same_provision(p, q):
+                intersection += 1
+                unclaimed.pop(i)
+                break
+    union = len(sa) + len(sb) - intersection
+    return intersection / union
 
 
 def audit_answer(
@@ -172,7 +262,7 @@ def audit_answer(
         rel = _vintage_relation(prov.statute, corpus.acts)
         if rel:
             corpus_act, relation = rel
-            result.vintage_errors.append(
+            result.vintage_mismatches.append(
                 {"cited": str(prov), "corpus_has": corpus_act, "relation": relation}
             )
 
@@ -188,7 +278,5 @@ def audit_answer(
         )
         result.ungrounded_rate_lenient = (n - lenient_grounded) / n
 
-    result.panel_prose_jaccard = _jaccard(
-        (p.key for p in result.cited), (p.key for p in result.panel)
-    )
+    result.panel_prose_jaccard = _jaccard(result.cited, result.panel)
     return result

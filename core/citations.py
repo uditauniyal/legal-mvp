@@ -271,3 +271,42 @@ def _base_number(number: str) -> str:
 def provision_in(target: Provision, pool: Iterable[Provision], lenient: bool = False) -> bool:
     """Is `target` present anywhere in `pool`?"""
     return any(same_provision(target, p, lenient=lenient) for p in pool)
+
+
+def named_statutes(text: str) -> set[str]:
+    """Every statute NAMED in the text, whether or not a section is cited.
+
+    extract_provisions() needs a section number to anchor to, so it finds
+    nothing in
+
+        "what are the grounds for divorce under the Hindu Marriage Act"
+
+    even though the user named the Act unmistakably. This function answers the
+    weaker question -- which Acts were mentioned at all -- which is what a
+    corpus-boundary check needs.
+
+    WHY THIS EXISTS AT ALL
+        Measured on this index: the highest similarity score for an
+        OUT-of-corpus query (Hindu Marriage Act divorce, 0.519) is higher than
+        five of six IN-corpus queries, the lowest of which is 0.278. The two
+        distributions are not merely overlapping, they are inverted, so no
+        similarity threshold can tell "we do not hold this law" from "this is
+        a hard question about a law we do hold".
+
+        Naming is the one signal that is not noisy: if the user says
+        "Negotiable Instruments Act" and we never indexed it, that is certain,
+        not probabilistic.
+
+    LIMITATION, STATED PLAINLY
+        It fires only when a statute is named. Layman queries name nothing --
+        "husband beats me, what can I do" mentions no Act at all -- so this
+        gate cannot help them. That is a real hole, not a bug to be patched
+        with a threshold, and it is exactly what the Router is for.
+
+    >>> sorted(named_statutes("Section 138 of the NI Act and Section 420 IPC"))
+    ['IPC', 'NI']
+    """
+    return {
+        STATUTE_ALIASES[m.group(0).lower()]
+        for m in _STATUTE_RE.finditer(text or "")
+    }

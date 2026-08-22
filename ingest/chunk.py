@@ -77,6 +77,11 @@ SECTION_HEADING = re.compile(r"(?m)^\s*Section\s+(\d+[A-Za-z]?)\s*\.")
 # short cross-page fragments that dragged the median down.
 BODY_MARKERS = ("—", ".-", ".–")   # em-dash, hyphen, en-dash
 CONTENTS_MAX_TOKENS = 35    # below this AND no body marker => contents listing
+# How much longer a twin must be before it counts as shadowing a fragment.
+# Observed contents/law ratios on the real PDFs: 3.7x (CRPC 36), 3.8x (CRPC
+# 143), 6.5x (CRPC 431), 11.6x (IPC 153), 14.3x (CRPC 81). Set at 2 because
+# nothing real sits near it -- the gap between the two populations is wide.
+SHADOW_RATIO = 2.0
 
 MAX_SECTION_TOKENS = 800   # above this, split within the section
 MIN_CHUNK_TOKENS = 15      # below this, a fragment is page furniture, not law
@@ -137,20 +142,177 @@ def split_long_body(body: str, target: int = TARGET_TOKENS) -> list[str]:
     return out or [body]
 
 
+# A dash belonging to a STRUCTURAL SUB-HEADING, not to a section title.
+#
+# Indian statutes group sections under lettered sub-headings, and a contents
+# page prints them inline right after the entry above:
+#
+#     Section 36. Powers of superior officers of police. B.–AID TO THE ...
+#                                                         ^^^ not Section 36's
+#
+# The old rule searched the whole body for any dash and kept the chunk if it
+# found one. On contents pages it kept finding the NEXT sub-heading's dash and
+# reading it as proof that Section 36 had a body. Eight table-of-contents
+# entries reached the index that way, where they compete with the real law:
+# a 15-token listing of pure topic words can out-score the 215-token provision
+# it points to, and the system would then cite an index as its authority.
+SUBHEADING_DASH = re.compile(r"\s[A-Z]\.\s*[—–-]")
+
+
+def has_body_marker(body: str) -> bool:
+    """Does a provision actually follow the section title?
+
+    A dash counts only if it is NOT the sub-heading punctuation described
+    above. Checked by blanking out sub-heading labels first, so what remains
+    is only dashes that could genuinely separate a title from its body.
+    """
+    cleaned = SUBHEADING_DASH.sub(" ", body)
+    return any(m in cleaned for m in BODY_MARKERS)
+
+
 def is_contents_entry(section_number: str | None, body: str) -> bool:
     """A bare heading from the table of contents, carrying no law.
 
     Kept if EITHER condition holds:
-      - it contains a body marker (em-dash), so a provision follows the title
+      - a body marker follows the title, so a provision follows it
       - it is at least CONTENTS_MAX_TOKENS long, so there is substance
 
     Dropped only when both fail.
+
+    This catches most of it, but not all: a handful of contents entries carry
+    a genuine dash inside the TITLE itself --
+
+        Section 212. Harbouring offender.— if a capital offence; ...
+
+    -- which is indistinguishable from a real provision by local inspection.
+    Those need the cross-page check in drop_shadowed_fragments().
     """
     if not section_number:
         return False
-    if any(m in body for m in BODY_MARKERS):
+    if has_body_marker(body):
         return False
     return tokens(body) < CONTENTS_MAX_TOKENS
+
+
+# AMENDMENT FOOTNOTES PARSED AS SECTIONS
+#
+# Indian bare-Act PDFs print amendment history as numbered footnotes at the
+# bottom of the page:
+#
+#     8. Subs. by the A.O. 1950, for "the Provincial Government of the ..."
+#
+# The extractor sees a number, a full stop and text, which is exactly the
+# shape of a section heading, so this became "Section 8" of the IPC -- sitting
+# in the index alongside the real Section 8 ("Gender.—The pronoun 'he' ...").
+#
+# Measured on the four PDFs: 13 such chunks, and ALL 13 collide with a real
+# section of the same number. Two consequences, both bad:
+#   - a query for IPC 8 can retrieve a 1950 amendment note instead of the law
+#   - the note is sometimes LONGER than the short definition it collides with,
+#     so drop_shadowed_fragments() deleted the law and kept the note
+#
+# These openers are editorial apparatus. No answer should ever cite one.
+# Two tiers, because one regex cannot be both safe and complete here.
+#
+# STRONG openers are unambiguous: no provision of the IPC begins "Subs. by".
+# WEAK openers ("The words ...", "The Original words ...") are how the other
+# half of the footnotes start, but a real section could plausibly begin with
+# a similar phrase, so a weak match must also carry AMENDMENT EVIDENCE -- a
+# commencement date, an amending Act, or an Adaptation Order -- before the
+# chunk is treated as editorial.
+#
+# Being wrong in the permissive direction leaves noise in the index. Being
+# wrong in the strict direction DELETES LAW, which is what happened to IPC
+# s.8 ("Gender") on the first attempt. The asymmetry is deliberate.
+FOOTNOTE_STRONG = re.compile(
+    r"^Section\s+\S+\s*\.\s*"
+    r"(Subs\.|Ins\.|Rep\.|Cl\.|Added\b|Omitted\b|Renumbered\b|"
+    r"Substituted\b|Inserted\b|Repealed\b)",
+    re.I)
+
+FOOTNOTE_WEAK = re.compile(
+    r"^Section\s+\S+\s*\.\s*((The|Certain)\s+)?(original\s+)?words\b",
+    re.I)
+
+FOOTNOTE_EVIDENCE = re.compile(
+    r"(A\.\s?O\.\s*19|w\.e\.f\.|Act\s+\d+\s+of\s+\d{4}|successively|"
+    r"omitted by|subs\.\s*by|ins\.\s*by|amended by)",
+    re.I)
+
+# Above this, the chunk carries more than the footnote it opens with, so the
+# text is kept and only the false section attribution is removed. The one
+# observed case is 361 tokens; every pure footnote is under 50.
+FOOTNOTE_KEEP_TEXT_TOKENS = 100
+
+
+def footnote_verdict(section_number: str | None, body: str) -> str:
+    """One of "law", "drop", "demote".
+
+    demote = keep the text, discard the section_number. Used when a chunk
+    opens with a footnote but continues into real content: deleting it would
+    lose law, and keeping the number would misattribute it.
+    """
+    if not section_number:
+        return "law"
+    head = " ".join(body.split())
+    is_note = bool(FOOTNOTE_STRONG.match(head)) or (
+        bool(FOOTNOTE_WEAK.match(head)) and bool(FOOTNOTE_EVIDENCE.search(head[:400]))
+    )
+    if not is_note:
+        return "law"
+    return "demote" if tokens(body) > FOOTNOTE_KEEP_TEXT_TOKENS else "drop"
+
+
+def drop_shadowed_fragments(chunks: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Remove short chunks that a much longer copy of the same section shadows.
+
+    THE SIGNAL
+        Every leaked contents entry has a twin: the real provision, on a much
+        later page, several times longer.
+
+            CRPC 81   page 4, 15 words   <- contents
+            CRPC 81   page 49, 215 words <- the law
+
+        Genuinely short sections have no twin. CrPC 57 ("Person arrested not
+        to be detained more than twenty-four hours") is 15 words and appears
+        exactly once, so it survives.
+
+    WHY "ON A DIFFERENT PAGE" IS PART OF THE RULE, NOT AN OPTIMISATION
+        split_long_body() cuts an over-long section into several chunks that
+        share a section_number, and the final piece can be short. Those pieces
+        are always produced from ONE page, so they always share it. Requiring
+        the shadowing twin to sit on a DIFFERENT page means a real split tail
+        can never be mistaken for a contents entry -- no page-distance
+        threshold to tune, and no arbitrary constant to defend in the paper.
+
+    Returns (kept, dropped). The dropped list is returned rather than
+    discarded so the ingest log can report exactly what was removed; a filter
+    that silently eats content is how the last corpus defect survived six
+    months.
+    """
+    longest: dict[tuple, dict] = {}
+    for c in chunks:
+        if not c.get("section_number"):
+            continue
+        key = (c["corpus"], c["section_number"])
+        if key not in longest or tokens(c["text"]) > tokens(longest[key]["text"]):
+            longest[key] = c
+
+    kept, dropped = [], []
+    for c in chunks:
+        sec = c.get("section_number")
+        if not sec or tokens(c["text"]) >= CONTENTS_MAX_TOKENS:
+            kept.append(c)
+            continue
+        twin = longest.get((c["corpus"], sec))
+        shadowed = (
+            twin is not None
+            and twin is not c
+            and twin.get("page") != c.get("page")
+            and tokens(twin["text"]) >= SHADOW_RATIO * tokens(c["text"])
+        )
+        (dropped if shadowed else kept).append(c)
+    return kept, dropped
 
 
 def detect_lang(text: str) -> str:
@@ -181,6 +343,16 @@ def chunk_page(doc_name: str, page: int, text: str, **_legacy) -> list[dict]:
         body = body.strip()
         if tokens(body) < MIN_CHUNK_TOKENS:
             continue
+
+        # Amendment footnotes are not law. Run this BEFORE the contents check
+        # so a demoted chunk is never judged as a section it does not belong to.
+        verdict = footnote_verdict(section_number, body)
+        if verdict == "drop":
+            continue
+        editorial = verdict == "demote"
+        if editorial:
+            section_number = None
+
         if is_contents_entry(section_number, body):
             continue
 
@@ -195,6 +367,11 @@ def chunk_page(doc_name: str, page: int, text: str, **_legacy) -> list[dict]:
                 "chunk_id": chunk_id,
                 "text": body,
                 "section_number": section_number,
+                # True when the chunk opens with an amendment footnote and was
+                # stripped of its (false) section number. Recorded so the
+                # evaluation can tell "retrieved editorial apparatus" apart
+                # from "retrieved the wrong law".
+                "editorial_note": editorial,
                 "corpus": info.corpus,
                 "statute_code": info.statute_code,
                 "statute_name": info.display_name,

@@ -1,20 +1,28 @@
 """Tests for the composite confidence score.
 
-These tests DOCUMENT CURRENT BEHAVIOUR, including two defects. They are
-written to fail loudly when those defects are fixed in Phase E, so the fix
-cannot happen silently and un-measured.
+Both defects these tests were written to pin are now FIXED, and the
+assertions have been flipped to the correct values. The old expectations are
+recorded in each docstring, because a reader seeing 0.6873 here should be able
+to tell it was ever 1.0.
 
-Defect 1 (docs/GAPS.md #1) -- entity_coverage divides a CHUNK count by an
-ENTITY count, so it can exceed 1.0 and saturate the min(confidence, 1.0) clamp.
+Defect 1 (docs/GAPS.md #1) -- entity_coverage divided a CHUNK count by an
+ENTITY count, so it reached 5.0 and saturated the min(confidence, 1.0) clamp.
+Fixed: the numerator now counts entities, bounding the value to [0, 1].
 
-Defect 2 (docs/GAPS.md #2) -- when no entity is extracted the signal defaults
+Defect 2 (docs/GAPS.md #2) -- when no entity was extracted the signal defaulted
 to 1.0, granting its full 0.30 weight for free. Since the HIGH threshold is
-0.55, almost any no-entity query reaches HIGH.
+0.55, almost any no-entity query reached HIGH -- and layman queries, the ones
+this project exists for, name a section almost never. Fixed: the fallback is
+ENTITY_NEUTRAL (0.5), meaning "unknown".
+
+EVERY EXPECTED VALUE HERE IS WORKED OUT BY HAND in the docstring that carries
+it. A metric test whose expectation was produced by running the code proves
+only that the code is deterministic.
 """
 
 import pytest
 
-from agents.retriever import compute_confidence
+from agents.retriever import ENTITY_NEUTRAL, compute_confidence
 
 
 class FakeChunk:
@@ -44,10 +52,15 @@ def test_score_gap_is_first_minus_fifth():
     assert out["score_gap"] == pytest.approx(0.4)
 
 
-def test_no_entities_flags_the_default():
-    """The free 0.30 must be visible in the output, not silent."""
+def test_no_entities_uses_the_neutral_value_and_flags_it():
+    """Was 1.0 -- full credit for a signal that could not be computed.
+
+    Now ENTITY_NEUTRAL (0.5): neither rewarded nor punished. The flag must
+    still be set either way, so the ablation can recompute the old behaviour
+    offline from the log without re-querying.
+    """
     out = compute_confidence(GOOD_SCORES, [], [FakeChunk("x")] * 5)
-    assert out["entity_coverage"] == 1.0
+    assert out["entity_coverage"] == ENTITY_NEUTRAL
     assert out["entity_coverage_default_used"] is True
 
 
@@ -57,38 +70,94 @@ def test_entities_present_does_not_flag_the_default():
 
 
 # ---------------------------------------------------------------------------
-# The two defects, pinned. Both are EXPECTED TO FAIL once Phase E lands.
+# The two defects, now fixed. Each test names the value it used to assert.
 # ---------------------------------------------------------------------------
 
-def test_DEFECT_entity_coverage_exceeds_one():
-    """GAPS.md #1: three matching chunks / one entity == 3.0, not a fraction."""
+def test_entity_coverage_is_a_fraction_of_entities_found():
+    """Was pinned at 3.0 (GAPS.md #1) -- three matching CHUNKS divided by one
+    ENTITY. Different units on each side of the division.
+
+    Now: one entity, present in the retrieved text, so 1/1 = 1.0.
+    """
     chunks = [FakeChunk("Section 41 arrest")] * 3 + [FakeChunk("unrelated")] * 2
     out = compute_confidence(GOOD_SCORES, ["Section 41"], chunks)
-    assert out["entity_coverage"] == 3.0, (
-        "entity_coverage should be a FRACTION in [0,1]. Getting 3.0 means it is "
-        "counting chunks and dividing by entities. If this test now fails, the "
-        "defect was fixed -- update it to assert the correct fraction."
-    )
+    assert out["entity_coverage"] == 1.0
 
 
-def test_DEFECT_confidence_saturates_at_one():
-    """The clamp hides defect 1: the raw composite is ~1.27, reported as 1.0."""
+def test_entity_coverage_partial_match():
+    """Two entities, only one findable -> 0.5. The case that proves the
+    numerator counts entities: under the old arithmetic four matching chunks
+    over two entities gave 2.0."""
+    chunks = [FakeChunk("Section 41 arrest procedure")] * 4 + [FakeChunk("unrelated")]
+    out = compute_confidence(GOOD_SCORES, ["Section 41", "Section 438"], chunks)
+    assert out["entity_coverage"] == pytest.approx(0.5)
+
+
+def test_entity_coverage_never_exceeds_one():
+    """The invariant, stated directly. One entity repeated across every chunk
+    is still one entity found."""
+    chunks = [FakeChunk("Section 41 arrest")] * 15
+    out = compute_confidence(GOOD_SCORES, ["Section 41"], chunks)
+    assert 0.0 <= out["entity_coverage"] <= 1.0
+
+
+def test_confidence_no_longer_saturates():
+    """Was pinned at 1.0, where the min(confidence, 1.0) clamp was hiding a raw
+    composite of ~1.27 produced by the unbounded entity signal.
+
+    Worked by hand from the weights in compute_confidence:
+        top_k_mean   (0.52+0.50+0.48+0.47+0.46)/5   = 0.486
+        score_gap    0.52 - 0.46                    = 0.06
+        gap_penalty  min(0.06/0.3, 1.0)             = 0.2
+        entity_cov   1 entity found / 1 entity      = 1.0
+
+        0.55*0.486 + 0.15*(1-0.2) + 0.30*1.0
+          = 0.2673  + 0.12        + 0.30           = 0.6873
+    """
     chunks = [FakeChunk("Section 41 arrest")] * 3 + [FakeChunk("unrelated")] * 2
     out = compute_confidence(GOOD_SCORES, ["Section 41"], chunks)
-    assert out["confidence"] == 1.0
+    assert out["confidence"] == pytest.approx(0.6873, abs=1e-4)
+    assert out["confidence"] < 1.0
 
 
-def test_DEFECT_no_entity_query_reaches_high_tier_on_mediocre_scores():
-    """GAPS.md #2: mediocre retrieval still clears HIGH (0.55) with no entity.
+def test_no_entity_query_on_mediocre_scores_no_longer_reaches_high():
+    """GAPS.md #2, fixed.
 
     These scores are deliberately poor -- the sort of thing returned when the
-    corpus does not contain the answer at all.
+    corpus does not contain the answer at all. They used to clear the HIGH
+    tier (0.55) purely on the free 0.30 the entity signal gave away.
+
+    Worked by hand:
+        top_k_mean   (0.41+0.40+0.39+0.39+0.38)/5  = 0.394
+        score_gap    0.41 - 0.38                   = 0.03
+        gap_penalty  min(0.03/0.3, 1.0)            = 0.1
+        entity_cov   ENTITY_NEUTRAL                = 0.5
+
+        0.55*0.394 + 0.15*(1-0.1) + 0.30*0.5
+          = 0.2167  + 0.135       + 0.15          = 0.5017   -> below HIGH
     """
     mediocre = [0.41, 0.40, 0.39, 0.39, 0.38]
     out = compute_confidence(mediocre, [], [FakeChunk("irrelevant")] * 5)
-    assert out["confidence"] > 0.55, (
-        "Expected the free 0.30 to push mediocre retrieval into the HIGH tier."
-    )
+    assert out["confidence"] == pytest.approx(0.5017, abs=1e-4)
+    assert out["confidence"] < 0.55
+
+
+def test_gap_signal_rewards_uniform_irrelevance():
+    """A known perversity, pinned rather than fixed.
+
+    When every retrieved chunk is equally irrelevant the scores are almost
+    identical, so score_gap is near zero and the signal awards its full 0.15
+    for "consistency". Consistently wrong looks the same as consistently
+    right to this signal.
+
+    Left in place deliberately: it is one of the three signals under ablation
+    in EVALUATION_PLAN E6, and removing it before measuring would destroy the
+    comparison. Recorded here so it is a known property, not a surprise.
+    """
+    flat_and_bad = [0.30, 0.30, 0.30, 0.30, 0.30]
+    out = compute_confidence(flat_and_bad, [], [FakeChunk("irrelevant")] * 5)
+    assert out["score_gap"] == 0.0
+    assert out["confidence"] == pytest.approx(0.55 * 0.30 + 0.15 * 1.0 + 0.30 * 0.5, abs=1e-4)
 
 
 def test_signals_are_reported_separately_for_ablation():

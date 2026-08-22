@@ -126,3 +126,29 @@ Whichever is chosen needs a `DECISIONS.md` entry superseding ADR-008, and the ol
 **Evidence.** …
 **Changed as a result.** … (link the ADR or commit)
 ```
+
+---
+
+## Q4 — How should the entity-coverage neutral default be fixed?
+**Raised:** 2026-08-17 · **Settled:** 2026-08-23
+
+**Answer: make it 0.5 and keep the flag.**
+
+When no entity is extracted the signal is UNKNOWN, not perfect. It used to be 1.0, handing its full 0.30 weight to every query naming no section. Since the HIGH tier starts at 0.55, that free 0.30 alone carried mediocre retrieval over the line — and layman queries, the ones this project exists for, name a section almost never. The system was most confident exactly where it had least evidence.
+
+`ENTITY_NEUTRAL = 0.5` neither rewards nor punishes a signal that could not be computed. `entity_coverage_default_used` is still logged on every run, so the ablation can recompute the old behaviour offline without re-querying.
+
+Measured effect: a no-entity query on mediocre scores `[0.41, 0.40, 0.39, 0.39, 0.38]` went from clearing HIGH to **0.5017**, below the threshold.
+
+Rejected alternatives: *renormalise the remaining weights* (makes runs with and without entities incomparable, breaking the E6 ablation); *penalise with 0.0* (punishes a query for a property of the extractor rather than of the retrieval).
+
+---
+
+## Q7 — Should the corpus be extended to the BNSS and BSA?
+**Raised:** 2026-08-23 · **Blocks:** 5 layman rows, all 10 CrPC→BNSS map entries · **Effort:** ~1 hour ingest + rebuild
+
+**Why it matters.** The index holds IPC, BNS, CrPC and CPA. The BNSS (procedure) and BSA (evidence) are absent, so any query about post-2024 procedure is unanswerable **by construction** — not because the system failed, but because we never loaded the law. Those rows currently carry `answerable_from_corpus: false` and are scored as refusal tests rather than retrieval tests.
+
+**Why it was NOT done in Phase E.** It is a scope change, not a defect fix, and the plan is frozen through Phase G. Adding a corpus mid-stream would also make the Phase G numbers incomparable with the baseline they are meant to establish.
+
+**Current lean.** Do it between G and H, so the intervention phase has a symmetric corpus: with the BNSS present, both halves of the CrPC↔BNSS pair become measurable and the paired set roughly doubles. Decide after seeing whether the IPC↔BNS result is strong enough on its own.

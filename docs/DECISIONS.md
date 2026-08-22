@@ -172,3 +172,49 @@
 **Consequences.** The reasoning is sound and the determinism has been genuinely useful — every routing failure found in the 2026-08-17 review was traceable to a specific line. The cost is real: queries without a keyword get no filter and fall through to the domain fallback, which conflates criminal with penal (`GAPS.md` #6). Measured routing accuracy on the pre-fix baseline: **1 of 11**.
 
 This is exactly what Prof. Joshi's item 4 targets. Note the fix is probably *not* "use an LLM" — it is better keyword coverage, a corrected fallback, and hybrid dense+sparse retrieval, which preserves determinism where it matters. Superseding decision expected after `EVALUATION_PLAN.md` E4.
+
+---
+
+## ADR-00X · The corpus boundary is checked by NAME, not by similarity score
+**Date:** 2026-08-23 · **Status:** Accepted
+
+**Context.** The refusal gate was unreachable. `refused = len(filtered) == 0`, and the score filter always keeps at least three chunks, so the system never refused anything. An out-of-corpus Negotiable Instruments Act query came back at HIGH confidence 0.73.
+
+The obvious fix is a similarity threshold: refuse when the best score is too low.
+
+**The measurement that ruled that out.** 15 probe queries against the rebuilt index:
+
+```
+in corpus,     lowest max score   0.278   "my landlord is not returning my deposit"  (CPA IS indexed)
+out of corpus, highest max score  0.519   "grounds for divorce under the Hindu Marriage Act"
+nonsense,      highest max score  0.208   "how do I bake a chocolate cake"
+```
+
+The out-of-corpus query scores **higher than five of six in-corpus queries**. The distributions are not merely overlapping — they are inverted. Separation between the lowest legitimate query and the highest out-of-corpus one is **−0.241**. Any threshold catching the Hindu Marriage Act query also rejects most real work.
+
+**Decision.** Check the boundary by **named statute**. Parse the query for Act names via `core.citations.named_statutes()` and compare against `CORPORA_IN_INDEX`. Refuse only when EVERY named Act is missing; flag `partial_corpus_coverage` when some are present. Record `refusal_reason` on every run so refusals can be counted by cause.
+
+Keep a score floor at 0.25, documented explicitly as a **garbage filter for non-legal input**, never as a corpus check.
+
+**Rationale.** Naming is the one signal that is not noisy. If the user says "Negotiable Instruments Act" and we never indexed it, that is certain rather than probabilistic. A similarity score is a statement about geometry, not about coverage, and this measurement shows it carries no coverage information at all in this setting.
+
+**Consequences.**
+- The gate fires only when a statute is NAMED. Layman queries name nothing — "husband beats me, what can I do" mentions no Act — so this cannot help them. That is a real hole, stated rather than papered over with a threshold, and it is what the Date Resolver and Statute Mapper address in Phase H.
+- The inverted-distribution result is itself a finding for the paper: the standard approach to RAG abstention fails at exactly the boundary that matters here. It also strengthens E3 (does confidence detect anything?) with a mechanism rather than just an AUROC.
+- 15 probe queries justify the design; they do not establish the number. Phase G measures it properly.
+
+---
+
+## ADR-00Y · The Router applies no corpus filter when no Act is named
+**Date:** 2026-08-23 · **Status:** Accepted, supersedes part of ADR-001
+
+**Context.** `if "Criminal" in context.predicted_legal_domain: target_corpus = "BNS"`.
+
+**Decision.** `target_corpus = None`, decision path `domain_fallback_criminal_no_filter`.
+
+**Rationale.** Two errors lived in that one line.
+
+1. "Criminal" was treated as a synonym for the PENAL code. Arrest, bail, FIR and jurisdiction are PROCEDURE, so procedural queries were filtered into a corpus that cannot answer them (`GAPS.md` #6).
+2. More seriously, it **silently decided the experiment**. Which penal code governs depends on when the conduct happened — before 1 July 2024 the IPC, on or after it the BNS. The Router has no date. Hard-coding BNS made the IPC unreachable for every query that did not name it by number, and laypeople never name a code. Every "This happened in March 2023" query would have been answered out of the code that did not yet exist, and Phase G would have measured the default rather than the system.
+
+**Consequences.** Searching unfiltered is not free: the CrPC is 39% of the index and now competes on every criminal query. That is the base-rate confound already flagged in `EVALUATION_PLAN.md` E4, and it must be reported. An honest confound beats a hidden decision. This unfiltered path is the **baseline** the Phase H interventions get measured against.

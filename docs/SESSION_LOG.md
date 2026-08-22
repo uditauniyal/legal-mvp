@@ -2582,3 +2582,1452 @@ import t
 ### 2026-08-23 01:01:40 · prompt
 
 not solo, my prof will also review my work..althoght I am building it.. verify your finidngs again, do deep resarch and code vrevier again with different mdoesl of claude because yourr fucking up big time, commit the work first - i lost my trust on you completely
+
+`2026-08-23 01:02:14` · **cmd** — Commit six weeks of uncommitted work
+```bash
+cd "C:/Users/uniya/legal-mvp"
+git status --porcelain | grep -vE "\.pyc$|__pycache__" | wc -l | xargs echo "  files to commit:"
+echo
+git add -A
+git commit -q -F - <<'MSG'
+Rebuild ingest pipeline, add evaluation infrastructure
+
+Index rebuilt from source PDFs (1,813 -> 1,933 points):
+- 618 duplicate chunks (34% of index) eliminated. Cause: app.py overwrote
+  the deterministic chunk_id with uuid.uuid4(), so upsert had nothing to
+  match and every ingest inserted copies. IDs now uuid5(namespace, doc:page:idx).
+- Corpus tags now come from an explicit registry (ingest/registry.py) rather
+  than keywo
+… [truncated, 2122 more chars]
+```
+
+`2026-08-23 01:02:56` · **cmd** — List repo root and check python version
+```bash
+ls && echo "---" && ./venv/Scripts/python.exe --version
+```
+
+`2026-08-23 01:03:10` · **cmd** — List project root
+```bash
+ls -la "C:/Users/uniya/legal-mvp" 2>/dev/null | head -50
+```
+
+`2026-08-23 01:03:19` · **cmd** — List eval directory
+```bash
+ls -R "C:/Users/uniya/legal-mvp/eval" 2>/dev/null | head -60
+```
+
+`2026-08-23 01:04:16` · **cmd** — Count lines in eval query sets
+```bash
+wc -l eval/queryset.jsonl eval/generated_queryset.jsonl eval/layman_queryset.jsonl 2>&1 | tail -5
+```
+
+`2026-08-23 01:04:17` · **cmd** — Preview queryset.jsonl
+```bash
+head -c 2000 eval/queryset.jsonl
+```
+
+`2026-08-23 01:04:49` · **cmd** — Run verifier test script
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe "C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\scratchpad\test_verifier.py"
+```
+
+`2026-08-23 01:05:05` · **cmd** — Check if Qdrant is running
+```bash
+cd "C:\Users\uniya\legal-mvp" && curl -s http://localhost:6333/collections 2>&1 | head -c 1000
+```
+
+`2026-08-23 01:05:27` · **cmd** — Pull real IPC chunks from Qdrant to inspect text body
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+from clients.qdrant_client import qdrant, COLLECTION
+client = qdrant()
+pts, _ = client.scroll(collection_name=COLLECTION, limit=5, with_payload=True, with_vectors=False,
+    scroll_filter={'must':[{'key':'corpus','match':{'value':'IPC'}}]})
+for p in pts:
+    pl = p.payload
+    print('---')
+    print('section:', pl.get('section_number'), 'statute_code:', pl.get('statute_code'))
+    print(repr(pl.get('text','')[:300]))
+"
+```
+
+`2026-08-23 01:05:41` · **cmd** — Confirm real-chunk scenario shows perfect grounding but zero jaccard
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+from core.verifier import audit_answer, CorpusIndex
+corpus = CorpusIndex(acts={'IPC','BNS','CRPC','CPA'}, sections=[])
+answer = 'The punishment for selling counterfeit government stamps is under Section 258 IPC.'
+retrieved = 'Section 258. Sale of counterfeit Government stamp.-Whoever sells, or offers for sale, any stamp which he knows or has reason to believe to be a counterfeit of any stamp issued by Government for the purpose of revenue, shall be punished with imprisonment of either description for a term which may extend to sev
+… [truncated, 247 more chars]
+```
+
+`2026-08-23 01:06:09` · **cmd** — Run entity_coverage bounds test
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe "C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\scratchpad\test_confidence.py"
+```
+
+`2026-08-23 01:06:26` · **cmd** — List test data pdfs
+```bash
+cd "C:\Users\uniya\legal-mvp" && ls tests/data 2>&1; echo "---"; ls tests 2>&1
+```
+
+`2026-08-23 01:06:38` · **cmd** — List docs directory
+```bash
+cd "C:\Users\uniya\legal-mvp" && ls docs 2>&1
+```
+
+`2026-08-23 01:07:03` · **cmd** — Verify reranking-corrupts-top_score bug still present in current code
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+# Reproduce GAPS.md finding 7 against CURRENT code: does reranking still corrupt top_score/max_score?
+import sys
+sys.path.insert(0,'.')
+
+class FakePayload(dict):
+    pass
+
+class FakeHit:
+    def __init__(self, score, text):
+        self.score = score
+        self.payload = {'text': text}
+
+# Simulate what retrieve() does internally (steps 5+6), without touching Qdrant
+res = [FakeHit(0.62,'unrelated'), FakeHit(0.58,'unrelated'), FakeHit(0.41,'Section 41 arrest'), FakeHit(0.39,'unrelated')]
+entities = ['Section 41']
+
+# step 5: rerank
+… [truncated, 989 more chars]
+```
+
+`2026-08-23 01:07:30` · **cmd** — Verify router domain-fallback criminal-vs-procedural bug
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+from agents.router import RouterAgent
+from agents.intake import CaseContext
+
+ctx = CaseContext(
+    original_query='Police are arresting my brother without a warrant right now.',
+    scenario='Arrest', user_persona='Layman', urgency='Immediate',
+    financial_status='Unknown', complexity='Medium',
+    predicted_legal_domain='Criminal', legal_issues=[], missing_facts=[]
+)
+plan = RouterAgent().route(ctx)
+print('target_corpus =', plan.target_corpus, ' decision_path =', plan.decision_path)
+print('expected CRPC per eval/queryset.jsonl 
+… [truncated, 34 more chars]
+```
+
+### 2026-08-23 01:07:43 · prompt
+
+how do i truts you.. you have taken me round and round in circles vhnaginga arhcitetcure and paln so amny times, i ammpertrifeid. thats why asked multiple models of claude ..dont use fable rest use all to do deep resrach and check your work inf glow and tehn verify thir output and see gaps..i am done with you
+
+`2026-08-23 01:07:56` · **cmd** — Run chunk.py over test PDFs, check duplicate chunk ids
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+from ingest.extract import extract_text_pdf_bytes
+from ingest.chunk import chunk_page, tokens
+from pathlib import Path
+import collections
+
+all_chunks = []
+for pdf in sorted(Path('tests/data').glob('*.pdf')):
+    doc_chunks = []
+    for page, text in extract_text_pdf_bytes(pdf.read_bytes()):
+        doc_chunks.extend(chunk_page(pdf.name, page, text))
+    print(pdf.name, '->', len(doc_chunks), 'chunks')
+    all_chunks.extend(doc_chunks)
+
+ids = [c['chunk_id'] for c in all_chunks]
+dupes = [cid for cid,cnt in collections.Counter(ids).i
+… [truncated, 192 more chars]
+```
+
+`2026-08-23 01:08:17` · **cmd** — Inspect chunks with no section number for page furniture
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+from ingest.extract import extract_text_pdf_bytes
+from ingest.chunk import chunk_page, tokens
+from pathlib import Path
+
+pdf = Path('tests/data/the_code_of_criminal_procedure,_1973.pdf')
+chunks = []
+for page, text in extract_text_pdf_bytes(pdf.read_bytes()):
+    chunks.extend(chunk_page(pdf.name, page, text))
+
+none_sec = [c for c in chunks if c['section_number'] is None]
+print('chunks with section_number=None:', len(none_sec), '/', len(chunks))
+print()
+print('SAMPLES of section_number=None chunks (potential page furniture):')
+for c
+… [truncated, 107 more chars]
+```
+
+### 2026-08-23 01:08:35 · prompt
+
+0dont use fable at all
+
+`2026-08-23 01:08:36` · **cmd** — 
+```bash
+git log --oneline | head -30
+```
+
+`2026-08-23 01:08:39` · **cmd** — Inspect contents-page chunks (pages 2-14) to see if TOC filtering works
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+from ingest.extract import extract_text_pdf_bytes
+from ingest.chunk import chunk_page, tokens
+from pathlib import Path
+
+pdf = Path('tests/data/the_code_of_criminal_procedure,_1973.pdf')
+chunks = []
+for page, text in extract_text_pdf_bytes(pdf.read_bytes()):
+    chunks.extend(chunk_page(pdf.name, page, text))
+
+# pages 2-14 documented as contents pages
+contents_pages = [c for c in chunks if c['page'] in range(2,15)]
+print('chunks from pages 2-14:', len(contents_pages))
+for c in contents_pages[:15]:
+    print(f\"  page={c['page']} se
+… [truncated, 79 more chars]
+```
+
+`2026-08-23 01:08:48` · **cmd** — 
+```bash
+find . -name "*.py" -not -path "./venv/*" -not -path "./.tools/*" -not -path "./.git/*" -not -path "*/__pycache__/*" -type f | sort
+```
+
+`2026-08-23 01:08:59` · **cmd** — 
+```bash
+cat > /tmp/count_lines.py << 'EOF'
+import os
+from pathlib import Path
+
+def count_lines(filepath):
+    try:
+        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+            return len(f.readlines())
+    except:
+        return 0
+
+# Core system modules
+modules = [
+    ('core', './core'),
+    ('agents', './agents'),
+    ('clients', './clients'),
+    ('ingest', './ingest'),
+    ('report', './report'),
+    ('app.py', './app.py'),
+    ('streamlit_app.py', './streamlit_app.py'),
+]
+
+total = 0
+for name, path in modules:
+    if os.path.isfile(path):
+        lines = count_lines(path)
+
+… [truncated, 692 more chars]
+```
+
+`2026-08-23 01:09:02` · **cmd** — Check if TOC entries have a body marker embedded (false positive escape from filter)
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+from ingest.extract import extract_text_pdf_bytes
+from ingest.chunk import chunk_page, tokens, is_contents_entry, BODY_MARKERS
+from pathlib import Path
+
+pdf = Path('tests/data/the_code_of_criminal_procedure,_1973.pdf')
+chunks = []
+for page, text in extract_text_pdf_bytes(pdf.read_bytes()):
+    chunks.extend(chunk_page(pdf.name, page, text))
+
+contents_pages = [c for c in chunks if c['page'] in range(2,15) and c['section_number']]
+for c in contents_pages:
+    body = c['text']
+    print(f\"page={c['page']} sec={c['section_number']} t
+… [truncated, 109 more chars]
+```
+
+`2026-08-23 01:09:05` · **cmd** — 
+```bash
+ls -lah runs/ 2>/dev/null | head -20; echo "---"; find runs/ -type f -name "*.jsonl" -o -name "*.csv" -o -name "*.json" 2>/dev/null | head -20
+```
+
+`2026-08-23 01:09:09` · **cmd** — 
+```bash
+wc -l runs/2026-08-23_0008_57722ef/queries.jsonl runs/2026-08-22_2357_57722ef/queries.jsonl 2>/dev/null
+```
+
+`2026-08-23 01:09:16` · **cmd** — 
+```bash
+ls -lh eval/*.jsonl 2>/dev/null; echo "---"; for f in eval/*.jsonl; do echo "$f: $(wc -l < "$f") lines"; done
+```
+
+`2026-08-23 01:09:39` · **cmd** — Confirm the body-marker false-positive mechanism precisely
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+from ingest.extract import extract_text_pdf_bytes
+from ingest.chunk import chunk_page, tokens, BODY_MARKERS
+from pathlib import Path
+
+pdf = Path('tests/data/the_code_of_criminal_procedure,_1973.pdf')
+chunks=[]
+for page, text in extract_text_pdf_bytes(pdf.read_bytes()):
+    chunks.extend(chunk_page(pdf.name, page, text))
+
+c = [x for x in chunks if x['page']==4 and x['section_number']=='90'][0]
+body = c['text']
+import sys
+for m in BODY_MARKERS:
+    idx = body.find(m)
+    print(repr(m), '-> found at index', idx)
+    if idx!=-1:
+     
+… [truncated, 188 more chars]
+```
+
+### 2026-08-23 01:09:40 · prompt
+
+and my prof will reviwe the workdone at last..dohe ist he sent in mail..not revier my work.. i will show him the final product..
+
+`2026-08-23 01:10:13` · **cmd** — 
+```bash
+cd C:/Users/uniya/legal-mvp && ./venv/Scripts/python.exe << 'EOF'
+from agents.retriever import compute_confidence
+
+# Create mock chunks
+class MockChunk:
+    def __init__(self, text):
+        self.payload = {"text": text}
+
+# Test case from GAPS.md #1
+chunks = [
+    MockChunk("Section 41 arrest without warrant"),
+    MockChunk("Section 41 arrest without warrant"),  
+    MockChunk("Section 41 arrest without warrant"),
+    MockChunk("unrelated content"),
+    MockChunk("unrelated content")
+]
+
+# Scores for these chunks
+scores = [0.50, 0.48, 0.47, 0.40, 0.35]
+
+# Entity: "Section 41"
+entities = ["Sect
+… [truncated, 1096 more chars]
+```
+
+`2026-08-23 01:10:16` · **cmd** — Count suspected TOC-leak chunks across all test PDFs
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+from ingest.extract import extract_text_pdf_bytes
+from ingest.chunk import chunk_page, tokens
+from pathlib import Path
+
+total=0; suspects=0
+for pdf in sorted(Path('tests/data').glob('*.pdf')):
+    chunks=[]
+    for page, text in extract_text_pdf_bytes(pdf.read_bytes()):
+        chunks.extend(chunk_page(pdf.name, page, text))
+    for c in chunks:
+        total+=1
+        body=c['text']
+        # heuristic: short chunk (<35 tokens) whose body contains a 'CHAPTER'/'PART' heading
+        # glued in -- meaning it's TOC/heading boilerpl
+… [truncated, 434 more chars]
+```
+
+`2026-08-23 01:10:30` · **cmd** — Check layman queryset gold labels across date variants for one scenario
+```bash
+cd "C:\Users\uniya\legal-mvp" && grep '"pair_id": "L003"' eval/layman_queryset.jsonl
+```
+
+`2026-08-23 01:10:45` · **cmd** — Quantify scope of the bns_era gold-label bug
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+import json
+rows = [json.loads(l) for l in open('eval/layman_queryset.jsonl', encoding='utf-8')]
+bns_era = [r for r in rows if r['variant']=='bns_era']
+print('total bns_era rows:', len(bns_era))
+wrong = [r for r in bns_era if any(s.startswith('IPC') for s in r['expected_sections'])]
+print('bns_era rows whose expected_sections still cite IPC (repealed for this regime):', len(wrong))
+for r in wrong[:5]:
+    print(' ', r['query_id'], r['expected_sections'], r['also_relevant'])
+"
+```
+
+`2026-08-23 01:10:48` · **cmd** — 
+```bash
+cd C:/Users/uniya/legal-mvp && ./venv/Scripts/python.exe << 'EOF'
+import json
+
+# Sample from each query set
+sets = [
+    ("eval/queryset.jsonl", "Hand-written"),
+    ("eval/generated_queryset.jsonl", "Generated (from corpus)"),
+    ("eval/layman_queryset.jsonl", "Layman queries")
+]
+
+for filepath, label in sets:
+    count = 0
+    with open(filepath, encoding='utf-8') as f:
+        for line in f:
+            count += 1
+    
+    print("\n{}: {} queries".format(label, count))
+    
+    # Show first query
+    with open(filepath, encoding='utf-8') as f:
+        first = json.loads(f.readline())
+    
+ 
+… [truncated, 329 more chars]
+```
+
+`2026-08-23 01:11:00` · **cmd** — 
+```bash
+cd C:/Users/uniya/legal-mvp && ./venv/Scripts/python.exe << 'EOF'
+import json
+
+# Check the latest run
+with open("runs/2026-08-23_0008_57722ef/queries.jsonl", encoding='utf-8') as f:
+    for i, line in enumerate(f, 1):
+        query = json.loads(line)
+        print("\n=== Query {} ===".format(i))
+        print("Text: {}".format(query.get('query_text', 'N/A')[:80]))
+        
+        # Check what was logged
+        if 'retrieval' in query:
+            retr = query['retrieval']
+            print("Filter applied: {}".format(retr.get('filter_applied')))
+            print("Filter fallback fired: {}".
+… [truncated, 514 more chars]
+```
+
+`2026-08-23 01:11:04` · **cmd** — Check for ambiguous/duplicate topic_only gold labels in generated queryset
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+import json, collections
+rows = [json.loads(l) for l in open('eval/generated_queryset.jsonl', encoding='utf-8')]
+print('total rows:', len(rows))
+byvariant = collections.Counter(r['variant'] for r in rows)
+print(byvariant)
+
+# check topic_only queries: are there queries with identical text mapping to DIFFERENT gold sections?
+topic_only = [r for r in rows if r['variant']=='topic_only']
+text_to_golds = collections.defaultdict(set)
+for r in topic_only:
+    text_to_golds[r['text']].add(tuple(r['expected_sections']))
+ambiguous = {t:g for
+… [truncated, 203 more chars]
+```
+
+`2026-08-23 01:11:06` · **cmd** — 
+```bash
+cd C:/Users/uniya/legal-mvp && git status --short | head -20
+```
+
+`2026-08-23 01:11:21` · **cmd** — Get exact query_ids for the ambiguous duplicate-title case
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+import json
+rows = [json.loads(l) for l in open('eval/generated_queryset.jsonl', encoding='utf-8')]
+for r in rows:
+    if r['text']=='What is the law on transitional provision in India?':
+        print(r['query_id'], r['pair_id'], r['expected_sections'], r['section_title'])
+"
+```
+
+`2026-08-23 01:11:23` · **cmd** — 
+```bash
+cd C:/Users/uniya/legal-mvp && ./venv/Scripts/python.exe << 'EOF'
+# P0: Test model configuration
+try:
+    from clients.openai_client import chat_json
+    result = chat_json([{'role': 'user', 'content': 'hi'}])
+    print("SUCCESS: Model call works")
+    print("Result type: {}".format(type(result)))
+    if result:
+        print("Got response: {}".format(str(result)[:100]))
+except Exception as e:
+    print("FAILED: {}".format(str(e)[:200]))
+EOF
+```
+
+`2026-08-23 01:11:42` · **cmd** — 
+```bash
+cd C:/Users/uniya/legal-mvp && ./venv/Scripts/python.exe -m pytest tests/test_corpus_tagging.py -v 2>&1 | head -40
+```
+
+`2026-08-23 01:11:54` · **cmd** — Test whether an out-of-corpus query (NI Act, not indexed) triggers refusal
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+from agents.retriever import RetrievalAgent
+from agents.router import QueryPlan
+
+plan = QueryPlan(
+    original_query='What is the punishment for a cheque bounce under Section 138 of the Negotiable Instruments Act?',
+    rewritten_query='What is the punishment for a cheque bounce under Section 138 of the Negotiable Instruments Act?',
+    intent='statute', target_corpus=None, entities=[], boost_terms=[]
+)
+agent = RetrievalAgent()
+result = agent.retrieve(plan)
+print()
+print('refused =', result.refused, ' total_chunks =', result.tota
+… [truncated, 335 more chars]
+```
+
+`2026-08-23 01:12:00` · **cmd** — 
+```bash
+cd C:/Users/uniya/legal-mvp && ./venv/Scripts/python.exe -m pytest tests/ -v --tb=no 2>&1 | tail -50
+```
+
+### 2026-08-23 01:12:30 · prompt
+
+<task-notification>
+<task-id>ae13024131f22b96f</task-id>
+<tool-use-id>toolu_01VQy9xgBcpv5FhwkL1nav2x</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\tasks\ae13024131f22b96f.output</output-file>
+<status>completed</status>
+<summary>Agent "Independent research verification" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I verified each claim against primary sources where reachable. Findings below.
+
+---
+
+# CLAIM 1 â€” ILSIC paper: **PARTIALLY CONFIRMED** (one element materially misleading, one refuted)
+
+**Exists: CONFIRMED.** [arXiv 2602.00881](https://arxiv.org/abs/2602.00881), "ILSIC: Corpora for Identifying Indian Legal Statutes from Queries by Laypeople", Shounak Paul, Raghav Dogra, Pawan Goyal, Saptarshi Ghosh (IIT Kharagpur Law-AI group). Submitted 31 January 2026. It is **also published in Findings of EACL 2026** â€” not merely a preprint, which raises the bar for her related-work section.
+
+Minor: the identifier `2602.*` is a February-2026 arXiv identifier. "Jan 2026" is defensible as the submission date but will look wrong if cited that way.
+
+**~8,127 queries: TECHNICALLY CONFIRMED BUT MISLEADING.** From Table 2 of [the full text](https://arxiv.org/html/2602.00881v1):
+- ILSIC-Lay: **8,127 total** = 6,465 train / 826 val / **836 test**
+- ILSIC-Multi: 7,285 laypeople queries = 5,793 / 735 / 757
+
+The **evaluation set is 836 queries, not 8,127**. If whoever advised her used "8,127" to argue her eval set is inadequate, that compares her test set against someone else's entire corpus. The apples-to-apples number is 836.
+
+**500+ statutes: CONFIRMED** (the paper's own wording).
+
+**"Real layperson queries": CONFIRMED.** Scraped from the legal forum **kaanoon.com** (~30k conversations). Genuine user-written posts, not synthetic.
+
+**Statute-level or section-level: SECTION-LEVEL.** The task is multi-label Legal Statute Identification requiring section number *and* its Act. Not Act-level.
+
+**Gold labels: the claim overstates them.** Labels are *distantly supervised*, not expert-annotated: a **GPT-3.5-Turbo prompting pipeline** extracts statute references from the lawyer's forum reply, normalised with regex and fuzzy string matching. Validation was one law expert on **50 sampled documents** (95% agreement). Calling these "gold labels" without qualification is inaccurate â€” they are silver labels with a small audit. This is useful to her: it means ILSIC's ceiling is bounded by an LLM extractor, and a carefully hand-built 100-query set is not obviously inferior in label quality.
+
+**IPCâ†’BNS recodification: REFUTED â€” the paper does not address it at all.** No mention of Bharatiya Nyaya Sanhita, BNS, BNSS, or the 2023 recodification anywhere. Its corpus covers **the IPC and the CrPC** â€” i.e. the repealed codes â€” across ~10 topics (Business, Family, Taxation, Motor Vehicles Act, Consumer Protection Act, Hindu Marriage Act, etc.).
+
+This is the most important finding for her. A January-2026 EACL Findings paper built a 500+-statute Indian layperson-query corpus on the *repealed* codes without addressing recodification. That is not a reason her work is redundant â€” it is direct evidence her gap is real, and it is a citable one.
+
+---
+
+# CLAIM 2 â€” Evaluation set sizes: **PARTIALLY CONFIRMED / the generalisation is unsafe**
+
+| Benchmark | Eval queries | Notes |
+|---|---|---|
+| **AILA (FIRE 2019)** | **50** queries total | [Zenodo record](https://zenodo.org/records/4063986); 197 candidate statute sections, ~3,000 SC cases |
+| **AILA (FIRE 2020)** | **10 test queries** (the 2019 set of 50 became training) | [CEUR overview](https://ceur-ws.org/Vol-2826/T1-1.pdf); metrics "averaged over 10 test queries"; 197 statutes, 3,257 cases |
+| **COLIEE Task 3 (2024)** | **109** test qu
+… [truncated, 17063 more chars]
+
+### 2026-08-23 01:13:07 · prompt
+
+<task-notification>
+<task-id>ad84c05089a8befbd</task-id>
+<tool-use-id>toolu_01S92Jpaa9VNMoDNvHq6LVXv</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\tasks\ad84c05089a8befbd.output</output-file>
+<status>completed</status>
+<summary>Agent "Third independent review" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Now I have enough information to provide my independent assessment. Let me compile this comprehensively:
+
+---
+
+## INDEPENDENT ASSESSMENT: Legal MVP, 23 August 2026
+
+### 1. WHAT ACTUALLY EXISTS
+
+**Built and working end-to-end:**
+- 2,922 lines of production Python (core: 830, agents: 779, clients: 169, ingest: 506, API/UI: 623)
+- Five-agent pipeline: Intake (LLM) â†’ Router (regex) â†’ Retrieval (Qdrant) â†’ Answer (LLM) â†’ Reporter (PDF)
+- Corpus: 1,933 indexed chunks from 4 PDFs (BNS 2023, CrPC 1973, IPC 1860, CPA 2019)
+- Streamlit UI, FastAPI backend, Qdrant vector database
+- PDF report generation with citations
+
+**Documentation:**
+- 9 comprehensive docs (STATE, ARCHITECTURE, DATAFLOW, GAPS with 23 findings, EVALUATION_PLAN, TARGET_ARCHITECTURE, RESEARCH_CONTEXT, plus DECISIONS and OPEN_QUESTIONS)
+- ~8,000 lines of technical documentation with reproducible evidence for every claim
+
+**Infrastructure (built 2026-08-22 to -23):**
+- Structured JSONL logging with run metadata (per `EVALUATION_PLAN.md` P2)
+- 46 passing unit tests covering confidence, citations, routing, logging
+- Query evaluation sets: 58 hand-written, 600 generated (corpus-derived, gold labels by construction), 102 layman queries
+- Document registry (`ingest/registry.py`) replacing fragile keyword guessing
+- Run logger infrastructure capturing 100+ fields per query
+
+**Recently fixed (2026-08-23):**
+- Corpus tagging: IPC now correctly tagged (was 95.2% Unknown) â†’ 31.8% of index now reachable for IPC queries
+- ACT_MAP routing: `"ipc" â†’ "IPC"` (was erroneously `â†’ "BNS"`), `"consumer protection" â†’ "CPA"` (was â†’ "Unknown")
+- Index rebuilds from 1,813 to 1,933 points, removed 618 duplicates
+- Contents-page filtering: reduced 88 spurious chunks to 13
+
+**Actual code changes since February:**
+- Commit 21fd5c1 (2026-08-23): rebuild + eval infrastructure
+- Zero documented fixes to actual bugs; zero to confidence, entity_coverage, or the core GAPS findings
+
+**NOT FIXED (still in code as of today):**
+- `entity_coverage` divides chunks by entities (unbounded, returns 3.0 when should be â‰¤1.0) â€” **verified by running test**
+- Neutral default hands out 0.30 free when no entities â†’ ~every no-entity query lands HIGH tier â€” **verified**
+- Reranking corrupts `top_score`, making adaptive threshold loose exactly when reranking fires
+- Refusal gate structurally unreachable (0 refusals across 23 runs + 3 new runs)
+- `requirements.txt` still lists wrong packages
+- Test expectations outdated (expect the old bugs, but registry fix made tests fail â€” this is GOOD, not bad)
+
+---
+
+### 2. IS THERE A PUBLISHABLE RESULT HERE YET?
+
+**Directly publishable: NO.** But a strong result exists.
+
+**What exists as evidence:**
+
+From the recorded baseline (23 runs pre-rebuild, now superseded):
+- **Citation grounding audit (6 of 7): 86% of sampled answers cite statutory authority that was never retrieved**, including Acts absent from the corpus entirely. This is the Dahl et al. (2024) / Magesh et al. (2025) phenomenon reproduced with full mechanistic visibility.
+
+From the rebuilt system (5 runs post-fix):
+- Routing now correct for named acts (measured: IPC 302 query now retrieves IPC, not BNS)
+- Confidence still broken (entity_coverage unbounded) but logged for offline ablation
+
+**Cannot publish yet because:**
+- Evaluation set is ready (760 queries, gold labels), but only 3 queries have been run against the fixed syste
+… [truncated, 11562 more chars]
+
+`2026-08-23 01:13:08` · **cmd** — Sanity-check citation extraction against docstring examples and false-positive risks
+```bash
+cd "C:\Users\uniya\legal-mvp" && ./venv/Scripts/python.exe -c "
+from core.citations import extract_provisions
+tests = [
+    'Section 420 IPC',
+    'IPC Section 302',
+    'Sec 138 of the NI Act',
+    'Article 22(1)',
+    'BNSS Sec 35',
+    's. 41A CrPC',
+    'Sections 299 and 300 IPC',
+    'the IPC has 511 sections in total',  # false-positive risk?
+    'This is governed by Order 39 Rule 1 CPC',
+]
+for t in tests:
+    print(t, '->', [str(p) for p in extract_provisions(t)])
+"
+```
+
+`2026-08-23 01:13:40` · **cmd** — Settle the disagreement about the Jaccard metric by execution
+```bash
+cd "C:/Users/uniya/legal-mvp"
+./venv/Scripts/python.exe - <<'PY'
+import sys
+sys.path.insert(0, r"C:\Users\uniya\legal-mvp"); sys.stdout.reconfigure(encoding="utf-8")
+from core.verifier import CorpusIndex, audit_answer, _jaccard
+
+print("DISPUTE 1: is panel_prose_jaccard working?")
+print("  Haiku (read the code): 'implementation correct'")
+print("  Me    (ran the code) : 'structurally returns 0.0'")
+print("-"*76)
+
+# The formula in isolation -- this is what Haiku checked.
+print(f"  formula alone, identical sets : {_jaccard(['a','b'], ['a','b'])}   <- correct")
+print(f"  formula alone, disjoint se
+… [truncated, 1056 more chars]
+```
+
+### 2026-08-23 01:14:19 · prompt
+
+<task-notification>
+<task-id>a2ab040ef9adde0a2</task-id>
+<tool-use-id>toolu_01Daat62DUei7Ed8SJcmdz2G</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\tasks\a2ab040ef9adde0a2.output</output-file>
+<status>completed</status>
+<summary>Agent "Independent code review" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Independent Code Review â€” legal-mvp
+
+All findings below were verified by running code against the live Qdrant index (`legal_mvp` collection, running on `localhost:6333`) or with constructed unit tests, not by reading alone. Test scripts are in the scratchpad and reproducers are inlined so you can re-run them.
+
+### 1. [CRITICAL â€” invalidates the paper's headline metric] `panel_prose_jaccard` is structurally â‰ˆ0 for virtually all real system output, because `provision_in()` and the Jaccard computation use *different* matching rules
+
+**File:** `core/verifier.py` â€” `_jaccard()` (lines 126â€“137) and `audit_answer()` (lines 191â€“193), vs `core/citations.py` â€” `same_provision()` (236â€“263) / `provision_in()` (271â€“273).
+
+`provision_in`/`same_provision` treat a `statute=None` provision as a wildcard: it matches any statute of the same kind+number (lines 254â€“256: the statute check is skipped whenever *either* side is `None`). `_jaccard`, however, compares `Provision.key` strings verbatim (`"IPC:section:379"` vs `"?:section:379"`), which are **not equal** when one side has no statute attached â€” so it uses a strict rule where `provision_in` uses a lenient one, on the exact same data.
+
+This matters because, as `citations.py`'s own docstring says, "a statute never names itself." I pulled real chunks from the live index to confirm:
+
+```
+Section 258. Sale of counterfeit Government stamp.â€”Whoever sells, or offers for sale...
+```
+â€” no "IPC" anywhere in the body. Running the actual audit pipeline on this real chunk:
+
+```python
+from core.verifier import audit_answer, CorpusIndex
+corpus = CorpusIndex(acts={'IPC','BNS','CRPC','CPA'}, sections=[])
+answer = "The punishment for selling counterfeit government stamps is under Section 258 IPC."
+retrieved = "Section 258. Sale of counterfeit Government stamp.-Whoever sells..."
+r = audit_answer(answer, retrieved, corpus, panel_text=retrieved)
+print(r.summary())
+```
+Output:
+```
+{'n_cited': 1, 'n_grounded': 1, 'n_ungrounded': 0, ..., 'panel_prose_jaccard': 0.0}
+```
+The citation is **perfectly grounded** (`ungrounded_rate=0.0`), yet `panel_prose_jaccard` reports **0.0** â€” total divergence â€” for the exact same pair. This isn't an edge case: `app.py:228-235` builds `retrieved_text`/`panel_text` from `citations[].snippet`, which is raw chunk body text (`agents/answer.py:140`), which never contains an Act name in this corpus. So in production, `panel_prose_jaccard` will read â‰ˆ0 essentially every time there is at least one citation with a statute name attached (i.e., essentially always), **regardless of actual grounding quality**. As implemented, it does not measure "does the panel support the prose" â€” it measures "did the source text happen to spell out the Act's acronym," which for indexed statute text is always no. This is the metric the docstring calls novel and unbaselined; right now it can't distinguish a perfectly-grounded answer from a totally hallucinated one.
+
+**Fix direction:** make `_jaccard` operate on `same_provision`-style set matching (e.g. build the intersection by pairwise `same_provision`, not by exact `key` equality), or normalize keys to drop statute when either side lacks one before comparing.
+
+Note for contrast: `ungrounded_rate` and `out_of_corpus_rate` are **not** broken â€” I verified both with four constructed cases (fully-grounded â†’ 0.0, cited-but-not-retrieved â†’ 1.0, out-of-corpus
+… [truncated, 11927 more chars]
+
+`2026-08-23 01:14:53` · **cmd** — Verify the date-variant gold label bug
+```bash
+cd "C:/Users/uniya/legal-mvp"
+./venv/Scripts/python.exe - <<'PY'
+import json, sys
+sys.stdout.reconfigure(encoding="utf-8")
+rows = [json.loads(l) for l in open("eval/layman_queryset.jsonl", encoding="utf-8")]
+bns = [r for r in rows if r["variant"]=="bns_era"]
+wrong = [r for r in bns if any(g.startswith("IPC") for g in r["expected_sections"])]
+print("  Rows saying 'This happened last month' (so the BNS governs):")
+print(f"    total                          {len(bns)}")
+print(f"    whose gold still cites the IPC {len(wrong)}   <-- repealed law as the correct answer")
+print()
+for r in bns[:3]:
+   
+… [truncated, 361 more chars]
+```
+
+### 2026-08-23 01:19:46 · prompt
+
+See whatever was the design architecture for the plan. No and these findings, just stick to one plan from end to end then see the findings. If we are changing the plan again and again and again, things will take forever and also so many times I should explain things again. Did not explain to me things in depth why What is c5 scripts running as.py?
+
+### 2026-08-23 01:25:39 · prompt
+
+yes go ahead hope you have your rearch findings and eveyrhing else in memory
+
+`2026-08-23 01:29:09` · **cmd** — Write verified-defects memory file
+```bash
+cd /c/Users/uniya/.claude/projects/C--Users-uniya-legal-mvp/memory && cat > legal-mvp-verified-defects.md <<'EOF'
+---
+name: legal-mvp-verified-defects
+description: Defects in legal-mvp confirmed by execution or by three independent model reviews on 2026-08-23 â€” supersedes legal-mvp-known-defects
+metadata:
+  type: project
+---
+
+Confirmed 2026-08-23 at commit `21fd5c1` by execution plus three independent reviews (Sonnet code review, Opus fact-check, Haiku project assessment). This **supersedes** [[legal-mvp-known-defects]], which was written before the ingest rebuild and routing fix.
+
+## Confir
+… [truncated, 2498 more chars]
+```
+
+`2026-08-23 01:29:36` · **cmd** — Verify memory index updated
+```bash
+cd /c/Users/uniya/.claude/projects/C--Users-uniya-legal-mvp/memory && cat MEMORY.md && echo "---" && ls plan-is-frozen.md
+```
+
+`2026-08-23 01:29:57` · **cmd** — Enumerate all statutory sections used in scenarios
+```bash
+python - <<'PY'
+import sys, io, collections
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+from eval.scenarios import SCENARIOS
+prim, sec, either_prim = collections.Counter(), collections.Counter(), collections.Counter()
+for text, corpus, p, s, topic, rev, mess in SCENARIOS:
+    for x in p:
+        prim[x] += 1
+        if corpus == "EITHER": either_prim[x] += 1
+    for x in s: sec[x] += 1
+allsec = set(prim) | set(sec)
+by_act = collections.defaultdict(list)
+for x in allsec:
+    act, num = x.split(" ", 1)
+    by_act[act].append(num)
+print("scenarios:",
+… [truncated, 404 more chars]
+```
+
+`2026-08-23 01:31:02` · **cmd** — Create IPC-BNS recodification map data artifact
+```bash
+mkdir -p data && cat > data/recodification_map.json <<'EOF'
+{
+  "meta": {
+    "title": "IPC to BNS and CrPC to BNSS provision map (evaluation subset)",
+    "version": "0.1.0",
+    "built": "2026-08-23",
+    "scope": "Only the provisions used as gold labels in eval/scenarios.py. Not a complete map of either code.",
+    "commencement": "2024-07-01",
+    "authority": {
+      "IPC": "repealed by BNS s.358(1)",
+      "CRPC": "repealed by BNSS s.531(1)",
+      "IEA": "repealed by BSA s.170(1)"
+    },
+    "caveats": [
+      "Recodification is NOT renumbering. Several entries carry substantive change;
+… [truncated, 7285 more chars]
+```
+
+`2026-08-23 01:31:39` · **cmd** — Locate the project virtualenv
+```bash
+ls -d venv .venv env 2>/dev/null; ls venv/Scripts/python.exe 2>/dev/null || ls .venv/Scripts/python.exe 2>/dev/null
+```
+
+`2026-08-23 01:31:57` · **cmd** — Verify BNS mapping targets against corpus
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/verify_map.py <<'PY'
+import sys, io, json, re, collections
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+from clients.qdrant_client import COLLECTION, qdrant
+
+m = json.load(open("data/recodification_map.json", encoding="utf-8"))
+client = qdrant()
+
+def load(corpus):
+    best, off = {}, None
+    while True:
+        pts, off = client.scroll(collection_name=COLLECTION, limit=400, offset=off,
+                                 with_payloa
+… [truncated, 1217 more chars]
+```
+
+`2026-08-23 01:32:37` · **cmd** — List corpora present in the index
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/corpora.py <<'PY'
+import sys, io, collections
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+from clients.qdrant_client import COLLECTION, qdrant
+c = qdrant()
+n = collections.Counter(); secs = collections.defaultdict(set); off = None
+while True:
+    pts, off = c.scroll(collection_name=COLLECTION, limit=500, offset=off,
+                        with_payload=True, with_vectors=False)
+    for p in pts:
+        pl = p.payload or {}
+     
+… [truncated, 517 more chars]
+```
+
+`2026-08-23 01:33:01` · **cmd** — Check CRPC corpus for contamination
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/crpc_check.py <<'PY'
+import sys, io, re, collections
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+from clients.qdrant_client import COLLECTION, qdrant
+c = qdrant()
+secs = collections.defaultdict(dict); off = None
+while True:
+    pts, off = c.scroll(collection_name=COLLECTION, limit=500, offset=off,
+                        with_payload=True, with_vectors=False)
+    for p in pts:
+        pl = p.payload or {}
+        k, s, t = pl.get
+… [truncated, 999 more chars]
+```
+
+`2026-08-23 01:33:40` · **cmd** — Mark verified mappings in the map JSON
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/upd.py <<'PY'
+import json, io, sys
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+p = "data/recodification_map.json"
+d = json.load(open(p, encoding="utf-8"))
+n_v = n_n = 0
+for r in d["mappings"]:
+    if r["confidence"] == "no_counterpart":
+        continue
+    if r["to"] and r["to"][0].startswith("BNS "):
+        r["confidence"] = "verified_in_corpus"; n_v += 1
+    elif r["to"] and r["to"][0].startswith("BNSS "):
+        r["confidence"] = "unverified_not_i
+… [truncated, 1074 more chars]
+```
+
+`2026-08-23 01:34:28` · **cmd** — Write and smoke-test the recodification module
+```bash
+cat > core/recodification.py <<'PY'
+"""Translate a statutory citation between the pre- and post-2024 Indian codes.
+
+WHAT PROBLEM THIS SOLVES
+    On 1 July 2024 India replaced three colonial-era codes at once:
+
+        Indian Penal Code 1860        -> Bharatiya Nyaya Sanhita 2023
+        Code of Criminal Procedure    -> Bharatiya Nagarik Suraksha Sanhita
+        Indian Evidence Act 1872      -> Bharatiya Sakshya Adhiniyam
+
+    Which one governs depends on WHEN the conduct happened, not on when the
+    question is asked. So the same situation has two correct answers:
+
+        "husband beats me, 
+… [truncated, 7043 more chars]
+```
+
+`2026-08-23 01:36:20` · **cmd** — Regenerate the layman query set
+```bash
+./venv/Scripts/python.exe eval/layman_queries.py
+```
+
+`2026-08-23 01:36:39` · **cmd** — Regenerate with corrected answerability rule
+```bash
+./venv/Scripts/python.exe eval/layman_queries.py 2>&1 | sed -n '1,14p'
+```
+
+`2026-08-23 01:36:49` · **cmd** — Read verifier module
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+print(open('core/verifier.py',encoding='utf-8').read())
+"
+```
+
+`2026-08-23 01:37:13` · **cmd** — Read Provision and provision_in
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+t=open('core/citations.py',encoding='utf-8').read()
+i=t.find('class Provision')
+print(t[i:i+1400])
+print('=== provision_in ===')
+j=t.find('def provision_in')
+print(t[j:j+1600])
+"
+```
+
+`2026-08-23 01:37:22` · **cmd** — Read same_provision
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+t=open('core/citations.py',encoding='utf-8').read()
+j=t.find('def same_provision')
+print(t[j:j+1800])
+"
+```
+
+`2026-08-23 01:37:50` · **cmd** — Update import and call site for the new Jaccard
+```bash
+python - <<'PY'
+import re, pathlib
+p = pathlib.Path("core/verifier.py")
+t = p.read_text(encoding="utf-8")
+t = t.replace(
+    "from core.citations import Provision, extract_provisions, provision_in",
+    "from core.citations import (\n    Provision, extract_provisions, provision_in, same_provision,\n)")
+t = t.replace(
+    "    result.panel_prose_jaccard = _jaccard(\n        (p.key for p in result.cited), (p.key for p in result.panel)\n    )",
+    "    result.panel_prose_jaccard = _jaccard(result.cited, result.panel)")
+p.write_text(t, encoding="utf-8")
+print("import line:", "same_provision" in t
+… [truncated, 98 more chars]
+```
+
+`2026-08-23 01:38:07` · **cmd** — Verify Jaccard against hand-computed values
+```bash
+ls tests/ && ./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+sys.path.insert(0,'.')
+from core.verifier import audit_answer, CorpusIndex
+from core.citations import extract_provisions
+
+acts={'IPC','BNS','CRPC','CPA'}
+CASES=[
+ ('perfect grounding',
+  'Under Section 302 IPC the punishment for murder is death or life imprisonment.',
+  'Section 302. Punishment for murder.-Whoever commits murder shall be punished with death...',
+  1.0),
+ ('half grounded',
+  'See Section 302 IPC and Section 420 IPC.',
+  'Section 302. Punishment for murder.-
+… [truncated, 721 more chars]
+```
+
+`2026-08-23 01:38:46` · **cmd** — Run the full test suite
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -20
+```
+
+`2026-08-23 01:39:01` · **cmd** — Inspect the six failing assertions
+```bash
+./venv/Scripts/python.exe -m pytest tests/test_corpus_tagging.py tests/test_router.py -q 2>&1 | grep -E "^(E |tests|>|\s+assert)" | head -50
+```
+
+`2026-08-23 01:39:13` · **cmd** — Read the two stale test files
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+print(open('tests/test_corpus_tagging.py',encoding='utf-8').read())
+print('======== ROUTER 1-60 ========')
+print(''.join(open('tests/test_router.py',encoding='utf-8').readlines()[:60]))
+"
+```
+
+`2026-08-23 01:39:58` · **cmd** — Re-run the test suite
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -15
+```
+
+`2026-08-23 01:40:05` · **cmd** — Locate the retriever arithmetic
+```bash
+grep -n "entity_coverage\|top_score\|all_scores\|scores_raw\|def \|rerank" agents/retriever.py | head -60
+```
+
+`2026-08-23 01:40:14` · **cmd** — Read confidence and retrieve internals
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+L=open('agents/retriever.py',encoding='utf-8').readlines()
+for i in range(40,82): print('%3d %s'%(i+1,L[i].rstrip()))
+print('...')
+for i in range(118,160): print('%3d %s'%(i+1,L[i].rstrip()))
+"
+```
+
+`2026-08-23 01:40:46` · **cmd** — Find the max_score assignment
+```bash
+grep -n "max_score=" agents/retriever.py
+```
+
+`2026-08-23 01:41:18` · **cmd** — Run tests after retriever fixes
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -25
+```
+
+`2026-08-23 01:41:28` · **cmd** — Read the confidence tests
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+print(open('tests/test_confidence.py',encoding='utf-8').read())
+"
+```
+
+`2026-08-23 01:42:05` · **cmd** — Run tests after confidence fixes
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -8
+```
+
+`2026-08-23 01:42:43` · **cmd** — Find all uses of vintage_errors
+```bash
+grep -rn "vintage" --include=*.py --include=*.md . | grep -v "^./docs/" | grep -v __pycache__
+```
+
+`2026-08-23 01:43:23` · **cmd** — Rename vintage_errors across call sites
+```bash
+python - <<'PY'
+import pathlib
+edits = {
+ "core/verifier.py": [
+   ("            result.vintage_errors.append(\n                {\"cited\": str(prov), \"corpus_has\": corpus_act, \"relation\": relation}\n            )",
+    "            result.vintage_mismatches.append(\n                {\"cited\": str(prov), \"corpus_has\": corpus_act, \"relation\": relation}\n            )"),
+ ],
+ "app.py": [("vintage_errors=audit.vintage_errors,", "vintage_mismatches=audit.vintage_mismatches,")],
+ "scripts/audit_recorded_runs.py": [
+   ('"vintage_errors": res.vintage_errors,', '"vintage_mismatches": res.vin
+… [truncated, 710 more chars]
+```
+
+`2026-08-23 01:43:41` · **cmd** — Verify the renamed vintage metric
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -5 && ./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+sys.path.insert(0,'.')
+from core.verifier import audit_answer, CorpusIndex
+from core.citations import extract_provisions
+ret='Section 41. When police may arrest without warrant.-Any police officer may...'
+idx=CorpusIndex(acts={'IPC','BNS','CRPC','CPA'}, sections=extract_provisions(ret))
+r=audit_answer('Under Section 35 BNSS the police may arrest without a warrant. See also Section 41 CrPC.', ret, idx)
+import json; print(js
+… [truncated, 62 more chars]
+```
+
+`2026-08-23 01:43:50` · **cmd** — Locate the contents filter
+```bash
+grep -n "BODY_MARKERS\|CONTENTS_MAX_TOKENS\|is_contents_entry\|def \|SECTION_RE" ingest/chunk.py | head -40
+```
+
+`2026-08-23 01:43:59` · **cmd** — Read the splitting and contents-filter logic
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+L=open('ingest/chunk.py',encoding='utf-8').readlines()
+for i in range(60,160): print('%3d %s'%(i+1,L[i].rstrip()))
+"
+```
+
+`2026-08-23 01:44:42` · **cmd** — Rerun the leak scan from project root
+```bash
+./venv/Scripts/python.exe /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/leak.py
+```
+
+`2026-08-23 01:45:13` · **cmd** — Find the ingest driver
+```bash
+ls ingest/ && grep -n "chunk_page\|def main\|for page\|is_contents_entry\|append" ingest/ingest.py 2>/dev/null | head -30 || ls ingest/*.py
+```
+
+`2026-08-23 01:45:21` · **cmd** — Read the ingest driver
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+t=open('ingest/index.py',encoding='utf-8').read()
+print(t[:5200])
+"
+```
+
+`2026-08-23 01:45:39` · **cmd** — Find who calls chunk_page
+```bash
+grep -rln "chunk_page" --include=*.py . | grep -v venv | grep -v __pycache__
+```
+
+`2026-08-23 01:46:14` · **cmd** — Read full text of leaked and genuine short chunks
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/full.py <<'PY'
+import sys, io, re
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+from clients.qdrant_client import COLLECTION, qdrant
+c = qdrant()
+want = {("CRPC","36"),("CRPC","81"),("CRPC","86"),("CRPC","412"),("CRPC","60A"),
+        ("CRPC","143"),("IPC","153"),("IPC","212"),("CRPC","57"),("IPC","319"),
+        ("CRPC","431"),("CRPC","77")}
+off = None; seen = {}
+while True:
+    pts, off = c.scroll(collection_name=COLLECTION, limi
+… [truncated, 741 more chars]
+```
+
+`2026-08-23 01:46:55` · **cmd** — Read chunk_page
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+L=open('ingest/chunk.py',encoding='utf-8').readlines()
+for i in range(162,212): print('%3d %s'%(i+1,L[i].rstrip()))
+"
+```
+
+`2026-08-23 01:47:34` · **cmd** — Check imports and read reingest driver
+```bash
+grep -n "^import\|^from" ingest/chunk.py | head -8
+echo "--- reingest.py ---"
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+print(open('scripts/reingest.py',encoding='utf-8').read())
+"
+```
+
+`2026-08-23 01:47:49` · **cmd** — Wire in the shadow filter and dry-run
+```bash
+python - <<'PY'
+import pathlib
+p = pathlib.Path("scripts/reingest.py"); t = p.read_text(encoding="utf-8")
+t = t.replace(
+  "from ingest.chunk import chunk_page, tokens  # noqa: E402",
+  "from ingest.chunk import chunk_page, drop_shadowed_fragments, tokens  # noqa: E402")
+t = t.replace(
+"""        print(f"  {pdf.name[:46]:<48}{len(pages):>4} pages  ->{len(made):>5} chunks")
+        chunks.extend(made)
+    return chunks""",
+'''        print(f"  {pdf.name[:46]:<48}{len(pages):>4} pages  ->{len(made):>5} chunks")
+        chunks.extend(made)
+
+    # Cross-page pass. Cannot run inside chunk_page(), w
+… [truncated, 794 more chars]
+```
+
+`2026-08-23 01:47:59` · **cmd** — Inspect the mangled region
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+L=open('scripts/reingest.py',encoding='utf-8').readlines()
+for i in range(52,78): print('%3d %r'%(i+1,L[i]))
+"
+```
+
+`2026-08-23 01:48:24` · **cmd** — Dry-run the rebuild with both filters
+```bash
+./venv/Scripts/python.exe scripts/reingest.py --dry-run 2>&1 | tail -40
+```
+
+`2026-08-23 01:48:55` · **cmd** — Inspect each shadow decision and its twin
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/shadow.py <<'PY'
+import sys, io, re
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+from pathlib import Path
+from ingest.chunk import chunk_page, drop_shadowed_fragments, tokens
+from ingest.extract import extract_text_pdf_bytes
+
+DATA = Path("tests/data")
+chunks = []
+for pdf in sorted(DATA.glob("*.pdf")):
+    for page, text in extract_text_pdf_bytes(pdf.read_bytes()):
+        chunks.extend(chunk_page(pdf.name, page, text))
+
+kept, drop
+… [truncated, 764 more chars]
+```
+
+`2026-08-23 01:49:36` · **cmd** — Measure footnote-derived chunks
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/fn.py <<'PY'
+import sys, io, re, collections
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+from pathlib import Path
+from ingest.chunk import chunk_page, tokens
+from ingest.extract import extract_text_pdf_bytes
+
+# Editorial apparatus, not law. These openers are how Indian bare-Act PDFs
+# print amendment history in footnotes.
+FOOTNOTE = re.compile(
+    r"^Section\s+\S+\s*\.\s*"
+    r"(Subs\.|Ins\.|Rep\.|Added\b|Omitted\b|Certain word
+… [truncated, 1403 more chars]
+```
+
+`2026-08-23 01:50:43` · **cmd** — Re-check shadow decisions after footnote fix
+```bash
+./venv/Scripts/python.exe /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/shadow.py 2>&1 | head -40
+```
+
+`2026-08-23 01:51:41` · **cmd** — Confirm only genuine TOC entries are dropped
+```bash
+./venv/Scripts/python.exe /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/shadow.py 2>&1 | grep -E "^=== DROPPED"
+```
+
+`2026-08-23 01:52:02` · **cmd** — Dry-run the full rebuild
+```bash
+./venv/Scripts/python.exe scripts/reingest.py --dry-run 2>&1 | tail -25
+```
+
+`2026-08-23 01:53:01` · **cmd** — Run full suite with new chunk-filter tests
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -12
+```
+
+`2026-08-23 01:54:33` · **cmd** — Rebuild the vector index
+```bash
+./venv/Scripts/python.exe scripts/reingest.py 2>&1 | tail -22
+```
+
+`2026-08-23 01:55:19` · **cmd** — Measure score separation for in vs out of corpus queries
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/probe.py <<'PY'
+import sys, io, statistics
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+from clients.openai_client import embed_texts
+from clients.qdrant_client import COLLECTION, qdrant
+
+IN = [
+    "What is the punishment for murder under Section 302 IPC?",
+    "police arrested my brother without a warrant, what are his rights",
+    "my landlord is not returning my security deposit",
+    "husband beats me, what can I do",
+    "Wh
+… [truncated, 1876 more chars]
+```
+
+`2026-08-23 01:55:42` · **cmd** — Check which statutes the extractor recognises
+```bash
+grep -n "STATUTE\|ALIAS\|NI Act\|Negotiable\|_CANON\|CANONICAL" core/citations.py | head -30
+```
+
+`2026-08-23 01:55:52` · **cmd** — Read the statute alias table
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+L=open('core/citations.py',encoding='utf-8').readlines()
+for i in range(40,88): print('%3d %s'%(i+1,L[i].rstrip()))
+"
+```
+
+`2026-08-23 01:56:31` · **cmd** — Test the corpus gate signal
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+sys.path.insert(0,'.')
+from core.citations import named_statutes
+from core.recodification import CORPORA_IN_INDEX
+qs=['my cheque bounced under Section 138 of the Negotiable Instruments Act',
+    'what are the grounds for divorce under the Hindu Marriage Act',
+    'What is the punishment for murder under Section 302 IPC?',
+    'husband beats me, what can I do',
+    'compare Section 420 IPC with the NI Act position',
+    'what is my remedy under BNSS 173']
+print('%-58s %-22s %s'%('QUERY'
+… [truncated, 163 more chars]
+```
+
+`2026-08-23 01:57:27` · **cmd** — Check QueryPlan fields
+```bash
+grep -n "class QueryPlan" -A 22 agents/router.py
+```
+
+`2026-08-23 01:57:53` · **cmd** — Run tests after refusal gate changes
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -18
+```
+
+`2026-08-23 01:58:31` · **cmd** — Fix import and rerun suite
+```bash
+python - <<'PY'
+import pathlib
+p = pathlib.Path("tests/test_confidence.py"); t = p.read_text(encoding="utf-8")
+t = t.replace("from agents.retriever import compute_confidence",
+              "from agents.retriever import ENTITY_NEUTRAL, compute_confidence")
+p.write_text(t, encoding="utf-8"); print("import updated")
+PY
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -8
+```
+
+`2026-08-23 01:59:10` · **cmd** — Test the refusal gate end to end
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gate.py <<'PY'
+import sys, io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+from agents.router import RouterAgent, QueryPlan
+from agents.retriever import RetrieverAgent
+from agents.intake import CaseContext
+
+def ctx(q, domain="Criminal"):
+    return CaseContext(original_query=q, scenario="probe", user_persona="Layman",
+                       urgency="Deferred", financial_status="Unknown", complexity="Low",
+                       pr
+… [truncated, 1183 more chars]
+```
+
+`2026-08-23 01:59:14` · **cmd** — Find the retriever class name
+```bash
+grep -n "^class \|^def " agents/retriever.py
+```
+
+`2026-08-23 01:59:32` · **cmd** — Run the gate probe
+```bash
+sed -i 's/RetrieverAgent/RetrievalAgent/g' /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gate.py && ./venv/Scripts/python.exe /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gate.py 2>&1 | grep -v "^\[Router\]\|^\[Retrieval\] [0-9]"
+```
+
+`2026-08-23 01:59:52` · **cmd** — Read the router decision logic
+```bash
+grep -n "domain_fallback\|target_corpus\|predicted_legal_domain\|def route" -A 3 agents/router.py | sed -n '1,80p'
+```
+
+`2026-08-23 02:00:30` · **cmd** — Run tests after router fix
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | grep -E "^(E |FAILED|[0-9]+ (passed|failed))" | head
+```
+
+`2026-08-23 02:00:39` · **cmd** — Read the two failing router tests
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+t=open('tests/test_router.py',encoding='utf-8').read()
+i=t.find('def test_no_act_named_falls_back_to_domain')
+j=t.find('def test_DEFECT_procedural_query_routed_to_penal_code')
+print(t[i:i+400]); print('...'); print(t[j:j+900])
+"
+```
+
+`2026-08-23 02:01:22` · **cmd** — Full suite and gate re-probe
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -6 && echo "=== gate re-probe ===" && ./venv/Scripts/python.exe /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gate.py 2>&1 | grep -v "^\[Ro\|^\[Retrieval\] [0-9]\|^\[Retrieval\] Query\|^\[Retrieval\] Conf\|^\[Retrieval\] Named"
+```
+
+`2026-08-23 02:01:30` · **cmd** — Check how app.py logs retrieval
+```bash
+grep -n "retrieval\|refused\|filter_fallback\|scores_raw\|entity_coverage" app.py | sed -n '1,40p'
+```
+
+`2026-08-23 02:01:39` · **cmd** — Read the query handler logging block
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+L=open('app.py',encoding='utf-8').readlines()
+for i in range(155,235): print('%3d %s'%(i+1,L[i].rstrip()))
+"
+```
+
+`2026-08-23 02:02:44` · **cmd** — Generate the paired query set
+```bash
+./venv/Scripts/python.exe eval/paired_queries.py
+```
+
+`2026-08-23 02:02:55` · **cmd** — Read run_eval.py
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+print(open('scripts/run_eval.py',encoding='utf-8').read())
+"
+```
+
+`2026-08-23 02:03:45` · **cmd** — Regenerate the corpus query set at reduced size
+```bash
+./venv/Scripts/python.exe eval/generate_from_corpus.py --per-corpus 20 2>&1 | tail -20
+```
+
+`2026-08-23 02:03:53` · **cmd** — Check doc formats
+```bash
+tail -30 docs/WORKLOG.md; echo "=== DECISIONS tail ==="; tail -25 docs/DECISIONS.md
+```
+
+`2026-08-23 02:04:22` · **cmd** — Append the session worklog entry
+```bash
+cat >> docs/WORKLOG.md <<'EOF'
+
+---
+
+## 2026-08-23 (session 2) â€” Phase E complete, three query sets built
+
+### What changed
+
+Phase E as agreed, plus two defects found while verifying it. No scope changes.
+
+| | Fix | Evidence it was real |
+|---|---|---|
+| E1 | Layman date gold labels | 23 of 24 `bns_era` rows carried IPC gold. A system citing CURRENT law scored wrong; citing REPEALED law scored right. The experiment ran backwards. |
+| E2 | `panel_prose_jaccard` matching rule | Returned **0.0 on perfect grounding** for its entire life. Compared `Provision.key` exactly, and statutory text never
+… [truncated, 4406 more chars]
+```
+
+`2026-08-23 02:04:47` · **cmd** — Append ADRs and inspect open questions
+```bash
+cat >> docs/DECISIONS.md <<'EOF'
+
+---
+
+## ADR-00X Â· The corpus boundary is checked by NAME, not by similarity score
+**Date:** 2026-08-23 Â· **Status:** Accepted
+
+**Context.** The refusal gate was unreachable. `refused = len(filtered) == 0`, and the score filter always keeps at least three chunks, so the system never refused anything. An out-of-corpus Negotiable Instruments Act query came back at HIGH confidence 0.73.
+
+The obvious fix is a similarity threshold: refuse when the best score is too low.
+
+**The measurement that ruled that out.** 15 probe queries against the rebuilt index:
+
+```
+in c
+… [truncated, 3639 more chars]
+```
+
+`2026-08-23 02:05:06` · **cmd** — Record settled and new open questions
+```bash
+cat >> docs/OPEN_QUESTIONS.md <<'EOF'
+
+---
+
+## Q4 â€” How should the entity-coverage neutral default be fixed?
+**Raised:** 2026-08-17 Â· **Settled:** 2026-08-23
+
+**Answer: make it 0.5 and keep the flag.**
+
+When no entity is extracted the signal is UNKNOWN, not perfect. It used to be 1.0, handing its full 0.30 weight to every query naming no section. Since the HIGH tier starts at 0.55, that free 0.30 alone carried mediocre retrieval over the line â€” and layman queries, the ones this project exists for, name a section almost never. The system was most confident exactly where it had least eviden
+… [truncated, 1727 more chars]
+```

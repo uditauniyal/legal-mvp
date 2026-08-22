@@ -44,7 +44,9 @@ import argparse
 import json
 import subprocess
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -102,6 +104,14 @@ def already_done(run_dir: Path) -> set[str]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default=DEFAULT_URL)
+    ap.add_argument("--queryset", type=Path, default=QUERYSET,
+                    help="which query set to run (default eval/queryset.jsonl)")
+    ap.add_argument("--workers", type=int, default=1,
+                    help="concurrent requests. The endpoint is synchronous, so "
+                         "FastAPI runs it in a threadpool and several queries can "
+                         "be in flight at once. Keep this low: every worker is a "
+                         "separate billed call to the same provider, and the point "
+                         "of the run is reproducible numbers, not speed.")
     ap.add_argument("--limit", type=int, default=0, help="run only the first N")
     ap.add_argument("--category", help="restrict to one category")
     ap.add_argument("--dry-run", action="store_true", help="list what would run, send nothing")
@@ -111,7 +121,7 @@ def main() -> None:
     ap.add_argument("--timeout", type=int, default=180, help="seconds per query")
     args = ap.parse_args()
 
-    queries = load_queries(QUERYSET)
+    queries = load_queries(args.queryset)
     if args.category:
         queries = [q for q in queries if q.get("category") == args.category]
     if args.limit:
@@ -119,7 +129,7 @@ def main() -> None:
 
     sha, dirty = git("rev-parse", "--short", "HEAD") or "nogit", bool(git("status", "--porcelain"))
 
-    print(f"  query set   {QUERYSET.relative_to(ROOT)}  ({len(queries)} to run)")
+    print(f"  query set   {args.queryset.relative_to(ROOT)}  ({len(queries)} to run)")
     print(f"  git         {sha}{'  DIRTY' if dirty else '  clean'}")
 
     if args.dry_run:
@@ -161,9 +171,14 @@ def main() -> None:
     print(f"  output      {run_dir.relative_to(ROOT)}\n")
 
     started = time.time()
-    ok_count = fail_count = 0
+    counts = {"ok": 0, "fail": 0}
+    # One lock guards BOTH the file append and the counters. Without it two
+    # workers finishing together can interleave a half-written line, and a
+    # corrupt JSONL row loses that query's result silently.
+    write_lock = threading.Lock()
 
-    for i, q in enumerate(todo, 1):
+    def run_one(idx_and_query: tuple[int, dict]) -> None:
+        i, q = idx_and_query
         label = f"[{i}/{len(todo)}] {q['query_id']}"
         try:
             t0 = time.time()
@@ -188,20 +203,32 @@ def main() -> None:
                 "latency_s": round(elapsed, 1),
                 "error": None,
             }
-            ok_count += 1
-            print(
+            line = (
                 f"  {label:<18} {elapsed:5.1f}s  conf={data.get('confidence')}"
                 f"  ungrounded={audit.get('ungrounded_rate', '-')}"
                 f"  {'REFUSED' if data.get('refused') else ''}"
             )
+            outcome = "ok"
         except Exception as exc:
             row = {**q, "error": f"{type(exc).__name__}: {exc}", "refused": None}
-            fail_count += 1
-            print(f"  {label:<18} FAILED  {type(exc).__name__}: {str(exc)[:70]}")
+            line = f"  {label:<18} FAILED  {type(exc).__name__}: {str(exc)[:70]}"
+            outcome = "fail"
 
-        with summary_path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        with write_lock:
+            counts[outcome] += 1
+            print(line, flush=True)
+            with summary_path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
+    work = list(enumerate(todo, 1))
+    if args.workers <= 1:
+        for item in work:
+            run_one(item)
+    else:
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            list(pool.map(run_one, work))
+
+    ok_count, fail_count = counts["ok"], counts["fail"]
     elapsed = time.time() - started
     print(f"\n  done in {elapsed/60:.1f} min   {ok_count} ok, {fail_count} failed")
     print(f"  summary  {summary_path.relative_to(ROOT)}")

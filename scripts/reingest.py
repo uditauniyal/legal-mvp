@@ -39,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.stdout.reconfigure(encoding="utf-8")
 
 from clients.qdrant_client import COLLECTION, ensure_collection, qdrant  # noqa: E402
-from ingest.chunk import chunk_page, tokens  # noqa: E402
+from ingest.chunk import chunk_page, drop_shadowed_fragments, tokens  # noqa: E402
 from ingest.extract import extract_text_pdf_bytes  # noqa: E402
 from ingest.index import index_chunks  # noqa: E402
 
@@ -56,6 +56,19 @@ def build_chunks() -> list[dict]:
             made.extend(chunk_page(pdf.name, page, text))
         print(f"  {pdf.name[:46]:<48}{len(pages):>4} pages  ->{len(made):>5} chunks")
         chunks.extend(made)
+
+    # Cross-page pass. Cannot run inside chunk_page(), which sees one page at
+    # a time and therefore cannot know that a 15-word entry on page 4 is
+    # shadowed by the 215-word provision on page 49.
+    chunks, dropped = drop_shadowed_fragments(chunks)
+    if dropped:
+        print()
+        print(f"  dropped {len(dropped)} contents entries shadowed by the real provision:")
+        for d in sorted(dropped, key=lambda c: (c["corpus"], c["page"]))[:12]:
+            preview = " ".join(d["text"].split())[:62]
+            print(f"    {d['corpus']:<6}s.{str(d['section_number']):<6}p.{d['page']:<5}{preview}")
+        if len(dropped) > 12:
+            print(f"    ... and {len(dropped) - 12} more")
     return chunks
 
 

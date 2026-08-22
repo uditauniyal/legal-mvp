@@ -166,6 +166,13 @@ async def query(body: dict, format: str = Query(default="json")):
             scores_raw=retrieval.scores_raw,
             max_score=retrieval.max_score,
             embed_provider=retrieval.embed_provider,
+            # E7 corpus boundary. Logged separately from confidence because
+            # the gate is deterministic and the score is not -- keeping them
+            # apart is what lets the analysis ask whether the score adds
+            # anything the name check did not already know.
+            named_statutes=retrieval.named_statutes,
+            unavailable_statutes=retrieval.unavailable_statutes,
+            partial_corpus_coverage=retrieval.partial_corpus_coverage,
             chunks=[{"doc": c.payload.get("doc_name"),
                      "page": c.payload.get("page"),
                      "corpus": c.payload.get("corpus"),
@@ -178,7 +185,11 @@ async def query(body: dict, format: str = Query(default="json")):
             entity_coverage=retrieval.entity_coverage,
             entity_coverage_default_used=retrieval.entity_coverage_default_used,
             composite=retrieval.confidence,
-            refused=retrieval.refused)
+            refused=retrieval.refused,
+            # WHY the system refused, not just whether. A gate that fires for
+            # the wrong reason is indistinguishable from a working one unless
+            # the cause is recorded.
+            refusal_reason=retrieval.refusal_reason)
 
     # 4. Answer (includes refusal gate)
     style = body.get("style", "Detailed")
@@ -240,7 +251,7 @@ async def query(body: dict, format: str = Query(default="json")):
             grounded=[str(p) for p in audit.grounded],
             ungrounded=[str(p) for p in audit.ungrounded],
             out_of_corpus=[str(p) for p in audit.out_of_corpus],
-            vintage_errors=audit.vintage_errors,
+            vintage_mismatches=audit.vintage_mismatches,
             **audit.summary(),
         )
         data["citation_audit"] = audit.summary()

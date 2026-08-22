@@ -103,10 +103,31 @@ class RouterAgent:
             # Let vector similarity find the most relevant statutory provisions instead
 
         # 4. Fallback based on Domain from Intake (only if no corpus matched at all)
+        #
+        # WHY "Criminal" NO LONGER MEANS "BNS"
+        #     It used to set target_corpus = "BNS", which made the IPC
+        #     UNREACHABLE for any query that did not name it by number. Since
+        #     laypeople never name a code -- "husband beats me, what can I do"
+        #     mentions no Act at all -- that single line filtered almost every
+        #     query this project exists to serve into one half of the corpus.
+        #
+        #     It also silently decided the experiment. Which penal code governs
+        #     depends on WHEN the conduct happened: before 1 July 2024 the IPC,
+        #     on or after it the BNS. The Router has no date, so it cannot know.
+        #     Hard-coding BNS meant every "This happened in March 2023" query
+        #     was answered out of the code that did not yet exist, and the
+        #     result would have measured the default rather than the system.
+        #
+        #     Searching unfiltered is not free -- the CrPC is 39% of the index
+        #     and competes on every criminal query, which is the base-rate
+        #     confound reported in EVALUATION_PLAN E4. But an honest confound
+        #     beats a hidden decision, and resolving the date properly is what
+        #     the Date Resolver and Statute Mapper are for in Phase H. This
+        #     unfiltered path is the BASELINE they get measured against.
         if not target_corpus and not matched_corpora:
             if "Criminal" in context.predicted_legal_domain:
-                target_corpus = "BNS"
-                decision_path = "domain_fallback_criminal"
+                target_corpus = None
+                decision_path = "domain_fallback_criminal_no_filter"
             elif "Civil" in context.predicted_legal_domain:
                 target_corpus = None  # Don't filter — search everything for civil queries
                 decision_path = "domain_fallback_civil_no_filter"

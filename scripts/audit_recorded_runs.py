@@ -157,7 +157,7 @@ def main() -> None:
                     "grounded": [str(p) for p in res.grounded],
                     "ungrounded": [str(p) for p in res.ungrounded],
                     "out_of_corpus": [str(p) for p in res.out_of_corpus],
-                    "vintage_errors": res.vintage_errors,
+                    "vintage_mismatches": res.vintage_mismatches,
                     **res.summary(),
                 }
             )
@@ -205,7 +205,7 @@ def main() -> None:
         g = sum(len(a.grounded) for _, a in with_ret)
         u = sum(len(a.ungrounded) for _, a in with_ret)
         j = sum(a.panel_prose_jaccard for _, a in with_ret) / len(with_ret)
-        v = sum(len(a.vintage_errors) for _, a in with_ret)
+        v = sum(len(a.vintage_mismatches) for _, a in with_ret)
         none_grounded = sum(1 for _, a in with_ret if a.n_cited and not a.grounded)
         print()
         print(f"  GROUNDING  ({len(with_ret)} runs with a retrieval record)")
@@ -214,7 +214,7 @@ def main() -> None:
             print(f"    grounded (found in retrieval)   {g}   = {100 * g / c:.1f}%")
             print(f"    UNGROUNDED                      {u}   = {100 * u / c:.1f}%")
         print(f"    mean panel-prose Jaccard        {j:.3f}   (1.0 = perfect agreement)")
-        print(f"    vintage errors (wrong scheme)   {v}")
+        print(f"    corpus-vintage mismatches       {v}")
         print(f"    answers citing NOTHING that was retrieved:  {none_grounded}/{len(with_ret)}")
 
     if args.json:
