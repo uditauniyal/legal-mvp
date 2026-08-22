@@ -4626,3 +4626,84 @@ sed -n '95,175p' /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-m
 ```bash
 sed -n '175,200p' /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/final.txt
 ```
+
+`2026-08-23 03:29:27` · **cmd** — Update worklog and commit final results
+```bash
+cat >> docs/WORKLOG.md <<'EOF'
+
+---
+
+## 2026-08-23 (session 2, continued) â€” Phase G run: 419 queries, first clean numbers
+
+Runs `eval_2026-08-23_{0215,0231,0256}_5184e78`. Full tables in [`docs/results/PHASE_G.md`](results/PHASE_G.md).
+
+Reproduce: `python scripts/analyze_eval.py --runs runs/eval_2026-08-23_0215_5184e78 runs/eval_2026-08-23_0231_5184e78 runs/eval_2026-08-23_0256_5184e78` and `python scripts/ablate_filter.py`.
+
+### The result the main table was hiding
+
+The joined evaluation reported a **perfect** corpus confusion matrix on the paired set â€” 33/33 IPC, 33/33 BNS, zero off-diag
+… [truncated, 4113 more chars]
+```
+
+`2026-08-23 03:29:46` · **cmd** — Final test run and commit history
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -3; echo "---"; git log --oneline -9
+```
+
+### 2026-08-23 03:36:51 · prompt
+
+go ahead with phase h
+
+`2026-08-23 03:39:01` · **cmd** — Test the date resolver against real query phrasings
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+sys.path.insert(0,'.')
+from datetime import date
+from core.dates import resolve
+REF=date(2026,8,23)
+CASES=[
+ # the four variants actually used in eval/layman_queries.py
+ ('husband beats me','UNKNOWN'),
+ ('husband beats me This happened in March 2023.','IPC_ERA'),
+ ('husband beats me This happened last month.','BNS_ERA'),
+ ('husband beats me This happened a while back, I do not remember exactly when.','UNKNOWN'),
+ # traps: statute years must never be read as event dates
+ ('What does Sec
+… [truncated, 1059 more chars]
+```
+
+`2026-08-23 03:41:36` · **cmd** — Inspect governing_statute indentation
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+L=open('core/dates.py',encoding='utf-8').readlines()
+for i,l in enumerate(L):
+    if 'def governing_statute' in l:
+        for j in range(i, min(i+22, len(L))): print('%3d %s'%(j+1, L[j].rstrip()))
+        break
+"
+```
+
+`2026-08-23 03:41:58` · **cmd** — Full date resolver test
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+sys.path.insert(0,'.')
+from datetime import date
+from core.dates import resolve, governing_statutes
+REF=date(2026,8,23)
+CASES=[
+ ('husband beats me','UNKNOWN'),
+ ('husband beats me This happened in March 2023.','IPC_ERA'),
+ ('husband beats me This happened last month.','BNS_ERA'),
+ ('husband beats me This happened a while back, I do not remember exactly when.','UNKNOWN'),
+ ('What does Section 420 of the Indian Penal Code, 1860 provide?','UNKNOWN'),
+ ('What does Section 318 of the Bhara
+… [truncated, 1117 more chars]
+```
+
+`2026-08-23 03:42:55` · **cmd** — Run the date resolver tests
+```bash
+./venv/Scripts/python.exe -m pytest tests/test_dates.py -q 2>&1 | tail -25
+```
