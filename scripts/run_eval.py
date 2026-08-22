@@ -88,8 +88,14 @@ def server_ready(base_url: str) -> tuple[bool, str]:
 
 
 def already_done(run_dir: Path) -> set[str]:
-    """query_ids already recorded in this run directory."""
-    jsonl = run_dir / "queries.jsonl"
+    """query_ids already recorded in this run directory.
+
+    Reads eval_summary.jsonl -- the file THIS script writes. It used to read
+    queries.jsonl, which is written by the SERVER and named differently, so
+    the set came back empty and --resume silently re-ran and re-paid for
+    everything it was supposed to skip.
+    """
+    jsonl = run_dir / "eval_summary.jsonl"
     if not jsonl.exists():
         return set()
     done = set()
@@ -121,6 +127,10 @@ def main() -> None:
     ap.add_argument("--timeout", type=int, default=180, help="seconds per query")
     args = ap.parse_args()
 
+    # Accept a relative path from anywhere; every later use assumes it is
+    # absolute and under ROOT.
+    args.queryset = (args.queryset if args.queryset.is_absolute()
+                     else (Path.cwd() / args.queryset)).resolve()
     queries = load_queries(args.queryset)
     if args.category:
         queries = [q for q in queries if q.get("category") == args.category]

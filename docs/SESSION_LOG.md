@@ -4031,3 +4031,63 @@ cat >> docs/OPEN_QUESTIONS.md <<'EOF'
 When no entity is extracted the signal is UNKNOWN, not perfect. It used to be 1.0, handing its full 0.30 weight to every query naming no section. Since the HIGH tier starts at 0.55, that free 0.30 alone carried mediocre retrieval over the line â€” and layman queries, the ones this project exists for, name a section almost never. The system was most confident exactly where it had least eviden
 … [truncated, 1727 more chars]
 ```
+
+`2026-08-23 02:05:30` · **cmd** — Commit Phase E and F
+```bash
+git add -A && git status --short | head -30 && echo "---" && git -c core.quotepath=false commit -q -m "$(cat <<'MSG'
+Phase E: fix all confirmed defects; add paired IPC<->BNS query set
+
+Every fix below was verified by execution, not by inspection. Each one
+produced a plausible number rather than an error, which is why they
+survived: metric code fails silently by nature.
+
+E1  Layman date gold labels were inverted. 23 of 24 rows saying "This
+    happened last month" -- where the BNS governs -- carried IPC gold. A
+    system citing CURRENT law scored wrong; citing REPEALED law scored
+    right. Fi
+… [truncated, 3284 more chars]
+```
+
+`2026-08-23 02:05:39` · **cmd** — Check whether the server is up
+```bash
+curl -s -m 5 http://127.0.0.1:8000/healthz 2>/dev/null || echo "NOT RUNNING"
+```
+
+`2026-08-23 02:05:52` · **cmd** — Start a fresh server on port 8001
+```bash
+nohup ./venv/Scripts/python.exe -m uvicorn app:app --host 127.0.0.1 --port 8001 --log-level warning > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/uvicorn8001.log 2>&1 &
+echo "started, pid $!"
+```
+
+`2026-08-23 02:06:00` · **cmd** — Wait for the new server and check its config
+```bash
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  r=$(curl -s -m 3 http://127.0.0.1:8001/healthz 2>/dev/null)
+  if [ -n "$r" ]; then echo "READY: $r"; break; fi
+  sleep 3
+done
+curl -s -m 5 http://127.0.0.1:8001/diag/env 2>/dev/null | head -c 600
+```
+
+`2026-08-23 02:06:15` · **cmd** — Smoke test three paired queries
+```bash
+git status --porcelain | head -5; echo "---"; ./venv/Scripts/python.exe scripts/run_eval.py --queryset eval/paired_queryset.jsonl --url http://127.0.0.1:8001 --limit 3 2>&1 | tail -20
+```
+
+`2026-08-23 02:07:04` · **cmd** — Fix path handling and smoke test
+```bash
+python - <<'PY'
+import pathlib
+p = pathlib.Path("scripts/run_eval.py"); t = p.read_text(encoding="utf-8")
+t = t.replace(
+  "    queries = load_queries(args.queryset)",
+  "    # Accept a relative path from anywhere; every later use assumes it is\n"
+  "    # absolute and under ROOT.\n"
+  "    args.queryset = (args.queryset if args.queryset.is_absolute()\n"
+  "                     else (Path.cwd() / args.queryset)).resolve()\n"
+  "    queries = load_queries(args.queryset)")
+p.write_text(t, encoding="utf-8"); print("patched")
+PY
+./venv/Scripts/python.exe scripts/run_eval.py --queryset eval/paired_
+… [truncated, 82 more chars]
+```
