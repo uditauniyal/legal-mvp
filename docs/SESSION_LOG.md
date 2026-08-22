@@ -4499,3 +4499,130 @@ def wilson(k, n):
 ```bash
 ./venv/Scripts/python.exe scripts/ablate_filter.py 2>&1 | tail -22
 ```
+
+`2026-08-23 03:11:08` · **cmd** — Check generated progress and commit results
+```bash
+tail -2 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen.log; echo "generated rows: $(wc -l < runs/eval_2026-08-23_0256_5184e78/eval_summary.jsonl)/200"
+git add -A && git -c core.quotepath=false commit -q -m "$(cat <<'MSG'
+Phase G results, and the ablation that showed the main table was hiding it
+
+The joined evaluation reported a PERFECT corpus confusion matrix on the
+paired set: 33/33 IPC queries answered from the IPC, 33/33 BNS from the
+BNS, zero off-diagonal. Read at face value that is a clean negative result
+for the paper
+… [truncated, 1445 more chars]
+```
+
+### 2026-08-23 03:12:55 · prompt
+
+<task-notification>
+<task-id>bc9q7uhi7</task-id>
+<tool-use-id>toolu_01BuuDTRqGVL75PQCarXCNfZ</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\tasks\bc9q7uhi7.output</output-file>
+<status>killed</status>
+<summary>Background command "Resume the generated query set" was stopped</summary>
+</task-notification>
+
+`2026-08-23 03:13:07` · **cmd** — Check generated progress and server state
+```bash
+echo "generated rows: $(wc -l < runs/eval_2026-08-23_0256_5184e78/eval_summary.jsonl)/200"
+curl -s -m 5 http://127.0.0.1:8002/healthz || echo "SERVER 8002 DOWN"
+echo "dirty (excl SESSION_LOG): $(git status --porcelain | grep -v SESSION_LOG | wc -l)"
+```
+
+`2026-08-23 03:13:29` · **cmd** — Start server on port 8003
+```bash
+nohup ./venv/Scripts/python.exe -m uvicorn app:app --host 127.0.0.1 --port 8003 --log-level warning > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/uv4.log 2>&1 &
+for i in $(seq 1 20); do r=$(curl -s -m 3 http://127.0.0.1:8003/healthz 2>/dev/null); if [ -n "$r" ]; then echo "READY $r"; break; fi; done
+```
+
+`2026-08-23 03:23:38` · **cmd** — Finish the generated set in foreground
+```bash
+./venv/Scripts/python.exe scripts/run_eval.py --queryset eval/generated_queryset.jsonl --url http://127.0.0.1:8003 --workers 4 --resume runs/eval_2026-08-23_0256_5184e78 > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen2.log 2>&1; tail -4 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen2.log; echo "rows: $(wc -l < runs/eval_2026-08-23_0256_5184e78/eval_summary.jsonl)/200"
+```
+
+`2026-08-23 03:23:46` · **cmd** — Check progress of the final batch
+```bash
+echo "rows: $(wc -l < runs/eval_2026-08-23_0256_5184e78/eval_summary.jsonl)/200"; tail -3 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen2.log
+```
+
+`2026-08-23 03:24:31` · **cmd** — Check unique query count and progress
+```bash
+echo "rows: $(wc -l < runs/eval_2026-08-23_0256_5184e78/eval_summary.jsonl)"; echo "unique: $(./venv/Scripts/python.exe -c "
+import json,collections
+ids=[json.loads(l)['query_id'] for l in open('runs/eval_2026-08-23_0256_5184e78/eval_summary.jsonl',encoding='utf-8')]
+print(len(set(ids)))
+")"; tail -2 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen2.log
+```
+
+`2026-08-23 03:24:54` · **cmd** — Check final batch progress
+```bash
+tail -2 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen2.log
+```
+
+`2026-08-23 03:25:06` · **cmd** — Check progress toward 200 unique
+```bash
+tail -2 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen2.log; echo "unique: $(./venv/Scripts/python.exe -c "
+import json
+ids=[json.loads(l)['query_id'] for l in open('runs/eval_2026-08-23_0256_5184e78/eval_summary.jsonl',encoding='utf-8')]
+print(len(set(ids)))")/200"
+```
+
+### 2026-08-23 03:25:38 · prompt
+
+<task-notification>
+<task-id>b004n9uim</task-id>
+<tool-use-id>toolu_01LkcR1rZWXCyXz28LtSFHeG</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\tasks\b004n9uim.output</output-file>
+<status>killed</status>
+<summary>Background command "Finish the generated set in foreground" was stopped</summary>
+</task-notification>
+
+`2026-08-23 03:25:51` · **cmd** — Check final generated set state
+```bash
+./venv/Scripts/python.exe -c "
+import json
+ids=[json.loads(l)['query_id'] for l in open('runs/eval_2026-08-23_0256_5184e78/eval_summary.jsonl',encoding='utf-8')]
+print('rows', len(ids), 'unique', len(set(ids)))
+all_ids={json.loads(l)['query_id'] for l in open('eval/generated_queryset.jsonl',encoding='utf-8')}
+print('missing', len(all_ids-set(ids)))
+"
+curl -s -m 5 http://127.0.0.1:8003/healthz || echo "SERVER DOWN"
+```
+
+`2026-08-23 03:26:09` · **cmd** — Start server on port 8004
+```bash
+nohup ./venv/Scripts/python.exe -m uvicorn app:app --host 127.0.0.1 --port 8004 --log-level warning > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/uv5.log 2>&1 &
+for i in $(seq 1 20); do r=$(curl -s -m 3 http://127.0.0.1:8004/healthz 2>/dev/null); if [ -n "$r" ]; then echo "READY $r"; break; fi; done
+```
+
+`2026-08-23 03:26:59` · **cmd** — Run the last seven queries
+```bash
+git stash -q && ./venv/Scripts/python.exe scripts/run_eval.py --queryset eval/generated_queryset.jsonl --url http://127.0.0.1:8004 --workers 4 --resume runs/eval_2026-08-23_0256_5184e78 > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen3.log 2>&1; git stash pop -q; tail -3 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen3.log
+```
+
+`2026-08-23 03:27:09` · **cmd** — Check remaining coverage
+```bash
+./venv/Scripts/python.exe -c "
+import json
+ids=[json.loads(l)['query_id'] for l in open('runs/eval_2026-08-23_0256_5184e78/eval_summary.jsonl',encoding='utf-8')]
+allq={json.loads(l)['query_id'] for l in open('eval/generated_queryset.jsonl',encoding='utf-8')}
+miss=sorted(allq-set(ids))
+print('rows',len(ids),'unique',len(set(ids)),'missing',len(miss),miss[:8])
+"
+```
+
+`2026-08-23 03:27:23` · **cmd** — Final analysis across all three sets
+```bash
+./venv/Scripts/python.exe scripts/analyze_eval.py --runs runs/eval_2026-08-23_0215_5184e78 runs/eval_2026-08-23_0231_5184e78 runs/eval_2026-08-23_0256_5184e78 > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/final.txt 2>&1; sed -n '1,45p' /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/final.txt
+```
+
+`2026-08-23 03:27:34` · **cmd** — Show citation, confidence and refusal tables
+```bash
+sed -n '95,175p' /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/final.txt
+```
+
+`2026-08-23 03:27:47` · **cmd** — Show routing table
+```bash
+sed -n '175,200p' /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/final.txt
+```

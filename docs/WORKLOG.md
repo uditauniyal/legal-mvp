@@ -325,3 +325,54 @@ Phase G: run all three sets, produce the E1–E6 tables.
 - **BNSS and BSA are not ingested.** 5 layman rows and all 10 CrPC→BNSS map entries are unreachable by construction. Stated in Limitations, not hidden.
 - `score_gap` rewards uniform irrelevance — flat, uniformly bad scores earn the full 0.15 for "consistency". Pinned in a test rather than fixed, because it is one of the three signals under ablation in E6.
 - 68 of 120 layman rows are `needs_review` and should not be counted until someone with legal training has checked them.
+
+---
+
+## 2026-08-23 (session 2, continued) — Phase G run: 419 queries, first clean numbers
+
+Runs `eval_2026-08-23_{0215,0231,0256}_5184e78`. Full tables in [`docs/results/PHASE_G.md`](results/PHASE_G.md).
+
+Reproduce: `python scripts/analyze_eval.py --runs runs/eval_2026-08-23_0215_5184e78 runs/eval_2026-08-23_0231_5184e78 runs/eval_2026-08-23_0256_5184e78` and `python scripts/ablate_filter.py`.
+
+### The result the main table was hiding
+
+The joined evaluation reported a **perfect** corpus confusion matrix on the paired set — 33/33 IPC, 33/33 BNS, zero off-diagonal. Taken at face value that refutes the paper's hypothesis.
+
+It is not a result. The Router reads the Act name and applies a hard Qdrant filter (`ipc_numbered → filter=IPC`, `bns_numbered → filter=BNS`), so an IPC-numbered query **cannot** return a BNS chunk. The diagonal was guaranteed before any vector was compared.
+
+`scripts/ablate_filter.py` removes the filter:
+
+| query names | → IPC | → BNS | correct | chance |
+|---|---|---|---|---|
+| IPC (repealed) | 32 | 1 | **97.0%** | 31.3% |
+| BNS (in force) | **16** | 17 | **51.5%** | 22.3% |
+
+Top-1 only: a query naming the Bharatiya Nyaya Sanhita gets an IPC chunk first **19/33**. Cross-statute retrieval failure is real and **directional — toward the repealed code**.
+
+### Other findings
+
+| | |
+|---|---|
+| layman set | gold retrieved **7.5%**, gold cited **85.0%**, ungrounded **0.838** — answers come from the model's own knowledge, not the corpus |
+| ideal conditions | generated set retrieves the named section only **68.0%** of the time — a ceiling on everything else |
+| neutral phrasing | **93.9%** retrieve the repealed IPC provision vs 36.4% the current BNS one |
+| date | retrieval flat across all four conditions; `gold cited` falls 96.4% → **60.9%** in `bns_era` |
+| confidence | `entity_coverage` AUROC **0.492** = chance; composite **0.610** is *worse* than raw max similarity **0.663**; only **27/419** answers fully grounded |
+| refusal | **0/419**, exactly as the named-statute gate design predicts |
+| routing | `act_map_single` 65.9% vs `no_match` 49.0% overall; 85.7% vs 28.9% on the layman set alone |
+
+### Explicitly not claimed
+
+Messiness runs backwards (confounded with topic — messiness-1 rows are the CPA scenarios whose gold is a definitions section). CPA controls sit at 0.0% for the same reason. Nothing about BNS-era procedure, since the BNSS is not ingested.
+
+### Infrastructure defects found while running
+
+- The clean-tree guard was unsatisfiable: the server writes `runs/` during a run, and the session hook appends to `docs/SESSION_LOG.md` on every command. `runs/` is now gitignored and `SESSION_LOG.md` exempted.
+- `git()` calls `.stdout.strip()`, eating the leading space of the first porcelain line, so the fixed `line[3:]` offset sliced into that one path (`ocs/SESSION_LOG.md`). Blocked four runs while every direct test of the parser passed — the tests did not go through `git()`.
+- `already_done()` read `queries.jsonl` (written by the server) instead of `eval_summary.jsonl` (written by the runner), so `--resume` never skipped anything.
+- `--queryset` and `--resume` both crashed on relative paths.
+- Killed-and-resumed runs append duplicates: 320 rows for 200 queries. The analyzer now deduplicates by `query_id` and reports how many it dropped. **Left unfixed in the runner** — recorded in `docs/OPEN_QUESTIONS.md`.
+
+### Next
+
+Re-gold the CPA controls; vary messiness within topic; run the filter ablation on the layman set. Then Phase H.

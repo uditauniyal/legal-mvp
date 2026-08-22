@@ -208,13 +208,36 @@ class Report:
 
 
 def join(run_dirs: list[Path], server: dict[str, dict]) -> list[dict]:
-    joined = []
+    """Pair each runner row with its server record, ONE row per query_id.
+
+    WHY DEDUPLICATION IS NOT OPTIONAL
+        eval_summary.jsonl is append-only, and --resume computes what to skip
+        by reading it. A run that is killed mid-flight can leave rows that a
+        later resume does not see as done -- observed directly: a 200-query
+        set finished with 282 rows, 82 of them repeats.
+
+        Every proportion in this report is k/n. Duplicates inflate both, and
+        they do it unevenly, because the repeated queries are whichever ones
+        happened to be in flight when a run died. That is a biased sample, so
+        the error does not average out.
+
+        Last write wins: a later row came from a later, more complete run.
+    """
+    by_id: dict[str, dict] = {}
+    dropped = 0
     for d in run_dirs:
         for row in load_jsonl(d / "eval_summary.jsonl"):
             rec = server.get(row.get("req_id") or "")
-            if rec:
-                joined.append({"gold": row, "rec": rec, "run": d.name})
-    return joined
+            if not rec:
+                continue
+            qid = row.get("query_id")
+            if qid in by_id:
+                dropped += 1
+            by_id[qid] = {"gold": row, "rec": rec, "run": d.name}
+    if dropped:
+        print(f"  deduplicated {dropped} repeated query_id rows "
+              f"(killed-and-resumed runs append)")
+    return list(by_id.values())
 
 
 def table_cross_statute(R: Report, rows: list[dict]) -> None:
