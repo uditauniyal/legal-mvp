@@ -206,7 +206,10 @@ def main() -> None:
         raise SystemExit(f"\n  {message}")
 
     if args.resume:
-        run_dir = args.resume
+        # Same absolute-path requirement as --queryset: every later use of
+        # run_dir assumes it sits under ROOT.
+        run_dir = (args.resume if args.resume.is_absolute()
+                   else (Path.cwd() / args.resume)).resolve()
         done = already_done(run_dir)
         print(f"  resuming    {run_dir.name}  ({len(done)} already done)")
     else:

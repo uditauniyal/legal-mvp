@@ -159,17 +159,25 @@ def retrieved_corpora(rec: dict) -> collections.Counter:
     )
 
 
-def gold_retrieved(gold: list[str], retrieved: list[str]) -> bool:
+def gold_retrieved(gold: list[str], retrieved: list[str], lenient: bool = True) -> bool:
     """Is any gold provision among the retrieved chunks?
 
-    Compared through same_provision(), so 'BNS 318(4)' matches a retrieved
-    'BNS 318' -- the chunk carries the whole section including its
-    sub-sections, and demanding the sub-section be echoed in the first 160
-    characters would under-count real hits.
+    LENIENT (default) lets a sub-section match its parent, because a chunk
+    carries the whole section and demanding "318(4)" be echoed in the first
+    160 characters would under-count real hits.
+
+    IT ALSO OVER-COUNTS, and the direction matters. Lenient collapses
+    'IPC 498A' onto 'IPC 498' -- but 498A (cruelty by husband) is a SEPARATE
+    section inserted by amendment in 1983, not a sub-section of 498
+    (enticing a married woman). They are different offences. Counting that as
+    a hit makes retrieval look better than it is.
+
+    So both are reported. Strict is the floor, lenient is the ceiling, and
+    the truth is between them. Any claim in the paper uses the strict number.
     """
     gp = [p for g in gold for p in extract_provisions(g.replace(" ", " Section "))]
     rp = [p for r in retrieved for p in extract_provisions(r.replace(" ", " Section "))]
-    return any(same_provision(g, r, lenient=True) for g in gp for r in rp)
+    return any(same_provision(g, r, lenient=lenient) for g in gp for r in rp)
 
 
 def cited_refs(rec: dict) -> list[str]:
@@ -249,6 +257,91 @@ def table_cross_statute(R: Report, rows: list[dict]) -> None:
             if rc:
                 got[rc.most_common(1)[0][0]] += 1
         R(f"  {exp:<10}" + "".join(f"{got.get(c,0):>8}" for c in corpora) + f"{len(sub):>8}")
+
+
+def table_parametric_leak(R: Report, rows: list[dict]) -> None:
+    """The gap between what retrieval found and what the answer cited."""
+    R.head("E0 · IS THIS ACTUALLY RETRIEVAL-AUGMENTED?")
+    R("")
+    R("  The whole premise of RAG is that the answer comes from the retrieved")
+    R("  passages. These two columns test that directly:")
+    R("")
+    R("    RETRIEVED  the gold provision was among the chunks sent to the model")
+    R("    CITED      the gold provision appears in the answer")
+    R("")
+    R("  If CITED is far above RETRIEVED, the model is answering from what it")
+    R("  already knows about Indian law -- its training data -- and the")
+    R("  retrieval step is decorative. Worked example from this run:")
+    R("")
+    R("    query      'i was sexually assaulted ... it has been long time now'")
+    R("    gold       IPC 376")
+    R("    retrieved  IPC 354, CrPC 473, CrPC 303        <- 376 absent")
+    R("    cited      IPC 354, 354A, 376, 376(2), CrPC 473, 357A, LSA 12")
+    R("    grounded   IPC 354, CrPC 473                  <- only these two")
+    R("")
+    R(f"  {'QUERY SET':<24}{'N':>4}  {'RETRIEVED strict':^20}{'RETRIEVED lenient':^20}"
+      f"{'CITED':^20}{'GAP':>7}")
+    R("  " + "-" * 96)
+    by_cat = collections.defaultdict(list)
+    for r in rows:
+        by_cat[r["gold"].get("category", "?")].append(r)
+    for cat, sub in sorted(by_cat.items()):
+        sub = [r for r in sub if r["gold"].get("expected_sections")]
+        n = len(sub)
+        if not n:
+            continue
+        strict = sum(gold_retrieved(r["gold"]["expected_sections"], chunk_refs(r["rec"]), False)
+                     for r in sub)
+        len_ = sum(gold_retrieved(r["gold"]["expected_sections"], chunk_refs(r["rec"]), True)
+                   for r in sub)
+        cit = sum(gold_cited(r["gold"]["expected_sections"], r["rec"]) for r in sub)
+        R(f"  {cat:<24}{n:>4}  {pct(strict,n):^20}{pct(len_,n):^20}{pct(cit,n):^20}"
+          f"{100*(cit-strict)/n:>6.1f}pp")
+
+    R("")
+    R("  GAP = cited minus retrieved-strict, in percentage points. A large")
+    R("  positive gap means the answer named provisions the retrieval never")
+    R("  supplied. Read it next to the ungrounded rate in E3, which counts the")
+    R("  same phenomenon over ALL citations rather than just the gold one.")
+
+
+def table_neutral_lean(R: Report, rows: list[dict]) -> None:
+    """With no code named, which code does the system reach for?"""
+    sub = [r for r in rows
+           if r["gold"].get("category") == "paired_recodification"
+           and r["gold"].get("variant") == "neutral_topic"]
+    if not sub:
+        return
+    R.head("E1b · WITH NO CODE NAMED, WHICH CODE DOES IT CHOOSE?")
+    R("")
+    R("  neutral_topic asks 'What is the law on X in India?' -- no section, no")
+    R("  Act. The correct answer depends on when the conduct happened, which")
+    R("  the query does not say. So there is no right choice here, only a lean,")
+    R("  and a strong lean is a bias worth reporting.")
+    R("")
+    lean = collections.Counter()
+    for r in sub:
+        rc = retrieved_corpora(r["rec"])
+        if rc:
+            lean[rc.most_common(1)[0][0]] += 1
+    n = sum(lean.values())
+    R(f"  {'DOMINANT CORPUS':<20}{'N':>5}   {'SHARE':^22}")
+    R("  " + "-" * 52)
+    for c, k in lean.most_common():
+        R(f"  {c:<20}{k:>5}   {pct(k,n):^22}")
+
+    old = sum(1 for r in sub
+              if gold_retrieved([s for s in r["gold"]["expected_sections"]
+                                 if s.startswith("IPC")], chunk_refs(r["rec"]), False))
+    new = sum(1 for r in sub
+              if gold_retrieved([s for s in r["gold"]["expected_sections"]
+                                 if s.startswith("BNS")], chunk_refs(r["rec"]), False))
+    R("")
+    R(f"  retrieved the REPEALED IPC provision   {pct(old,len(sub))}")
+    R(f"  retrieved the CURRENT  BNS provision   {pct(new,len(sub))}")
+    R("")
+    R("  Both can be true for one query -- the two are not exclusive, since a")
+    R("  single result set can contain provisions from both codes.")
 
 
 def table_date(R: Report, rows: list[dict]) -> None:
@@ -456,7 +549,9 @@ def main() -> None:
     errs = sum(1 for r in rows if r["gold"].get("error"))
     R(f"  rows with a transport error {errs}")
 
+    table_parametric_leak(R, rows)
     table_cross_statute(R, rows)
+    table_neutral_lean(R, rows)
     table_date(R, rows)
     table_citations(R, rows)
     table_confidence(R, rows)

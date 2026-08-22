@@ -4300,3 +4300,117 @@ grep -cE "^  \[" /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-m
 ```bash
 grep -A2 "Modified:" /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.log | head -6
 ```
+
+`2026-08-23 02:15:39` · **cmd** — Commit the parser fix and verify the guard
+```bash
+git add -A && git -c core.quotepath=false commit -q -m "run_eval: parse porcelain paths by splitting, not by column offset
+
+git() calls .stdout.strip() on the whole output, which eats the leading
+space of the FIRST porcelain line only. The fixed line[3:] offset therefore
+sliced one character into that one path, turning docs/SESSION_LOG.md into
+ocs/SESSION_LOG.md. It matched no exemption, so the clean-tree guard blocked
+four evaluation runs -- while every direct test of the parser passed,
+because the tests did not go through git().
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.
+… [truncated, 327 more chars]
+```
+
+`2026-08-23 02:15:49` · **cmd** — Run all three evaluation sets
+```bash
+bash /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.sh > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.log 2>&1
+```
+
+`2026-08-23 02:15:57` · **cmd** — Confirm queries are executing
+```bash
+grep -cE "^  \[" /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.log; tail -2 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.log
+```
+
+`2026-08-23 02:16:13` · **cmd** — Confirm queries are completing
+```bash
+grep -cE "conf=" /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.log; tail -3 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.log
+```
+
+`2026-08-23 02:16:20` · **cmd** — Check run directory row counts
+```bash
+wc -l runs/eval_2026-08-23_02*/eval_summary.jsonl 2>/dev/null | tail -5; echo "---"; cat /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.log
+```
+
+### 2026-08-23 03:01:57 · prompt
+
+<task-notification>
+<task-id>bb7jyvbh2</task-id>
+<tool-use-id>toolu_016j1ADBaXSwHz35AyrYAp5Q</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\tasks\bb7jyvbh2.output</output-file>
+<status>killed</status>
+<summary>Background command "Run all three evaluation sets" was stopped</summary>
+</task-notification>
+
+`2026-08-23 03:02:16` · **cmd** — Check progress and server state after the kill
+```bash
+for d in runs/eval_2026-08-23_02*/; do n=$(wc -l < "$d/eval_summary.jsonl" 2>/dev/null || echo 0); echo "$n  $d"; done
+echo "=== tail of log ==="
+tail -6 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.log
+echo "=== server alive? ==="
+curl -s -m 5 http://127.0.0.1:8001/healthz || echo "SERVER DOWN"
+```
+
+`2026-08-23 03:02:30` · **cmd** — Restart the evaluation server
+```bash
+nohup ./venv/Scripts/python.exe -m uvicorn app:app --host 127.0.0.1 --port 8001 --log-level warning > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/uv2.log 2>&1 &
+sleep 1; echo launched
+```
+
+`2026-08-23 03:03:15` · **cmd** — Wait for server readiness
+```bash
+for i in $(seq 1 12); do r=$(curl -s -m 3 http://127.0.0.1:8001/healthz 2>/dev/null); if [ -n "$r" ]; then echo "READY $r"; break; fi; done
+```
+
+`2026-08-23 03:03:28` · **cmd** — Check server health
+```bash
+curl -s -m 5 http://127.0.0.1:8001/healthz || { echo "still down; log:"; tail -12 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/uv2.log; }
+```
+
+`2026-08-23 03:03:38` · **cmd** — Start server on port 8002
+```bash
+nohup ./venv/Scripts/python.exe -m uvicorn app:app --host 127.0.0.1 --port 8002 --log-level warning > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/uv3.log 2>&1 &
+sleep 1; echo launched
+```
+
+`2026-08-23 03:03:47` · **cmd** — Wait for server on 8002
+```bash
+for i in $(seq 1 15); do r=$(curl -s -m 3 http://127.0.0.1:8002/healthz 2>/dev/null); if [ -n "$r" ]; then echo "READY $r"; exit 0; fi; done; echo "not up yet"; tail -4 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/uv3.log
+```
+
+`2026-08-23 03:03:57` · **cmd** — Resume the generated query set
+```bash
+./venv/Scripts/python.exe scripts/run_eval.py --queryset eval/generated_queryset.jsonl --url http://127.0.0.1:8002 --workers 3 --resume runs/eval_2026-08-23_0256_5184e78 > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen.log 2>&1
+```
+
+`2026-08-23 03:04:07` · **cmd** — Analyze the paired and layman runs
+```bash
+./venv/Scripts/python.exe scripts/analyze_eval.py --runs runs/eval_2026-08-23_0215_5184e78 runs/eval_2026-08-23_0231_5184e78 2>&1 | head -70
+```
+
+`2026-08-23 03:04:38` · **cmd** — Check why the resume failed
+```bash
+tail -8 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/gen.log
+```
+
+`2026-08-23 03:04:56` · **cmd** — Hand-check the retrieval and citation matchers
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/handcheck.py <<'PY'
+import sys, io, json, re
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+from pathlib import Path
+import importlib.util
+spec = importlib.util.spec_from_file_location("az", "scripts/analyze_eval.py")
+az = importlib.util.module_from_spec(spec); spec.loader.exec_module(az)
+
+server = az.load_server_records()
+rows = az.join([Path("runs/eval_2026-08-23_0231_5184e78")], server)
+print("layman rows joined:", len(rows))
+sho
+… [truncated, 767 more chars]
+```
