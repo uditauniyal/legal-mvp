@@ -376,3 +376,51 @@ Messiness runs backwards (confounded with topic — messiness-1 rows are the CPA
 ### Next
 
 Re-gold the CPA controls; vary messiness within topic; run the filter ablation on the layman set. Then Phase H.
+
+---
+
+## 2026-08-23 (session 2, continued) — Phase H: the intervention, built and measured
+
+Full tables in [`docs/results/PHASE_H.md`](results/PHASE_H.md). Reproduce with
+`python scripts/compare_runs.py --baseline runs/eval_2026-08-23_0353_302e1f8 --intervention runs/eval_2026-08-23_0410_302e1f8_both`.
+
+### Built
+
+| | Component | Tests |
+|---|---|---|
+| H1 | `core/dates.py` — resolve the event date to IPC_ERA / BNS_ERA / BOTH_ERAS / UNKNOWN | 35 |
+| H2 | `core/statute_mapper.py` — translate the citation to the code that governs | 18 |
+| H3 | `baseline / date / mapper / both` flag; `QueryPlan.target_corpora` for multi-corpus filters | — |
+| H4 | `eval/paired_dated_queryset.jsonl` — 99 queries where the code named and the date disagree | — |
+
+Suite 89 → 142.
+
+### Result 1 — retrieval is fixed
+
+| | baseline | + intervention |
+|---|---|---|
+| correct corpus dominates (both conflict types) | **0.0%** | **100.0%** |
+| wrong-era provision retrieved (`conflict_ipc_named`) | **81.8%** | **0.0%** |
+| `agree_control`, every measure | unmoved | unmoved |
+
+The control not moving is what makes this a fix rather than a flipped preference.
+
+### Result 2 — routing was not the whole problem
+
+With routing perfect, section-level retrieval is **78.8%** when the target is an IPC section and **36.4%** when it is a BNS section — same 33 offences, same wording. The BNS is 22.3% of the index and its PDF carries no marginal notes, so chunks start with the first clause rather than the subject. That is a corpus and chunking problem, not a routing one, and it is testable by re-chunking that one PDF.
+
+### Result 3 — the answer barely follows the retrieval
+
+Whether the answer states the law changed: 39.4% → 63.6% and 51.5% → 66.7%, control flat at 3.0%. Both point the right way, **but the intervals overlap** (39.4% [24.7, 56.3] vs 63.6% [46.6, 77.8]) and this is not established at n=33.
+
+The gap between Result 1 and Result 3 is the finding: the largest possible retrieval improvement moved the answer by ~20 points. This is Phase G's ungrounded-rate result shown causally — the inputs changed and the outputs barely followed.
+
+### A metric retired mid-analysis
+
+`gold_cited` and `wrong_era_cited` are **unusable on this query set**. `core/citations.py` attributes a statute by proximity in the answer text, and these answers legitimately mention both codes, so an answer citing BNS 190 was recorded as `IPC Section 190` because "Indian Penal Code" appeared earlier. `wrong_era_cited = 100%` therefore cannot separate "wrongly relied on repealed law" from "correctly explained the law changed" — opposite behaviours, identical measurement.
+
+Caught by reading one answer before reporting the number. Recorded in `docs/OPEN_QUESTIONS.md`.
+
+### Next
+
+Bind citations to their supporting chunk so attribution stops depending on proximity; re-run the comparison on the layman set; investigate BNS chunking.

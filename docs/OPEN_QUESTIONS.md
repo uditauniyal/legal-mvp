@@ -152,3 +152,31 @@ Rejected alternatives: *renormalise the remaining weights* (makes runs with and 
 **Why it was NOT done in Phase E.** It is a scope change, not a defect fix, and the plan is frozen through Phase G. Adding a corpus mid-stream would also make the Phase G numbers incomparable with the baseline they are meant to establish.
 
 **Current lean.** Do it between G and H, so the intervention phase has a symmetric corpus: with the BNSS present, both halves of the CrPC↔BNSS pair become measurable and the paired set roughly doubles. Decide after seeing whether the IPC↔BNS result is strong enough on its own.
+
+---
+
+## Q8 — How should a citation be bound to the chunk that supports it?
+**Raised:** 2026-08-23 · **Blocks:** every citation-level metric on any set where both codes appear · **Effort:** ~half a day
+
+**Why it matters.** `core/citations.py` decides which Act a section number belongs to by looking for a statute name within 60 characters. That works on statute text and on answers about one code. It fails exactly where this project's contribution lies: an answer that says "you asked about IPC 420, but BNS 318(4) governs" mentions both codes, and every number in it gets attributed to whichever name happens to be nearest.
+
+Measured on the Phase H intervention run, `conflict_ipc_named`: retrieval returned BNS chunks only in 100% of cases, the answer mentioned the BNS in 100%, and the extractor still labelled some citation "IPC" in 92%. An answer citing **BNS 190** was recorded as `IPC Section 190`.
+
+Consequence: `wrong_era_cited` reads 100% both before and after the intervention, and cannot distinguish "wrongly relied on repealed law" from "correctly explained the law changed".
+
+**How to settle it.** Bind each citation to the retrieved chunk that supports it — the chunk payload already carries an authoritative `corpus` field — and fall back to proximity only when no chunk matches. This also repairs `panel_prose_jaccard`, which currently compares two proximity-derived attributions against each other.
+
+**Current lean.** Do it before any further citation-level measurement. The transition-language proxy used in Phase H is a workaround, not a substitute.
+
+---
+
+## Q9 — Is the BNS retrieval gap caused by the missing marginal notes?
+**Raised:** 2026-08-23 · **Blocks:** interpreting the 36.4% vs 78.8% asymmetry · **Effort:** ~2 hours
+
+**Why it matters.** With routing perfect, Phase H retrieves the gold section 78.8% of the time into the IPC and only 36.4% into the BNS — same 33 offences, same query wording, same reference dates.
+
+Two candidate causes, and they call for different fixes. Base rate: the BNS is 22.3% of the index against the IPC's 31.3%. Text quality: `eval/generate_from_corpus.py` already records that the BNS PDF carries no marginal notes, so extraction returns the first clause of the provision ("Except in the cases hereinafter excepted…") instead of its subject ("Culpable homicide"). A chunk that never states its own topic is hard to retrieve by topic.
+
+**How to settle it.** Re-chunk the BNS PDF with the section title injected from a separate source, re-index, and re-run `scripts/ablate_filter.py` and the Phase H comparison. If the gap closes, it is text quality; if it does not, it is base rate.
+
+**Current lean.** Text quality, because the effect is far larger than a 22.3% vs 31.3% difference would produce on its own.

@@ -5064,3 +5064,109 @@ print('baseline unique %d/200, missing %d'%(len(ids),len(allq-ids)))
 ```bash
 head -7 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/h_both.log; echo "..."; tail -2 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/h_both.log
 ```
+
+`2026-08-23 04:21:13` · **cmd** — Add and commit the comparison script
+```bash
+cp /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/compare_draft.py scripts/compare_runs.py
+./venv/Scripts/python.exe -c "import ast,sys; ast.parse(open('scripts/compare_runs.py',encoding='utf-8').read()); print('parses OK')"
+git add -A && git -c core.quotepath=false commit -q -m "$(cat <<'MSG'
+Add scripts/compare_runs.py â€” baseline vs intervention, on shared queries
+
+analyze_eval.py describes ONE configuration. This answers a different
+question: did changing exactly one thing help, and by how much?
+
+It needs a guard the descr
+… [truncated, 833 more chars]
+```
+
+`2026-08-23 04:21:21` · **cmd** — Check intervention run progress
+```bash
+tail -2 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/h_both.log
+```
+
+### 2026-08-23 04:26:51 · prompt
+
+<task-notification>
+<task-id>b7be4tboh</task-id>
+<tool-use-id>toolu_01NFQ3M7vW57mADrjw6HHXTF</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\tasks\b7be4tboh.output</output-file>
+<status>killed</status>
+<summary>Background command "Run the intervention condition" was stopped</summary>
+</task-notification>
+
+`2026-08-23 04:27:07` · **cmd** — Check intervention coverage after the kill
+```bash
+./venv/Scripts/python.exe -c "
+import json,glob
+for d in sorted(glob.glob('runs/eval_2026-08-23_04*_302e1f8*'))+sorted(glob.glob('runs/eval_2026-08-23_0353_302e1f8')):
+    try:
+        ids={json.loads(l)['query_id'] for l in open(d+'/eval_summary.jsonl',encoding='utf-8')}
+        print('%3d unique  %s'%(len(ids),d))
+    except Exception as e: print('  ?', d, e)
+"
+curl -s -m 5 http://127.0.0.1:8006/healthz || echo "SERVER DOWN"
+```
+
+`2026-08-23 04:27:21` · **cmd** — Compare baseline against intervention
+```bash
+./venv/Scripts/python.exe scripts/compare_runs.py --baseline runs/eval_2026-08-23_0353_302e1f8 --intervention runs/eval_2026-08-23_0410_302e1f8_both > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/h_compare.txt 2>&1; sed -n '1,45p' /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/h_compare.txt
+```
+
+`2026-08-23 04:27:31` · **cmd** — Show the final comparison table
+```bash
+sed -n '45,60p' /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/h_compare.txt
+```
+
+`2026-08-23 04:28:02` · **cmd** — Read the actual answers for one conflict query
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io,json,glob,re; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+recs={}
+for p in glob.glob('runs/**/queries.jsonl',recursive=True):
+    for l in open(p,encoding='utf-8'):
+        r=json.loads(l); recs[r['req_id']]=r
+def show(run,qid,label):
+    for l in open(run+'/eval_summary.jsonl',encoding='utf-8'):
+        row=json.loads(l)
+        if row['query_id']!=qid: continue
+        rec=recs.get(row.get('req_id'))
+        if not rec: continue
+        print('='*100); print(label)
+        print('QUERY :',row['text'][:110])
+        print('GOLD 
+… [truncated, 550 more chars]
+```
+
+`2026-08-23 04:28:37` · **cmd** — Quantify the citation attribution artifact
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io,json,glob,re,collections; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+recs={}
+for p in glob.glob('runs/**/queries.jsonl',recursive=True):
+    for l in open(p,encoding='utf-8'):
+        r=json.loads(l); recs[r['req_id']]=r
+run='runs/eval_2026-08-23_0410_302e1f8_both'
+stat=collections.Counter()
+for l in open(run+'/eval_summary.jsonl',encoding='utf-8'):
+    row=json.loads(l)
+    if row['variant']!='conflict_ipc_named': continue
+    rec=recs.get(row.get('req_id'))
+    if not rec: continue
+    txt=rec['answer']['answer_text'] or ''
+  
+… [truncated, 806 more chars]
+```
+
+`2026-08-23 04:29:13` · **cmd** — Measure whether answers explain the law changed
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io,json,glob,re,collections,math; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+recs={}
+for p in glob.glob('runs/**/queries.jsonl',recursive=True):
+    for l in open(p,encoding='utf-8'):
+        r=json.loads(l); recs[r['req_id']]=r
+TRANSITION=re.compile(r'(repeal|replaced by|superseded|no longer in force|corresponding (?:provision|section)|'
+                      r'came into force|with effect from|w\.e\.f|1 July 2024|1st July 2024|erstwhile|'
+                      r'formerly|now governed|has been renumbered|equivalent (?:provision|sec
+… [truncated, 1212 more chars]
+```
