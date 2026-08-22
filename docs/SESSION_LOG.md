@@ -4151,3 +4151,38 @@ for d in runs/eval_*; do n=$(wc -l < "$d/eval_summary.jsonl" 2>/dev/null || echo
 ```bash
 cat .gitignore 2>/dev/null | head -30; echo "=== tracked junk ==="; git ls-files | grep -cE "__pycache__|\.pyc$" ; git ls-files | grep -c "^runs/"
 ```
+
+`2026-08-23 02:08:43` · **cmd** — Ignore run outputs, untrack pyc, commit
+```bash
+cat >> .gitignore <<'EOF'
+
+# Evaluation run outputs.
+#
+# These are ARTIFACTS, not source. They are also why scripts/run_eval.py used
+# to refuse to run: the server writes runs/<stamp>/queries.jsonl during the
+# run itself, which dirties the working tree, so the clean-tree guard could
+# never be satisfied on a second invocation.
+#
+# Reproducibility does not depend on committing them -- every record carries
+# the git SHA of the code that produced it, so a result can always be traced
+# back to its source. Results that go into the paper get exported deliberately
+# to docs/results/ rather than accu
+… [truncated, 1031 more chars]
+```
+
+`2026-08-23 02:08:51` · **cmd** — Run all three evaluation sets
+```bash
+bash /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.sh
+```
+
+`2026-08-23 02:10:41` · **cmd** — Check the full run results
+```bash
+grep -E "^####|query set|done in|to run" /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/tasks/bovmr4ec1.output
+echo "=== FAILED count ==="; grep -c FAILED /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/tasks/bovmr4ec1.output
+echo "=== REFUSED count ==="; grep -c REFUSED /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/tasks/bovmr4ec1.output
+```
+
+`2026-08-23 02:10:48` · **cmd** — Read the run output
+```bash
+head -30 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/tasks/bovmr4ec1.output
+```
