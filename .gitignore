@@ -51,3 +51,16 @@ app_backup.py
 # Evaluation run outputs (regenerable, can be large)
 runs/
 requirements.lock.txt
+
+# Evaluation run outputs.
+#
+# These are ARTIFACTS, not source. They are also why scripts/run_eval.py used
+# to refuse to run: the server writes runs/<stamp>/queries.jsonl during the
+# run itself, which dirties the working tree, so the clean-tree guard could
+# never be satisfied on a second invocation.
+#
+# Reproducibility does not depend on committing them -- every record carries
+# the git SHA of the code that produced it, so a result can always be traced
+# back to its source. Results that go into the paper get exported deliberately
+# to docs/results/ rather than accumulating here by accident.
+runs/

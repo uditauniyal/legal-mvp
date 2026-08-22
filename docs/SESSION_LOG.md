@@ -4091,3 +4091,63 @@ PY
 ./venv/Scripts/python.exe scripts/run_eval.py --queryset eval/paired_
 … [truncated, 82 more chars]
 ```
+
+`2026-08-23 02:07:28` · **cmd** — Commit runner fixes for a clean SHA
+```bash
+git add -A && git -c core.quotepath=false commit -q -m "$(cat <<'MSG'
+run_eval: accept --queryset, add bounded concurrency, fix --resume
+
+--queryset  the runner was hardwired to eval/queryset.jsonl, so the layman
+            and paired sets could not be run at all.
+--workers   the endpoint is synchronous, so FastAPI runs it in a threadpool
+            and several queries can be in flight. Default stays 1.
+resume      already_done() read queries.jsonl, which the SERVER writes under
+            a different name, so the skip set was always empty and --resume
+            silently re-ran and re-pai
+… [truncated, 216 more chars]
+```
+
+`2026-08-23 02:07:46` · **cmd** — Run all three evaluation sets
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.sh <<'SH'
+cd /c/Users/uniya/legal-mvp
+for SET in paired layman generated; do
+  echo "############ $SET ############"
+  ./venv/Scripts/python.exe scripts/run_eval.py \
+      --queryset eval/${SET}_queryset.jsonl \
+      --url http://127.0.0.1:8001 --workers 3
+done
+echo "############ ALL SETS DONE ############"
+SH
+bash /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.sh
+```
+
+`2026-08-23 02:08:06` · **cmd** — Inspect the recorded row shapes
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io,json,glob,os; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+d=sorted(glob.glob('runs/eval_*'))[0]
+row=json.loads(open(os.path.join(d,'eval_summary.jsonl'),encoding='utf-8').readline())
+for k,v in row.items():
+    s=json.dumps(v,ensure_ascii=False)
+    print('%-24s %s'%(k, s[:150]))
+"
+echo "=== server-side record keys ==="
+./venv/Scripts/python.exe -c "
+import sys,io,json,glob,os; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+cands=sorted(glob.glob('runs/**/queries.jsonl',recursive=True)+glob.glob('runs/*.jsonl'))
+
+… [truncated, 344 more chars]
+```
+
+`2026-08-23 02:08:16` · **cmd** — Check run completion and row counts
+```bash
+grep -E "^####|query set|to run|done in|FAILED|REFUS" /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/tasks/buh1e1v9u.output | head -40
+echo "=== run dirs ==="
+for d in runs/eval_*; do n=$(wc -l < "$d/eval_summary.jsonl" 2>/dev/null || echo 0); echo "$n  $d"; done
+```
+
+`2026-08-23 02:08:28` · **cmd** — Inspect gitignore and tracked artifacts
+```bash
+cat .gitignore 2>/dev/null | head -30; echo "=== tracked junk ==="; git ls-files | grep -cE "__pycache__|\.pyc$" ; git ls-files | grep -c "^runs/"
+```
