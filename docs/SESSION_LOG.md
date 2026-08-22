@@ -4707,3 +4707,79 @@ CASES=[
 ```bash
 ./venv/Scripts/python.exe -m pytest tests/test_dates.py -q 2>&1 | tail -25
 ```
+
+`2026-08-23 03:43:28` · **cmd** — Run full suite and commit H1
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -4 && git add -A && git -c core.quotepath=false commit -q -m "$(cat <<'MSG'
+H1: Date Resolver â€” decide which code governs from the event date
+
+Phase G measured what happens without this. Told "this happened last
+month" -- so the BNS governs -- the system's ability to name the
+applicable provision fell from 96.4% to 60.9%, because nothing in the
+pipeline read the date. The Router picked a corpus from the WORDS in the
+query, and the words say nothing about time.
+
+Deterministic regex, not an LLM call, for three reasons in order: it has
+t
+… [truncated, 1629 more chars]
+```
+
+`2026-08-23 03:43:56` · **cmd** — Read the retriever filter construction
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+L=open('agents/retriever.py',encoding='utf-8').readlines()
+for i in range(178,215): print('%3d %s'%(i+1,L[i].rstrip()))
+"
+```
+
+`2026-08-23 03:44:07` · **cmd** — Read the filtered search construction
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+L=open('agents/retriever.py',encoding='utf-8').readlines()
+for i in range(153,180): print('%3d %s'%(i+1,L[i].rstrip()))
+"
+```
+
+`2026-08-23 03:45:10` · **cmd** — Test the statute mapper
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+sys.path.insert(0,'.')
+from datetime import date
+from core.dates import resolve
+from core.statute_mapper import map_query
+REF=date(2026,8,23)
+QS=[
+ 'What is the punishment under Section 420 IPC? This happened last month.',
+ 'What is the punishment under Section 420 IPC? This happened in March 2023.',
+ 'What is the punishment under Section 420 IPC?',
+ 'What does Section 318(4) of the Bharatiya Nyaya Sanhita provide? This happened in March 2023.',
+ 'husband beats me since 2019',
+ 'husban
+… [truncated, 695 more chars]
+```
+
+`2026-08-23 03:45:55` · **cmd** — Retest the statute mapper
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+sys.path.insert(0,'.')
+from datetime import date
+from core.dates import resolve
+from core.statute_mapper import map_query
+REF=date(2026,8,23)
+QS=[
+ 'What is the punishment under Section 420 IPC? This happened last month.',
+ 'What is the punishment under Section 420 IPC? This happened in March 2023.',
+ 'What is the punishment under Section 420 IPC?',
+ 'What does Section 318(4) of the Bharatiya Nyaya Sanhita provide? This happened in March 2023.',
+ 'What does Section 318(4) of the Bharat
+… [truncated, 554 more chars]
+```
+
+`2026-08-23 03:46:47` · **cmd** — Run statute mapper tests
+```bash
+./venv/Scripts/python.exe -m pytest tests/test_statute_mapper.py -q 2>&1 | tail -20
+```
