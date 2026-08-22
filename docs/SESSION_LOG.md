@@ -4276,3 +4276,27 @@ L=open('scripts/run_eval.py',encoding='utf-8').readlines()
 for i in range(179,192): print('%3d %r'%(i+1,L[i]))
 "
 ```
+
+`2026-08-23 02:14:27` · **cmd** — Commit and run the paired set in foreground
+```bash
+git add -A && git -c core.quotepath=false commit -q -m "run_eval: name the dirty paths when refusing
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>" && git log --oneline -1
+echo "=== immediate check ==="
+./venv/Scripts/python.exe scripts/run_eval.py --queryset eval/paired_queryset.jsonl --url http://127.0.0.1:8001 --workers 3 2>&1 | head -8
+```
+
+`2026-08-23 02:14:41` · **cmd** — Run all three evaluation sets
+```bash
+bash /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.sh > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.log 2>&1
+```
+
+`2026-08-23 02:14:50` · **cmd** — Check that queries are flowing
+```bash
+grep -cE "^  \[" /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.log 2>/dev/null; tail -3 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.log 2>/dev/null
+```
+
+`2026-08-23 02:14:57` · **cmd** — See which path is dirty during background runs
+```bash
+grep -A2 "Modified:" /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.log | head -6
+```

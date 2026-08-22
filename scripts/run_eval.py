@@ -85,10 +85,23 @@ def git(*args: str) -> str:
 
 
 def working_tree_dirty() -> list[str]:
-    """Modified paths that could affect a result. Empty means clean enough."""
+    """Modified paths that could affect a result. Empty means clean enough.
+
+    Parsed by SPLITTING, not by a fixed column offset. Porcelain lines look
+    like " M path" -- two status columns, a space, then the path -- so
+    line[3:] is the obvious reading. It is also wrong here, because git()
+    calls .stdout.strip() on the whole output, which eats the leading space
+    of the FIRST line only. That shifted exactly one line by one character,
+    turning "docs/SESSION_LOG.md" into "ocs/SESSION_LOG.md", which matched no
+    exemption and blocked four evaluation runs while every direct test of the
+    parser passed.
+    """
     out = []
     for line in git("status", "--porcelain").splitlines():
-        path = line[3:].strip().strip('"')
+        parts = line.strip().split(None, 1)
+        if len(parts) < 2:
+            continue
+        path = parts[1].strip().strip('"')
         if path and path not in DIRT_EXEMPT:
             out.append(path)
     return out
