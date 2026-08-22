@@ -1,4 +1,4 @@
-from clients.openai_client import client
+from clients.openai_client import chat
 from core.config import GEN_MODEL
 from agents.retriever import RetrievalResult
 
@@ -81,26 +81,34 @@ class AnswerAgent:
     def answer(self, query: str, retrieval: RetrievalResult, style: str = "Detailed") -> dict:
         # --- Refusal Gate ---
         if retrieval.refused or not retrieval.chunks:
-            print(f"[Answer] REFUSED — confidence={retrieval.confidence}, chunks={retrieval.total_chunks}")
+            print(f"[Answer] REFUSED - confidence={retrieval.confidence}, chunks={retrieval.total_chunks}")
             return {
                 "answer": REFUSAL_MESSAGE,
                 "citations": [],
                 "confidence": retrieval.confidence,
                 "refused": True,
+                "prompt_variant": "REFUSED",
+                "llm_ok": True,      # no call was made; nothing failed
+                "llm_error": None,
+                "gen_provider": None,
+                "gen_model": None,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
             }
 
         context = retrieval.chunks
 
         # --- Confidence-aware prompt adjustment ---
         system_prompt = ANSWER_SYSTEM_PROMPT
+        prompt_variant = "HIGH"
         if retrieval.confidence < MEDIUM_CONFIDENCE:
             system_prompt = LOW_CONFIDENCE_DISCLAIMER + "\n\n" + ANSWER_SYSTEM_PROMPT
-            print(f"[Answer] LOW confidence ({retrieval.confidence:.3f}) — adding strong disclaimer")
+            print(f"[Answer] LOW confidence ({retrieval.confidence:.3f}) - adding strong disclaimer")
         elif retrieval.confidence < HIGH_CONFIDENCE:
             system_prompt = MEDIUM_CONFIDENCE_DISCLAIMER + "\n\n" + ANSWER_SYSTEM_PROMPT
-            print(f"[Answer] MEDIUM confidence ({retrieval.confidence:.3f}) — adding soft disclaimer")
+            print(f"[Answer] MEDIUM confidence ({retrieval.confidence:.3f}) - adding soft disclaimer")
         else:
-            print(f"[Answer] HIGH confidence ({retrieval.confidence:.3f}) — generating normally")
+            print(f"[Answer] HIGH confidence ({retrieval.confidence:.3f}) - generating normally")
 
         # Prepare context string
         context_str = "\n\n".join([
@@ -113,15 +121,14 @@ class AnswerAgent:
             {"role": "user", "content": f"User Query: {query}\n\nSearch Results:\n{context_str}"}
         ]
         
+        # Metadata about the call itself, for the run log. Defaults describe
+        # the failure case so the record is complete even if the call throws.
+        llm_ok, llm_error, meta = True, None, None
         try:
-            response = client.chat.completions.create(
-                model=GEN_MODEL,
-                temperature=0,
-                messages=messages,
-            )
-            ans = response.choices[0].message.content
+            ans, meta = chat(messages)
         except Exception as e:
             ans = "I'm sorry, I encountered an error generating the answer."
+            llm_ok, llm_error = False, f"{type(e).__name__}: {e}"
             print(f"[Answer] Error: {e}")
 
         return {
@@ -136,6 +143,14 @@ class AnswerAgent:
             ],
             "confidence": retrieval.confidence,
             "refused": False,
+            # --- logging fields (C3) ---
+            "prompt_variant": prompt_variant,
+            "llm_ok": llm_ok,
+            "llm_error": llm_error,
+            "gen_provider": getattr(meta, "provider_name", None),
+            "gen_model": getattr(meta, "model", GEN_MODEL),
+            "prompt_tokens": getattr(meta, "prompt_tokens", 0),
+            "completion_tokens": getattr(meta, "completion_tokens", 0),
         }
 
 

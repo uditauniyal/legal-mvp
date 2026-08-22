@@ -14,6 +14,14 @@ class CaseContext(BaseModel):
     legal_issues: List[str]
     missing_facts: List[str] # What else should the user have told us?
 
+    # --- logging fields (added for C3) ---
+    # These are NOT legal analysis. They record what happened during the
+    # LLM call so that a silent failure shows up in the run log.
+    llm_ok: bool = True          # did the LLM call succeed?
+    fallback_used: bool = False  # were hardcoded defaults substituted?
+    llm_error: Optional[str] = None  # what went wrong, if anything
+    raw_response_chars: int = 0  # length of what came back, for debugging
+
 INTAKE_SYSTEM_PROMPT = """
 You are the "Intake Agent" for a Legal AI. Your goal is to triage the user's legal problem.
 
@@ -62,7 +70,12 @@ class IntakeAgent:
                     {"role": "system", "content": INTAKE_SYSTEM_PROMPT},
                     {"role": "user", "content": f"Query: {query}"}
                 ],
-                max_tokens=600
+                # 1500, not 600: this model spends output tokens on internal
+                # reasoning before the visible answer. Measured 422/600 used
+                # on a SIMPLE query, so 600 overflows on hard ones and the
+                # truncated JSON fails to parse. See docs/PROJECT_CONTEXT.md
+                # -> llm-token-costs.
+                max_tokens=1500
             )
 
             # Robust JSON Extraction: Find first '{' and last '}'
@@ -86,12 +99,18 @@ class IntakeAgent:
                 complexity=data.get("Complexity", data.get("complexity", "Medium")),
                 predicted_legal_domain=data.get("Domain", data.get("predicted_legal_domain", "General")),
                 legal_issues=data.get("Issues", data.get("legal_issues", [])),
-                missing_facts=data.get("Missing Facts", data.get("missing_facts", []))
+                missing_facts=data.get("Missing Facts", data.get("missing_facts", [])),
+                llm_ok=True,
+                fallback_used=False,
+                raw_response_chars=len(response or ""),
             )
 
         except Exception as e:
+            # This branch used to be invisible: it printed to a terminal and
+            # carried on with hardcoded defaults. The Router then routed on a
+            # domain the LLM never actually produced, and nothing in the
+            # response said so. Now it is recorded. See docs/GAPS.md.
             print(f"[Intake] LLM CRASH: {e}")
-            # Fallback (but we will check keywords below)
             context = CaseContext(
                 original_query=query,
                 scenario="Legal Query",
@@ -101,7 +120,10 @@ class IntakeAgent:
                 complexity="Medium", # Assume medium if technical
                 predicted_legal_domain="General",
                 legal_issues=[],
-                missing_facts=[]
+                missing_facts=[],
+                llm_ok=False,
+                fallback_used=True,
+                llm_error=f"{type(e).__name__}: {e}",
             )
             return self._apply_paralegal_override(context, query)
 

@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
-from typing import List, Any
+from typing import List, Any, Optional
 
 from clients.qdrant_client import qdrant, COLLECTION
-from clients.openai_client import embed_texts
+from clients.openai_client import embed_one
 from qdrant_client.models import Filter
 from agents.router import QueryPlan
 
@@ -24,11 +24,25 @@ class RetrievalResult:
     total_retrieved: int = 0      # Raw chunks from Qdrant (before filtering)
     refused: bool = False         # True ONLY if zero usable results
 
+    # --- logging fields (C3) ---
+    scores_raw: List[float] = field(default_factory=list)
+    #   Every score BEFORE filtering. Saved so the confidence ablation can be
+    #   recomputed offline from the log, with no re-querying and no cost.
+    filter_fallback_fired: bool = False
+    #   True when the corpus filter matched nothing and was silently dropped.
+    #   This is the mechanism behind the CrPC drift (docs/GAPS.md #5).
+    entity_coverage_default_used: bool = False
+    #   True when no entity was extracted and the signal defaulted to 1.0,
+    #   handing out its full 0.30 weight for free (docs/GAPS.md #2).
+    filter_applied: Optional[str] = None
+    embed_provider: Optional[str] = None
+
 
 def compute_confidence(scores: list, entities: list, chunks: list) -> dict:
     """Composite confidence: top-5 mean + entity coverage + score gap analysis."""
     if not scores:
-        return {"confidence": 0.0, "top_k_mean": 0.0, "score_gap": 0.0, "entity_coverage": 0.0}
+        return {"confidence": 0.0, "top_k_mean": 0.0, "score_gap": 0.0,
+                "entity_coverage": 0.0, "entity_coverage_default_used": not entities}
 
     top_k = sorted(scores, reverse=True)[:5]
 
@@ -39,6 +53,7 @@ def compute_confidence(scores: list, entities: list, chunks: list) -> dict:
     score_gap = top_k[0] - top_k[-1] if len(top_k) > 1 else 0.0
 
     # Signal 3: Entity coverage (did we find chunks mentioning the entities?)
+    default_used = not entities
     if entities:
         entity_hits = sum(
             1 for c in chunks[:5]
@@ -61,6 +76,7 @@ def compute_confidence(scores: list, entities: list, chunks: list) -> dict:
         "top_k_mean": round(top_k_mean, 4),
         "score_gap": round(score_gap, 4),
         "entity_coverage": round(entity_coverage, 4),
+        "entity_coverage_default_used": default_used,
     }
 
 
@@ -70,7 +86,9 @@ class RetrievalAgent:
 
     def retrieve(self, plan: QueryPlan, limit: int = 15) -> RetrievalResult:
         # 1. Embed the query
-        q_vec = embed_texts([plan.rewritten_query])[0]
+        # embed_one returns (vector, CallMeta); the meta records which provider
+        # actually served the request, which the run log needs.
+        q_vec, self.last_embed_meta = embed_one(plan.rewritten_query)
 
         # 2. Build Filter
         must_filters = []
@@ -90,7 +108,13 @@ class RetrievalAgent:
         )
 
         # 4. Fallback: no results with filter → try without
+        filter_fallback_fired = False
         if not res and plan.target_corpus:
+            # The filter matched nothing, so we drop it entirely. Previously
+            # this happened silently; now it is recorded, because an
+            # unfiltered search runs over an index that is ~48% CrPC and the
+            # base rate alone then dominates the results.
+            filter_fallback_fired = True
             print(f"[Retrieval] No results with filter '{plan.target_corpus}'. Searching all...")
             res = self.client.search(
                 collection_name=COLLECTION,
@@ -150,5 +174,10 @@ class RetrievalAgent:
             total_chunks=len(filtered),
             total_retrieved=total_retrieved,
             refused=refused,
+            scores_raw=[round(float(x), 6) for x in all_scores],
+            filter_fallback_fired=filter_fallback_fired,
+            entity_coverage_default_used=conf.get("entity_coverage_default_used", False),
+            filter_applied=plan.target_corpus,
+            embed_provider=getattr(self.last_embed_meta, "provider_name", None),
         )
 

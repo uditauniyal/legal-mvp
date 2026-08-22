@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "arxiv": {
+      "type": "stdio",
+      "command": "C:/Users/uniya/legal-mvp/.tools/arxiv-mcp/Scripts/arxiv-mcp-server.exe",
+      "args": [],
+      "env": {}
+    }
+  }
+}

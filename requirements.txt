@@ -1,97 +1,51 @@
-annotated-types==0.7.0
-anyio==4.9.0
-asttokens==3.0.0
-certifi==2025.1.31
-charset-normalizer==3.4.1
-colorama==0.4.6
-comm==0.2.2
-contourpy==1.3.1
-cycler==0.12.1
-debugpy==1.8.14
-decorator==5.2.1
-distro==1.9.0
-executing==2.2.0
-filelock==3.17.0
-fonttools==4.56.0
-fsspec==2025.2.0
-gitdb==4.0.12
-gitpython==3.1.44
-greenlet==3.2.3
-h11==0.16.0
-httpcore==1.0.9
-httpx==0.28.1
-idna==3.10
-ipykernel==6.29.5
-ipython==9.4.0
-ipython_pygments_lexers==1.1.1
-jedi==0.19.2
-Jinja2==3.1.5
-jiter==0.10.0
-jsonpatch==1.33
-jsonpointer==3.0.0
-jupyter_client==8.6.3
-jupyter_core==5.8.1
-kiwisolver==1.4.8
-langchain==0.3.26
-langchain-core==0.3.71
-langchain-openai==0.3.28
-langchain-text-splitters==0.3.8
-langsmith==0.4.8
-MarkupSafe==3.0.2
-matplotlib==3.10.1
-matplotlib-inline==0.1.7
-mpmath==1.3.0
-nest-asyncio==1.6.0
-networkx==3.4.2
-numpy==2.1.1
+# Legal MVP — direct dependencies
+#
+# These are the packages this project actually imports. Versions match the
+# working venv as of 2026-08-22 (see requirements.lock.txt for the full
+# transitive pin set, which is what you want for exact reproduction).
+#
+# NOTE ON WHAT WAS REMOVED
+#   The previous file listed none of these and instead pinned a computer-vision
+#   stack (torch, torchvision, ultralytics, opencv-python, pycocotools, thop)
+#   plus five LangChain packages. Nothing in this codebase imports any of them —
+#   verified with `grep -rn "langchain" --include=*.py`, zero hits. Installing
+#   the old file pulled ~2.5GB and still could not `import app`.
+#
+# NOTE ON starlette/uvicorn
+#   fastapi 0.115.0 requires starlette<0.39.0. Do not let another tool upgrade
+#   it. Install MCP servers and other tooling into a SEPARATE venv (.tools/).
+
+# --- Web API ---
+fastapi==0.115.0
+uvicorn==0.30.6
+python-multipart==0.0.20        # multipart/form-data for /ingest uploads
+starlette==0.38.6               # pinned: fastapi 0.115 requires <0.39
+
+# --- UI ---
+streamlit==1.49.1
+
+# --- Vector store ---
+qdrant-client==1.9.1
+
+# --- LLM / embeddings (OpenAI SDK, pointed at OpenRouter) ---
 openai==1.97.1
-opencv-python==4.11.0.86
-orjson==3.11.0
-packaging==24.2
-pandas==2.2.3
-parso==0.8.4
-pillow==11.1.0
-platformdirs==4.3.8
-prompt_toolkit==3.0.51
-psutil==7.0.0
-pure_eval==0.2.3
-py-cpuinfo==9.0.0
-pycocotools==2.0.8
+
+# --- Document ingestion ---
+PyMuPDF==1.26.4                 # primary PDF text extraction
+pdfplumber==0.11.4              # path-based fallback extraction
+python-docx==1.1.2              # .docx ingest + reading recorded runs
+pytesseract==0.3.13             # OCR for scanned pages (needs tesseract binary)
+Pillow==11.1.0                  # image handling for the OCR path
+langdetect==1.0.9               # per-chunk language tagging
+
+# --- Reports ---
+fpdf2==2.8.5                    # PDF advisory output
+Jinja2==3.1.5                   # HTML report template
+
+# --- Core ---
 pydantic==2.11.7
-pydantic_core==2.33.2
-Pygments==2.19.2
-pyparsing==3.2.1
-python-dateutil==2.9.0.post0
 python-dotenv==1.1.1
-pytz==2025.1
-pywin32==310
-PyYAML==6.0.2
-pyzmq==27.0.0
-regex==2024.11.6
 requests==2.32.3
-requests-toolbelt==1.0.0
-scipy==1.15.2
-seaborn==0.13.2
-setuptools==75.8.2
-six==1.17.0
-smmap==5.0.2
-sniffio==1.3.1
-SQLAlchemy==2.0.41
-stack-data==0.6.3
-sympy==1.13.1
-tenacity==9.1.2
-thop==0.1.1.post2209072238
-tiktoken==0.9.0
-torch==2.6.0
-torchvision==0.21.0
-tornado==6.5.1
-tqdm==4.67.1
-traitlets==5.14.3
-typing-inspection==0.4.1
-typing_extensions==4.12.2
-tzdata==2025.1
-ultralytics==8.3.81
-ultralytics-thop==2.0.14
-urllib3==2.3.0
-wcwidth==0.2.13
-zstandard==0.23.0
+
+# --- Development / evaluation ---
+pytest==8.3.4

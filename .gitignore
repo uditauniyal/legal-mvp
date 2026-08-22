@@ -44,3 +44,10 @@ results.csv
 ingest_debug.log
 testing_results/
 app_backup.py
+
+# Isolated venvs for MCP tooling
+.tools/
+
+# Evaluation run outputs (regenerable, can be large)
+runs/
+requirements.lock.txt
