@@ -4186,3 +4186,34 @@ echo "=== REFUSED count ==="; grep -c REFUSED /c/Users/uniya/AppData/Local/Temp/
 ```bash
 head -30 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/tasks/bovmr4ec1.output
 ```
+
+`2026-08-23 02:11:06` · **cmd** — Commit the analyzer and verify clean tree
+```bash
+git add -A && git -c core.quotepath=false commit -q -m "$(cat <<'MSG'
+Add scripts/analyze_eval.py â€” turns evaluation runs into the result tables
+
+Reads the two records every query produces and joins them on req_id: the
+runner's eval_summary.jsonl carries the GOLD (expected sections, variant,
+messiness) and the server's queries.jsonl carries what HAPPENED (chunks,
+corpora, citations, every confidence signal). Neither alone can answer
+"did it retrieve the right section?".
+
+Produces E1 cross-statute retrieval and corpus confusion, E2 the date
+experiment with CPA controls, E3 citation grounding,
+… [truncated, 925 more chars]
+```
+
+`2026-08-23 02:11:14` · **cmd** — Run all three evaluation sets
+```bash
+bash /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.sh
+```
+
+`2026-08-23 02:11:25` · **cmd** — Check current run progress
+```bash
+tail -5 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/tasks/bh3n9wvru.output
+```
+
+`2026-08-23 02:11:34` · **cmd** — Find what is dirtying the tree
+```bash
+git status --porcelain; echo "--- ignored check ---"; git status --porcelain --ignored | head -12
+```

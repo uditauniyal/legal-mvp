@@ -61,6 +61,20 @@ RUNS = ROOT / "runs"
 DEFAULT_URL = "http://127.0.0.1:8000"
 
 
+# Files whose state cannot change what a query does, so they are excluded from
+# the clean-tree check.
+#
+# docs/SESSION_LOG.md is appended by the session-logging hook on EVERY command,
+# including the one that launches this script. It therefore made the tree
+# permanently dirty and the guard unsatisfiable -- three full evaluation runs
+# were blocked by a log file recording that they had been blocked.
+#
+# Keep this list tiny and prose-only. The guard exists so the recorded git SHA
+# describes the CODE that ran; anything that could alter behaviour must stay
+# inside it.
+DIRT_EXEMPT = {"docs/SESSION_LOG.md"}
+
+
 def git(*args: str) -> str:
     try:
         return subprocess.run(
@@ -68,6 +82,16 @@ def git(*args: str) -> str:
         ).stdout.strip()
     except Exception:
         return ""
+
+
+def working_tree_dirty() -> list[str]:
+    """Modified paths that could affect a result. Empty means clean enough."""
+    out = []
+    for line in git("status", "--porcelain").splitlines():
+        path = line[3:].strip().strip('"')
+        if path and path not in DIRT_EXEMPT:
+            out.append(path)
+    return out
 
 
 def load_queries(path: Path) -> list[dict]:
@@ -137,7 +161,9 @@ def main() -> None:
     if args.limit:
         queries = queries[: args.limit]
 
-    sha, dirty = git("rev-parse", "--short", "HEAD") or "nogit", bool(git("status", "--porcelain"))
+    sha = git("rev-parse", "--short", "HEAD") or "nogit"
+    dirty_paths = working_tree_dirty()
+    dirty = bool(dirty_paths)
 
     print(f"  query set   {args.queryset.relative_to(ROOT)}  ({len(queries)} to run)")
     print(f"  git         {sha}{'  DIRTY' if dirty else '  clean'}")
