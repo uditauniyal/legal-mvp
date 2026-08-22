@@ -4957,3 +4957,110 @@ from core.recodification import to_old, UnmappedProvision
 prin
 … [truncated, 689 more chars]
 ```
+
+`2026-08-23 03:53:27` · **cmd** — Commit and start server with intervention code
+```bash
+git add -A && git -c core.quotepath=false commit -q -m "$(cat <<'MSG'
+H4a: dated conflict query set â€” where the code named and the date disagree
+
+The existing paired set names a code in every query and gives a date in
+none, so the Date Resolver returns UNKNOWN and the Statute Mapper
+correctly does nothing. The intervention is a no-op there by design, and
+a baseline-vs-intervention comparison on it would measure nothing.
+
+This set puts the two signals in conflict:
+
+  "Section 420 of the Indian Penal Code ... This happened last month."
+
+The words say IPC; the date says the conduct is post-cuto
+… [truncated, 1553 more chars]
+```
+
+`2026-08-23 03:53:38` · **cmd** — Run baseline and intervention on the dated conflict set
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runh.sh <<'SH'
+cd /c/Users/uniya/legal-mvp
+for MODE in baseline both; do
+  echo "############ dated conflict set, mode=$MODE ############"
+  ./venv/Scripts/python.exe scripts/run_eval.py \
+      --queryset eval/paired_dated_queryset.jsonl \
+      --url http://127.0.0.1:8005 --workers 4 --intervention $MODE
+done
+echo "############ PHASE H RUNS DONE ############"
+SH
+bash /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scrat
+… [truncated, 143 more chars]
+```
+
+`2026-08-23 03:53:47` · **cmd** — Confirm the Phase H run started
+```bash
+head -8 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runh.log
+```
+
+`2026-08-23 03:54:31` · **cmd** — Draft the comparison script and check run progress
+```bash
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/compare_draft.py <<'PYEOF'
+#!/usr/bin/env python3
+"""Compare two evaluation runs of the SAME query set under different modes.
+
+WHY A SEPARATE SCRIPT FROM analyze_eval.py
+    analyze_eval.py describes ONE configuration. This one answers a different
+    question: did changing exactly one thing help, and by how much?
+
+    Keeping them apart matters because the comparison needs a guard the
+    description does not: both runs must cover the same query_ids, or the
+    "delta" is pa
+… [truncated, 5697 more chars]
+```
+
+### 2026-08-23 04:07:23 · prompt
+
+<task-notification>
+<task-id>bku5h2oyo</task-id>
+<tool-use-id>toolu_01T1wWF1wiTBQyXiFn8oa16R</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\tasks\bku5h2oyo.output</output-file>
+<status>killed</status>
+<summary>Background command "Run baseline and intervention on the dated conflict set" was stopped</summary>
+</task-notification>
+
+`2026-08-23 04:07:48` · **cmd** — Check Phase H run progress after the kill
+```bash
+for d in runs/eval_*_302e1f8*; do n=$(wc -l < "$d/eval_summary.jsonl" 2>/dev/null || echo 0); u=$(./venv/Scripts/python.exe -c "
+import json,sys
+try: print(len({json.loads(l)['query_id'] for l in open(r'$d/eval_summary.jsonl',encoding='utf-8')}))
+except Exception: print(0)"); echo "$u unique ($n rows)  $d"; done
+echo "--- server ---"; curl -s -m 5 http://127.0.0.1:8005/healthz || echo "DOWN"
+echo "--- log tail ---"; tail -3 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runh.log
+```
+
+`2026-08-23 04:08:11` · **cmd** — Start server on 8006
+```bash
+nohup ./venv/Scripts/python.exe -m uvicorn app:app --host 127.0.0.1 --port 8006 --log-level warning > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/uv7.log 2>&1 &
+for i in $(seq 1 25); do r=$(curl -s -m 3 http://127.0.0.1:8006/healthz 2>/dev/null); if [ -n "$r" ]; then echo "READY $r"; break; fi; done
+```
+
+`2026-08-23 04:10:27` · **cmd** — Finish the baseline run
+```bash
+./venv/Scripts/python.exe scripts/run_eval.py --queryset eval/paired_dated_queryset.jsonl --url http://127.0.0.1:8006 --workers 4 --intervention baseline --resume runs/eval_2026-08-23_0353_302e1f8 > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/h_base.log 2>&1; tail -3 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/h_base.log
+```
+
+`2026-08-23 04:10:40` · **cmd** — Verify baseline coverage
+```bash
+./venv/Scripts/python.exe -c "
+import json
+d='runs/eval_2026-08-23_0353_302e1f8/eval_summary.jsonl'
+ids={json.loads(l)['query_id'] for l in open(d,encoding='utf-8')}
+allq={json.loads(l)['query_id'] for l in open('eval/paired_dated_queryset.jsonl',encoding='utf-8')}
+print('baseline unique %d/200, missing %d'%(len(ids),len(allq-ids)))
+"
+```
+
+`2026-08-23 04:20:40` · **cmd** — Run the intervention condition
+```bash
+./venv/Scripts/python.exe scripts/run_eval.py --queryset eval/paired_dated_queryset.jsonl --url http://127.0.0.1:8006 --workers 4 --intervention both > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/h_both.log 2>&1; tail -3 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/h_both.log
+```
+
+`2026-08-23 04:20:50` · **cmd** — Check intervention run progress
+```bash
+head -7 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/h_both.log; echo "..."; tail -2 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/h_both.log
+```
