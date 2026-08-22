@@ -4878,3 +4878,82 @@ t = t.replace(
 '''        tag = "" if args.intervention == "baseline" else f"_{
 … [truncated, 873 more chars]
 ```
+
+`2026-08-23 03:50:22` · **cmd** — Commit H3
+```bash
+git add -A && git -c core.quotepath=false commit -q -m "$(cat <<'MSG'
+H3: wire the Date Resolver and Statute Mapper behind a mode flag
+
+Modes: baseline (default) / date / mapper / both, set per request or via
+the INTERVENTION environment variable so a whole run is pinned to one
+configuration rather than depending on what each caller sends.
+
+The baseline path stays exactly as Phase G ran it. That is the point:
+every Phase H number is a DELTA, and "the mapper improved things by N
+points" is unmeasurable if the old path cannot be reproduced on demand.
+
+QueryPlan gains target_corpora (a list) alon
+… [truncated, 1029 more chars]
+```
+
+`2026-08-23 03:51:21` · **cmd** — Generate the dated conflict query set
+```bash
+./venv/Scripts/python.exe eval/paired_dated_queries.py
+```
+
+`2026-08-23 03:51:42` · **cmd** — Verify the mapper flips the filter correctly
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io,json,collections; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+sys.path.insert(0,'.')
+from datetime import date
+from core.dates import resolve
+from core.statute_mapper import map_query
+from agents.router import RouterAgent
+from agents.intake import CaseContext
+REF=date(2026,8,23)
+rows=[json.loads(l) for l in open('eval/paired_dated_queryset.jsonl',encoding='utf-8')]
+R=RouterAgent()
+def ctx(q): return CaseContext(original_query=q,scenario='x',user_persona='Layman',urgency='Deferred',
+    financial_status='Unknown',complexity='Low',
+… [truncated, 717 more chars]
+```
+
+`2026-08-23 03:52:00` · **cmd** — Identify the single mapper miss
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io,json; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+sys.path.insert(0,'.')
+from datetime import date
+from core.dates import resolve
+from core.statute_mapper import map_query
+REF=date(2026,8,23)
+for r in [json.loads(l) for l in open('eval/paired_dated_queryset.jsonl',encoding='utf-8')]:
+    if r['variant']!='conflict_bns_named': continue
+    v=resolve(r['text'],REF); m=map_query(r['text'],v.era)
+    if m.target_corpora!=[r['expected_corpus']]:
+        print('QUERY   ',r['text'][:110])
+        print('era     ',v.era,'| named',m.origi
+… [truncated, 148 more chars]
+```
+
+`2026-08-23 03:52:54` · **cmd** — Verify the base-number fallback and rerun tests
+```bash
+python - <<'PY'
+import pathlib
+p = pathlib.Path("core/recodification.py"); t = p.read_text(encoding="utf-8")
+if "\nimport re\n" not in t:
+    t = t.replace("import json\n", "import json\nimport re\n", 1)
+    p.write_text(t, encoding="utf-8")
+print("re imported:", "\nimport re\n" in t)
+PY
+./venv/Scripts/python.exe -c "
+import sys,io,json,collections; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+sys.path.insert(0,'.')
+from datetime import date
+from core.dates import resolve
+from core.statute_mapper import map_query
+from core.recodification import to_old, UnmappedProvision
+prin
+… [truncated, 689 more chars]
+```

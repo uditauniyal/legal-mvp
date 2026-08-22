@@ -58,6 +58,7 @@ USAGE
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -131,6 +132,27 @@ def to_new(ref: str) -> list[str]:
         ) from None
 
 
+def _base_number(ref: str) -> str:
+    """'BNS 305(a)' -> 'BNS 305'. Drops the sub-section only."""
+    statute, number = ref.split(" ", 1)
+    m = re.match(r"\d+[A-Za-z]?", number.strip())
+    return f"{statute} {m.group(0)}" if m else ref
+
+
+@lru_cache(maxsize=1)
+def _backward_by_base() -> dict[str, list[str]]:
+    """New-code refs grouped by base section number.
+
+    Needed because the citation extractor reports "Section 305(a)" as number
+    "305" -- the sub-section is dropped -- while the map stores the key as
+    "BNS 305(a)". An exact reverse lookup then misses a mapping that exists.
+    """
+    out: dict[str, list[str]] = {}
+    for new_ref, old_refs in _backward().items():
+        out.setdefault(_base_number(new_ref), []).extend(old_refs)
+    return out
+
+
 def to_old(ref: str) -> list[str]:
     """New-code citation -> old-code citation(s)."""
     if statute_of(ref) in UNCHANGED:
@@ -138,7 +160,25 @@ def to_old(ref: str) -> list[str]:
     try:
         return list(_backward()[ref])
     except KeyError:
-        raise UnmappedProvision(f"{ref!r} has no reverse entry in {_MAP_PATH.name}.") from None
+        pass
+
+    # Fall back to the base section number, but ONLY when it is unambiguous.
+    #
+    # BNS 305(a) is the sole entry with base 305, so "BNS 305" resolves
+    # cleanly to IPC 380. BNS 318 is not: 318(1) came from IPC 415 (the
+    # definition of cheating) and 318(4) from IPC 420 (cheating and
+    # dishonestly inducing delivery). Those are different offences carrying
+    # different punishments, and picking one would be a coin flip presented
+    # as a lookup. Ambiguity raises instead.
+    candidates = list(dict.fromkeys(_backward_by_base().get(_base_number(ref), [])))
+    if len(candidates) == 1:
+        return candidates
+    if len(candidates) > 1:
+        raise UnmappedProvision(
+            f"{ref!r} is ambiguous without its sub-section: base "
+            f"{_base_number(ref)!r} maps to {candidates}. Cite the sub-section."
+        )
+    raise UnmappedProvision(f"{ref!r} has no reverse entry in {_MAP_PATH.name}.")
 
 
 def for_regime(refs: list[str], regime: str) -> list[str]:
