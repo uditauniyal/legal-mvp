@@ -4217,3 +4217,62 @@ tail -5 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f
 ```bash
 git status --porcelain; echo "--- ignored check ---"; git status --porcelain --ignored | head -12
 ```
+
+`2026-08-23 02:12:07` · **cmd** — Patch guard, commit, verify
+```bash
+python - <<'PY'
+import pathlib
+p = pathlib.Path("scripts/run_eval.py"); t = p.read_text(encoding="utf-8")
+t = t.replace(
+  'sha, dirty = git("rev-parse", "--short", "HEAD") or "nogit", bool(git("status", "--porcelain"))',
+  'sha = git("rev-parse", "--short", "HEAD") or "nogit"\n'
+  '    dirty_paths = working_tree_dirty()\n'
+  '    dirty = bool(dirty_paths)')
+t = t.replace(
+  '            "  Either:  git add -A && git commit -m \'checkpoint before eval\'\\n"',
+  '            "  Modified: " + ", ".join(dirty_paths[:6]) + "\\n\\n"\n'
+  '            "  Either:  git add -A && git commit -m \'checkp
+… [truncated, 1158 more chars]
+```
+
+`2026-08-23 02:12:16` · **cmd** — Run all three evaluation sets
+```bash
+bash /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/runall.sh
+```
+
+`2026-08-23 02:12:24` · **cmd** — Confirm the run has started
+```bash
+tail -4 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/tasks/bgrt7oql0.output
+```
+
+`2026-08-23 02:12:32` · **cmd** — See which path was dirty this time
+```bash
+head -8 /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/tasks/bgrt7oql0.output; echo "=== current status ==="; git status --porcelain
+```
+
+`2026-08-23 02:12:51` · **cmd** — Inspect exactly what the dirty check sees
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+sys.argv=['x']
+import importlib.util
+spec=importlib.util.spec_from_file_location('re','scripts/run_eval.py')
+m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+" 2>/dev/null
+./venv/Scripts/python.exe - <<'PY'
+import subprocess, sys
+out = subprocess.run(["git","status","--porcelain"], capture_output=True, text=True).stdout
+print("RAW:")
+for line in out.splitlines():
+    print("  %r  -> parsed %r" % (line, line[3:].strip().strip('"')))
+PY
+```
+
+`2026-08-23 02:13:07` · **cmd** — Read the refusal block
+```bash
+./venv/Scripts/python.exe -c "
+import sys,io; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+L=open('scripts/run_eval.py',encoding='utf-8').readlines()
+for i in range(179,192): print('%3d %r'%(i+1,L[i]))
+"
+```

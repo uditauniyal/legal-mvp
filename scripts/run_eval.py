@@ -182,6 +182,7 @@ def main() -> None:
             "\n  REFUSING TO RUN: you have uncommitted changes.\n"
             "  Every result records a git SHA. With uncommitted code that SHA does\n"
             "  not describe what ran, so the results cannot be reproduced.\n\n"
+            "  Modified: " + ", ".join(dirty_paths[:8]) + "\n\n"
             "  Either:  git add -A && git commit -m 'checkpoint before eval'\n"
             "  Or:      re-run with --allow-dirty (the run is then marked dirty)\n"
         )
