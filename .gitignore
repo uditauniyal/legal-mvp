@@ -64,3 +64,8 @@ requirements.lock.txt
 # back to its source. Results that go into the paper get exported deliberately
 # to docs/results/ rather than accumulating here by accident.
 runs/
+venv/
+.env
+.env.*
+__pycache__/
+*.pyc
