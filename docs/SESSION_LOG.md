@@ -5170,3 +5170,78 @@ TRANSITION=re.compile(r'(repeal|replaced by|superseded|no longer in force|corres
                       r'formerly|now governed|has been renumbered|equivalent (?:provision|sec
 … [truncated, 1212 more chars]
 ```
+
+`2026-08-23 04:31:04` · **cmd** — Commit Phase H results and open questions
+```bash
+cat >> docs/WORKLOG.md <<'EOF'
+
+---
+
+## 2026-08-23 (session 2, continued) â€” Phase H: the intervention, built and measured
+
+Full tables in [`docs/results/PHASE_H.md`](results/PHASE_H.md). Reproduce with
+`python scripts/compare_runs.py --baseline runs/eval_2026-08-23_0353_302e1f8 --intervention runs/eval_2026-08-23_0410_302e1f8_both`.
+
+### Built
+
+| | Component | Tests |
+|---|---|---|
+| H1 | `core/dates.py` â€” resolve the event date to IPC_ERA / BNS_ERA / BOTH_ERAS / UNKNOWN | 35 |
+| H2 | `core/statute_mapper.py` â€” translate the citation to the code that governs | 18 |
+| H3 | `baseline / dat
+… [truncated, 7290 more chars]
+```
+
+### 2026-08-23 13:09:01 · prompt
+
+See I am sick and I was a little overwhelmed so whatever is written looks like gibberish to me. Can you just make a simple architecture diagram and in the most simple plain English explain to me what happened, how it happened, the errors you faced, everything, because I lost all the context? I have been running all the faces. What are you planning next? What have we achieved? What direction are we going in? Just explain everything to me in simple language and then technical language. Please don't overwhelm me. I was pretty overwhelmed already but be honest, don't hide things, and be elaborative.
+
+### 2026-08-26 13:50:44 · prompt
+
+i have to open this exact chat in another account since this accoynt limit is finisihng, how do i ensure this chat is loaded exactly in that account with entire history, please help
+
+`2026-08-26 13:51:20` · **cmd** — Locate the session transcript and memory files
+```bash
+D=/c/Users/uniya/.claude/projects/C--Users-uniya-legal-mvp
+echo "=== transcripts for this project ==="
+ls -laS "$D"/*.jsonl 2>/dev/null | head -8
+echo
+echo "=== this session's file ==="
+ls -la "$D/dadf5f93-17e2-4f71-9337-1fbedc0fd408.jsonl" 2>/dev/null || echo "not found under that name"
+echo
+echo "=== memory dir ==="
+ls "$D/memory" 2>/dev/null
+echo
+echo "=== is anything namespaced by account? ==="
+ls /c/Users/uniya/.claude/ 2>/dev/null
+```
+
+`2026-08-26 13:51:48` · **cmd** — Check for account markers and retention setting
+```bash
+D=/c/Users/uniya/.claude/projects/C--Users-uniya-legal-mvp
+./venv/Scripts/python.exe -c "
+import json,io,sys
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+p=r'$D/dadf5f93-17e2-4f71-9337-1fbedc0fd408.jsonl'
+first=json.loads(open(p,encoding='utf-8').readline())
+print('top-level keys on the first record:')
+for k in sorted(first): print('   ', k, '=', str(first[k])[:70])
+" 2>/dev/null
+echo
+echo "=== does any account/email/org appear anywhere in the transcript? ==="
+grep -c -iE '"(accountUuid|userID|email|organizationUuid)"' "$D/dadf5f39-"*.jsonl 2>/dev/null || \
+grep -o -iE '"(ac
+… [truncated, 364 more chars]
+```
+
+`2026-08-26 13:52:05` · **cmd** — Read both settings files
+```bash
+echo "=== ~/.claude/settings.json ==="; cat /c/Users/uniya/.claude/settings.json 2>/dev/null | head -40
+echo
+echo "=== project .claude/settings.json ==="; cat /c/Users/uniya/legal-mvp/.claude/settings.json 2>/dev/null | head -40
+```
+
+`2026-08-26 13:52:35` · **cmd** — Check whether STATE.md is stale
+```bash
+echo "=== STATE.md â€” first 50 lines, last modified ==="; ls -la docs/STATE.md; echo; head -50 docs/STATE.md
+```
