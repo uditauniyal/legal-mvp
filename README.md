@@ -1,3 +1,21 @@
+> ## READ THIS FIRST — this README has two parts
+>
+> **Part 1 (immediately below)** is the original system documentation, written February 2026. It describes the system **as designed**. It is preserved unedited as a historical record.
+>
+> **Part 2 (from "What Happened Since August 2026" onward)** records everything done between 8 August and 28 August 2026: the measurement work, the defects found, the results, and the plan ahead.
+>
+> **Several claims in Part 1 were measured during August and found to be false.** They are corrected in Part 2, section 2.6. The most important ones:
+>
+> | Part 1 claims | Measured reality |
+> |---|---|
+> | Corpus covers "BNS, BNSS, BSA, CrPC, Constitution, Consumer Protection Act, IPC and judicial precedents" | **Four documents only**: IPC, BNS, CrPC, CPA. The BNSS, BSA, Constitution and case law were never ingested |
+> | "Calibrated refusal — system refuses rather than hallucinating" | The refusal gate **never fired once** in 419 measured queries |
+> | Composite confidence scoring is the key innovation | The composite scores **worse** than a single raw similarity number (0.610 against 0.663) |
+> | GPT-4o-mini | Now `google/gemini-3.7-flash` via OpenRouter |
+> | 1,011 chunks | **1,899** after the ingest rebuild |
+>
+> Where Part 1 and Part 2 disagree, **Part 2 is correct** — it carries measurements; Part 1 carries intentions.
+
 <p align="center">
   <h1 align="center">⚖️ Legal MVP</h1>
   <p align="center"><strong>Multi-Agent RAG System for Indian Legal Advisory</strong></p>
@@ -773,3 +791,833 @@ This repository is provided for academic and research use.
 
 <p align="center"><i>Upload docs → Ingest → Ask → Get grounded, confidence-calibrated answers with citations.</i></p>
 <p align="center"><b>Legal MVP — grounded, transparent, and confidence-aware legal AI.</b></p>
+
+---
+---
+
+# PART 2 — WHAT HAPPENED SINCE AUGUST 2026
+
+**Recorded 28 August 2026.** Everything from 8 August onward: the code written, the questions tested, the design decisions taken, the wrong turns, the measurements, and the plan ahead.
+
+Part 1 above describes the system **as designed**. This part describes what happened when it was **measured**.
+
+---
+
+## Contents of Part 2
+
+| Section | Subject |
+|---|---|
+| 2.1 | Why the work restarted, and what changed |
+| 2.2 | The research problem: India's 2024 recodification |
+| 2.3 | Complete timeline, 8 to 28 August |
+| 2.4 | Phase E — the eight defects |
+| 2.5 | Phase F — the four query sets |
+| 2.6 | Phase G and H — every measurement |
+| 2.7 | Corrections to Part 1 |
+| 3 | Architecture: designed against built |
+| 4 | Research position and novelty |
+| 5 | The plan ahead |
+| 6 | Repository state and what is pushed |
+
+---
+
+## 2.1 Why the work restarted
+
+The system was left in working order in February 2026. By August the reasoning behind several design choices was unrecoverable without re-deriving it from source. Six months had erased context that took months to build.
+
+Three things then changed within a fortnight.
+
+**The supervisor gave a work order.** Prof. Nisheeth Joshi replied on 6 August 2026 with five specific items:
+
+| Item | Task |
+|---|---|
+| 1 | Build a well-annotated evaluation set, at least 50 to 100 queries with ground-truth statutory sections |
+| 2 | Add complete logging for retrieval signals, confidence values, routing decisions, retrieved sections |
+| 3 | Evaluate retrieval performance, confidence calibration, and answer correctness |
+| 4 | Investigate the routing issue and compare the current router against a hybrid routing strategy |
+| 5 | Perform an ablation on the confidence score components against suitable baselines |
+
+He added a framing judgement that governs the whole project: *the confidence score alone is not the contribution.* The paper should be a rigorous empirical evaluation of calibration, retrieval quality, routing behaviour, and failure analysis. And: *prioritise the quality of the evaluation over meeting the earliest deadlines.*
+
+**The infrastructure changed.** The OpenAI key stopped working. The system moved to OpenRouter, an intermediary that routes requests to whichever company actually runs the model. Because OpenRouter load-balances between providers by default, and different providers can produce different output, every call had to be **pinned** to a named provider. Otherwise the same query on two different days could give different answers, which would destroy reproducibility.
+
+**A blocking discovery.** A full code review produced `docs/GAPS.md` — 23 findings, each with a command that reproduces it. The critical one was finding 11: **nothing was logged.** The system had never recorded a single retrieval score. That made items 3, 4 and 5 of the supervisor's list impossible, and it independently confirmed his item 2.
+
+---
+
+## 2.2 The research problem
+
+### What happened on 1 July 2024
+
+India replaced three colonial-era law books on a single day.
+
+```
+                    BEFORE 1 JULY 2024          ON AND AFTER 1 JULY 2024
+                    --------------------        ------------------------
+  what is a crime   Indian Penal Code    -->    Bharatiya Nyaya Sanhita
+                    IPC, 1860                   BNS, 2023
+                                                repealed IPC by s.358(1)
+
+  arrest, bail,     Code of Criminal     -->    Bharatiya Nagarik
+  FIR, trial        Procedure, 1973             Suraksha Sanhita, BNSS
+                    CrPC                        repealed CrPC by s.531(1)
+
+  evidence          Indian Evidence      -->    Bharatiya Sakshya
+                    Act, 1872                   Adhiniyam, BSA
+                                                repealed IEA by s.170(1)
+```
+
+Same offences. Different section numbers.
+
+### Why this is genuinely hard, not merely inconvenient
+
+Both books remain live law. Which one applies depends on **when the conduct happened**, not on when the question is asked. Old law is preserved for old conduct by savings provisions and by section 6 of the General Clauses Act 1897. Article 20(1) of the Constitution separately forbids applying a heavier punishment retrospectively.
+
+```
+   THE SAME SENTENCE HAS TWO CORRECT ANSWERS
+
+   "my husband beats me -- this happened in March 2023"   -->   IPC 498A
+   "my husband beats me -- this happened last month"      -->   BNS 85
+
+   Identical words. Only the date decides.
+```
+
+And it is **not** simple renumbering. IPC 379, theft, became BNS 303(2), which also **adds community service** for first-time theft under five thousand rupees. A system that merely swaps numbers is still wrong about the law.
+
+### Why it matters for access to justice
+
+Someone typing *"my husband beats me"* does not know the IPC exists, let alone that it was replaced. They will not supply a date. Yet the section number they are given is the one that goes on their police complaint.
+
+---
+
+## 2.3 Complete timeline, 8 to 28 August
+
+### Chapter 1 — 8 to 17 August: reading a system nobody had measured
+
+A full review of the codebase produced `docs/GAPS.md`: 23 findings, each with reproducing evidence. The most serious:
+
+| Finding | Description |
+|---|---|
+| 1 | The confidence score's third signal divided a count of **passages** by a count of **entities** — different units. It could reach 5.0 on a scale bounded at 1.0 |
+| 2 | When no section number appeared in the question, that signal defaulted to 1.0, granting **30 percent of the score for free** |
+| 3 | 95 percent of the IPC was tagged `Unknown` and therefore unreachable by any IPC-filtered search |
+| 5 | The router mapped "consumer protection" to a corpus that no longer existed. The filter matched nothing, and the code then **silently searched everything** |
+| 6 | "Criminal" was treated as a synonym for "penal code", so arrest, bail and FIR questions were routed to the offence book instead of the procedure book |
+| 8 | **Six of seven sampled answers cited statutory authority that was never retrieved** |
+| 11 | **Nothing was logged.** No retrieval score had ever been recorded |
+
+Documentation was written alongside: `ARCHITECTURE.md`, `FILE_STRUCTURE.md`, `DATAFLOW.md`, `GLOSSARY.md`, `RESEARCH_CONTEXT.md`, `EVALUATION_PLAN.md`.
+
+### Chapter 2 — 17 to 21 August: planning, and a question that went unanswered
+
+Four automation hooks were installed so documentation could not be skipped by accident.
+
+```
+   one working session, left to right
+   ---o------------------o------------------------o---------------o---->
+      |                  |                        |               |
+  SessionStart      UserPromptSubmit         PreToolUse          Stop
+      |                  |                        |               |
+  reads STATE.md    appends to               blocks the two   prompts the
+  and WORKLOG,      SESSION_LOG.md,          commands that    WORKLOG
+  injects them      re-injects the           must never run   entry
+                    standing rules
+  so a new session                           a guardrail,
+  starts informed   fires on EVERY           not a document
+                    single message
+```
+
+On 21 August a question was raised that shaped everything afterward, and was not answered until 27 August:
+
+> *"I really want to make my paper about something which is not saturated. I feel centering around the matchmaking of BNS and IPC seems trivial. Don't you think the three orthogonal signals of a confidence score are the part which is standing out?"*
+
+A research paper on Query Performance Prediction was supplied and read the same evening. The conclusions were never written up. Section 4.3 below finally answers the question.
+
+### Chapter 3 — 21 to 22 August: the architecture agreed
+
+Design decisions taken, in the project owner's own words:
+
+> *"D — search both and say the answer depends on the date. I think we should use the missing facts field as one of the parameters in routing and retrieving. For the loop's relevance we should stick to deterministic."*
+
+These became `docs/TARGET_ARCHITECTURE.md` — nine stages and eight numbered design decisions.
+
+The understanding of what would follow was stated explicitly:
+
+> *"Before stage H you are just going to check the current architecture and review the testing result. On the results finding you will start implementing the architecture we discussed so many times above, and then again do the testing which Nishit sir mentioned in the mail."*
+
+That is, Phase H meant **build the whole agreed architecture, then re-test**. What was actually built was two of its nine stages. Section 3 records the gap precisely.
+
+### Chapter 4 — 22 to 23 August: Phase E, fixing the instruments
+
+The governing principle of the entire project:
+
+> **You cannot measure a system with broken instruments.**
+
+Eight defects were fixed. **Not one of them crashed.** Every one returned a believable number. That is precisely why they survived for six months: a crash tells you where to look, whereas a plausible wrong number gets published.
+
+Test suite: 52 tests to 89. Index rebuilt: 1,933 chunks to 1,899.
+
+### Chapter 5 — 23 August: Phase G, the first honest measurement
+
+419 questions, zero transport failures. And immediately, a trap. Section 2.6 records it.
+
+### Chapter 6 — 23 August: Phase H, the intervention
+
+Two components built, a Date Resolver and a Statute Mapper, and measured against the Phase G baseline on 99 further questions.
+
+### Chapter 7 — 26 to 28 August: the audit
+
+A complete re-read of all documentation, all source, and all 4,923 records of the working session. Nine further findings, recorded in `docs/AUDIT_2026-08-26.md`.
+
+---
+
+## 2.4 Phase E — the eight defects
+
+Every one produced a plausible number rather than an error.
+
+| | Defect | What it was silently doing |
+|---|---|---|
+| E1 | Date experiment scored backwards | 23 of 24 test rows saying "this happened last month" still expected the **old** code's answer. A system citing **current** law scored **wrong**; citing **repealed** law scored **right** |
+| E2 | A headline metric always returned zero | It compared `"IPC Section 302"` against `"Section 302"` and called them different. But **statute text never names its own statute** — the IPC says "this Code", never "IPC". The metric returned 0.0 even on perfect answers, for its entire existence |
+| E3 | Confidence signal unbounded | Counted passages, divided by entities. Reached 5.0 on a 0-to-1 scale. A cap at 1.0 hid the overflow, so the score always looked plausible |
+| E4 | Top score read after reordering | Step 5 of retrieval reorders results by entity match, ignoring score. Step 6 then read position zero as if it were still the highest. The filter loosened exactly when reranking fired |
+| E5 | "Vintage error" mislabelled | The mapping was legally correct; only the name overclaimed. Renamed to corpus-vintage mismatch and split by direction |
+| E6 | Contents entries and footnotes indexed as law | 14 table-of-contents entries survived on a dash borrowed from the **next** heading on the page. Separately, 13 amendment footnotes were parsed as sections, and **all 13 collided with a real section number** — so a question about IPC 8 could return a 1950 Adaptation Order note instead of the definition of gender |
+| E7 | Refusal gate unreachable | An out-of-corpus question about the Negotiable Instruments Act returned **HIGH confidence 0.73** |
+| E8 | IPC unreachable unless named | One line sent every criminal-domain question to the BNS. Since laypeople never name a code, this would have decided the date experiment by hardcoded default |
+
+### The measurement that decided E7
+
+Fifteen probe queries against the rebuilt index:
+
+| | highest similarity score |
+|---|---|
+| **In corpus**, lowest — *"my landlord is not returning my deposit"*, and the CPA **is** indexed | **0.278** |
+| **Out of corpus**, highest — *"grounds for divorce under the Hindu Marriage Act"*, never indexed | **0.519** |
+| Nonsense, highest — *"how do I bake a chocolate cake"* | 0.208 |
+
+The out-of-corpus question scores **higher** than five of six legitimate ones. The distributions are **inverted**, not merely overlapping. **No similarity threshold can implement a corpus-boundary check.**
+
+The gate was therefore built on **named-statute detection**, which is deterministic: if the user says "Negotiable Instruments Act" and it was never indexed, that is certain rather than probabilistic. Its stated limitation is that laypeople name no statute at all.
+
+---
+
+## 2.5 Phase F — the four query sets
+
+An evaluation needs the correct answer written down **before** the system runs. Otherwise you are grading the system against its own behaviour.
+
+| Set | Rows | Gold certainty | What it tests |
+|---|---|---|---|
+| `generated_queryset.jsonl` | 200 | Certain by construction | The machinery under ideal conditions |
+| `paired_queryset.jsonl` | 99 | Certain by construction | The thesis: 33 verified IPC-to-BNS pairs, three phrasings each |
+| `layman_queryset.jsonl` | 120 | 52 uncontroversial, 68 need legal review | The access-to-justice claim |
+| `paired_dated_queryset.jsonl` | 99 | Certain by construction | Where the code named and the date given **deliberately disagree** |
+
+**"Certain by construction"** means the question was built **from** the section, so the gold answer needs no legal judgement:
+
+```
+   the index contains:   "Section 378. Theft.-Whoever, intending to take
+                          dishonestly any movable property..."
+
+   question generated:   "What does Section 378 of the Indian Penal Code provide?"
+   correct answer:       IPC 378        <- certain, because of how it was made
+
+   Nobody needs to verify this. 299 of the 518 questions work this way.
+```
+
+### The recodification map
+
+`data/recodification_map.json` holds 33 IPC-to-BNS entries, each confirmed by pulling the target section out of the project's own index and reading its bare-Act text to check the subject matched. Ten CrPC-to-BNSS entries are marked unverified because the BNSS is not ingested.
+
+This verification caught a real error. The mapping IPC 420 to BNS 320 is **wrong**: BNS 320 is dishonest removal of property, a different offence. The correct target is **BNS 318(4)**.
+
+---
+
+## 2.6 Phase G and H — every measurement
+
+### The trap that nearly buried the finding
+
+The main evaluation table came back **perfect**: 33 out of 33, and 33 out of 33, with zero errors. Read at face value, the paper's hypothesis was dead.
+
+The number was worthless. The Router reads the Act name from the question and applies a hard database filter:
+
+```
+   ipc_numbered   filter = IPC    33 queries
+   bns_numbered   filter = BNS    33 queries
+```
+
+With that filter on, an IPC-numbered query **cannot** return a BNS passage. The perfect diagonal was guaranteed before a single vector was compared. **The routing was concealing the phenomenon the paper is about.**
+
+### Result 1 — cross-statute retrieval failure
+
+Filter switched off, retrieval only, 66 questions that each name their code outright. "Chance" is the share of the index that code occupies, that is, what you would get by ignoring the question entirely.
+
+| Question explicitly names | to IPC | to BNS | correct | chance |
+|---|---|---|---|---|
+| **the IPC**, repealed 2024 | 32 | 1 | **97.0%** [84.7, 99.5] | 31.3% |
+| **the BNS**, in force | **16** | 17 | **51.5%** [35.2, 67.5] | 22.3% |
+
+Top-scoring passage only:
+
+| Question names | to IPC | to BNS | correct |
+|---|---|---|---|
+| IPC | 30 | 3 | 90.9% [76.4, 96.9] |
+| BNS | **19** | 14 | **42.4%** [27.2, 59.2] |
+
+A question saying *"Section 318(4) of the Bharatiya Nyaya Sanhita"* receives an **IPC** passage as its top result **19 times out of 33**.
+
+The bracketed figures are **95 percent confidence intervals**, the range the true value plausibly occupies given the number of questions asked. These two ranges do **not** overlap, which is what makes this result solid.
+
+Reproduce with `python scripts/ablate_filter.py`.
+
+### Result 2 — for laypeople, the pipeline is barely retrieval-augmented
+
+| Query set | gold section **retrieved** | gold section **cited** | gap |
+|---|---|---|---|
+| generated, ideal conditions | 68.0% | 98.5% | +30.5 points |
+| paired | 71.7% | 100.0% | +28.3 points |
+| **layman** | **15.0%** | **85.0%** | **+70.0 points** |
+
+A real example from the run:
+
+```
+   question    "i was sexually assaulted ... it has been long time now"
+   should be   IPC 376
+   retrieved   IPC 354, CrPC 473, CrPC 303        <- 376 is NOT among them
+   answered    IPC 354, 354A, 376, 376(2), CrPC 473, CrPC 357A, LSA 12
+   supported   IPC 354, CrPC 473                  <- only these two came
+                                                     from the corpus
+```
+
+**83.8 percent of everything the layman answers cite is absent from the passages the model was given.** The answers come from the language model's own knowledge of Indian law, not from the loaded documents.
+
+Two further observations. Even under **ideal** conditions, where a question is built from a section and names its number, retrieval returns that section only **68 percent** of the time. That is a ceiling on everything else. And the generated set's answers cite a BNSS or BSA provision in roughly four cases out of five, while the index holds neither.
+
+### Result 3 — what laypeople are actually served
+
+Every passage retrieved across the 120 layman questions:
+
+| Book | Passages | Share |
+|---|---|---|
+| **CrPC**, procedure, repealed | 428 | **70.4%** |
+| IPC, penal, repealed | 91 | 15.0% |
+| **BNS**, penal, in force | 46 | **7.6%** |
+| CPA, consumer | 43 | 7.1% |
+
+Two-thirds of layman questions come back dominated by the **procedure** book, not the book that says what offence occurred. Across all layman answers, the **repealed IPC is named twice as often as the current BNS**, 29.3 percent against 14.6 percent.
+
+**The base-rate control**, which the evaluation plan requires and without which the claim would be unfalsifiable:
+
+| | CrPC share |
+|---|---|
+| Its share of the index | 39.1% |
+| Its share of layman retrieval | **70.4%** |
+
+**1.8 times over-representation.** The claim survives its control.
+
+Two honest attributions. This confirms an observation made independently on 5 August: *"on civil or consumer phrasings the retrieval seems to drift towards the CrPC even where the Consumer Protection Act would be correct."* And it is partly **caused by a change made on 23 August**, when the router's fallback moved from "always BNS" to "no filter at all". It therefore measures unfiltered dense retrieval over an unbalanced corpus, which is the baseline the designed router is meant to beat.
+
+### Result 4 — the date experiment
+
+Thirty situations, four date conditions each.
+
+| Variant | N | gold retrieved | gold cited | correct book |
+|---|---|---|---|---|
+| no date | 28 | 7.1% | 96.4% | 35.7% |
+| "in March 2023" | 28 | 10.7% | 89.3% | 28.6% |
+| **"last month"** | 23 | 8.7% | **60.9%** | **17.4%** |
+| vague | 28 | 10.7% | 92.9% | 46.4% |
+
+Retrieval is flat across all four, because nothing in the pipeline read the date. The interesting column is the third. Told the conduct was recent, so that the BNS governs, the system becomes **markedly worse** at naming the applicable provision, because it keeps reaching for the IPC.
+
+### Result 5 — confidence, a negative result
+
+**AUROC** asks: if you pick one good answer and one bad answer at random, how often does the score rank the good one higher? **0.5 means a coin flip.** Measured on 419 queries, of which only 27 answers were fully grounded.
+
+| Signal | AUROC | Reading |
+|---|---|---|
+| `entity_coverage`, carrying 30 percent of the weight | **0.492** | **Chance. No information at all** |
+| the full composite | 0.610 | Weak |
+| `score_gap` | 0.645 | Weak |
+| `top_k_mean` | 0.659 | Weak |
+| **raw maximum similarity**, a single plain number | **0.663** | **Best of all** |
+
+Two results, both uncomfortable, both reportable. A signal carrying 30 percent of the weight sits at chance. And the elaborate three-signal composite performs **worse than the single number it was built to improve on**.
+
+Two caveats must be disclosed with these figures. Only 27 positives makes every estimate noisy. And the section normaliser rewrites any line beginning with a number and a full stop into `"Section N."`, so a passage can match `"Section 41"` merely because page 41 began with `41.` That is a confound on the very signal measured at 0.492.
+
+### Result 6 — the intervention
+
+Ninety-nine questions where the code named and the date given deliberately disagree.
+
+| Measure | Baseline | With intervention |
+|---|---|---|
+| Searched the correct code | **0.0%** | **100.0%** |
+| Retrieved repealed law, lower is better | 81.8% | **0.0%** |
+| Found the exact right section | 0.0% | 36.4 to 78.8% |
+| Answer states the law changed | 39.4% [24.7, 56.3] | 63.6% [46.6, 77.8] |
+| Control, where code and date agree | 100.0% | 100.0%, unmoved |
+
+The control not moving is what makes this a genuine fix rather than a flipped preference.
+
+**The gap between the first and fourth rows is the finding.** The largest retrieval improvement physically possible, from nothing to perfect, moved the answer by roughly 20 points, and it still fails a third of the time. Those two intervals overlap, so the answer improvement is **suggestive, not established**.
+
+Two metrics had to be retired mid-analysis. `core/citations.py` assigns a statute to a section number by proximity in the answer text. These answers legitimately mention both codes, so an answer citing **BNS 190** was recorded as `"IPC Section 190"` because the phrase "Indian Penal Code" appeared earlier. The metric therefore reads 100 percent both before and after the intervention, and cannot separate *wrongly relied on repealed law* from *correctly explained the law changed*.
+
+### Result 7 — the machine-generated map is 28 percent wrong
+
+`data/ipc_bns_map_candidates.csv` maps all 511 IPC sections to BNS sections by nearest-neighbour search over the existing embeddings. Thirty-two of those overlap with the hand-verified map.
+
+**Twenty-two agree. Nine disagree, a 28 percent error rate.**
+
+| IPC | Hand-verified against the Act | Nearest-neighbour proposed |
+|---|---|---|
+| **420** cheating | **BNS 318(4)** | BNS **320**, a different offence |
+| 307 attempt to murder | BNS 109 | BNS 110 |
+| 379 theft | BNS 303(2) | BNS 134 |
+| 406 criminal breach of trust | BNS 316(2) | BNS 306 |
+| 500 defamation | BNS 356(2) | BNS 352 |
+
+This is independent evidence for the central thesis, obtained from a second direction at no cost: **embeddings cannot reliably align the two codes.**
+
+### Result 8 — refusal never fires
+
+**Zero refusals across 419 questions**, including the five whose correct answer is unreachable because the BNSS was never ingested. This is the named-statute gate behaving exactly as its documented design predicts: laypeople name no statute, so the gate never engages.
+
+### Cost of all measurement
+
+| | |
+|---|---|
+| Queries recorded in logs | 859 |
+| Language-model input tokens | 2,401,487 |
+| Language-model output tokens | 1,435,725 |
+| Spent on the key, all time | approximately 1,728 rupees |
+| Of which Phases G and H | approximately 148 rupees |
+| Per query | approximately 0.46 rupees |
+
+A **token** is a chunk of text slightly smaller than a word; roughly 100 tokens make 75 English words. Both input and output are billed, and **output costs five times input**.
+
+The single most important cost fact for planning: **experiments that do not generate a written answer are effectively free.** The headline finding above cost under one rupee, because `scripts/ablate_filter.py` only searches; it never asks the model to write.
+
+---
+
+## 2.7 Corrections to Part 1
+
+| Part 1 states | Measured reality | Evidence |
+|---|---|---|
+| Corpus covers BNS, BNSS, BSA, CrPC, Constitution, CPA, IPC and judicial precedents | **Four documents only**: IPC, BNS, CrPC, CPA. The BNSS, BSA, Constitution and case law were **never ingested**. Tags for them existed only as artefacts of substring matching | `GAPS.md` finding 10 |
+| "Calibrated refusal, system refuses rather than hallucinating" | The refusal gate **never fired once** in 419 measured queries | Result 8 |
+| Composite confidence scoring is the key innovation | The composite, 0.610, scores **worse** than a single raw similarity number, 0.663. One of its three signals sits at chance, 0.492 | Result 5 |
+| "Grounded answers, every claim backed by citations" | **83.8 percent** of what layman answers cite is absent from the passages supplied | Result 2 |
+| Deterministic routing eliminates routing errors | Routing was the largest single source of error. The domain fallback sent every criminal query to the penal code, making the IPC unreachable | `GAPS.md` finding 6, defect E8 |
+| 1,011 chunks | **1,899** after the ingest rebuild | Phase E |
+| GPT-4o-mini | `google/gemini-3.7-flash` via OpenRouter, provider pinned | Chapter 2 |
+| Validation results in the architecture PDF, section 8 | Section 8.2 **cannot be produced by the stated formula**. Do not carry it into any paper | `GAPS.md` finding 21 |
+
+---
+
+# 3. ARCHITECTURE: DESIGNED AGAINST BUILT
+
+## 3.1 The pipeline as it runs today
+
+```
+   a person types:  "my husband beats me"
+           |
+   +-------v---------+
+   | 1  INTAKE       |   language-model call
+   |                 |   story -> structured facts about the situation
+   +-------+---------+
+   +-------v---------+
+   | 2  ROUTER       |   fixed rules, no model
+   |                 |   which book to search, and which rule decided
+   +-------+---------+
+   +-------v---------+
+   | 2.5 DATE        |   fixed rules              ADDED IN PHASE H
+   |     RESOLVER    |   when did it happen -> which code governs
+   +-------+---------+
+   +-------v---------+
+   | 2.6 STATUTE     |   fixed rules              ADDED IN PHASE H
+   |     MAPPER      |   translate the citation to the code in force
+   +-------+---------+
+   +-------v---------+
+   | 3  RETRIEVAL    |   database search
+   |                 |   1,899 passages -> the 15 closest, plus confidence
+   +-------+---------+
+   +-------v---------+
+   | 4  ANSWER       |   language-model call
+   |                 |   write the reply using those passages
+   +-------+---------+
+   +-------v---------+
+   | 4.5 VERIFIER    |   fixed rules              ADDED IN PHASE E
+   |                 |   does the answer cite what was retrieved?
+   +-------+---------+
+   +-------v---------+
+   | 5  REPORTER     |   the PDF
+   +-----------------+
+
+   Two model calls only, at stages 1 and 4. Everything else is fixed
+   rules, because a measuring instrument that gives different answers
+   on different runs is not a measuring instrument.
+```
+
+## 3.2 The agreed design, and what exists
+
+`docs/TARGET_ARCHITECTURE.md` specifies nine stages. **Twenty of its twenty-six specified items were never built.**
+
+| Stage | Built | Missing |
+|---|---|---|
+| 0 Language handler | none | entire stage, deferred by agreement |
+| 1 Intake | `date_expression` | `date_mentioned`, `missing_facts_prompt` |
+| 1.5 Date Resolver | era values | `event_date`, `date_confidence`, `date_range`, model fallback. **And it sits at 2.5, not 1.5** |
+| 2 Router | `target_corpora` as a list | `corpus_reason`, structured `Entity` objects, date-based routing, both-codes-when-date-unknown, **penal against procedural split** |
+| 2.5 Statute Mapper | basic translation | `MappedProvision`, one-to-many relations, `mapping_note`, **always-runs behaviour** |
+| 3 Retriever | none of the new work | **`statute_consistency`, the fourth confidence signal**, the corrective retry loop, `assess()` |
+| 4 Answer | none | **`DUAL_REGIME` prompt variant**, `date_caveat`, `cost_usd` |
+| 4.5 Verifier | complete | none |
+| 5 Reporter | citation audit section | Unicode font support |
+| Ingest | `in_force_from` | `section_heading` |
+
+## 3.3 The position error, and what it costs
+
+```
+   AS DESIGNED (TARGET_ARCHITECTURE.md, stage 1.5)
+   -------------------------------------------------------------------
+   +---------+    +------------------+    +----------+    +-----------+
+   | 1 Intake|--->| 1.5 Date Resolver|--->| 2 Router |--->|3 Retrieval|
+   +---------+    |     -> era       |    | CAN USE  |    +-----------+
+                  +------------------+    | the era  |
+                                          +----------+
+   Works for EVERY question. The Router knows the era even when the
+   question names no statute at all.
+
+
+   AS BUILT
+   -------------------------------------------------------------------
+   +---------+    +----------+    +------------------+   +--------------+
+   | 1 Intake|--->| 2 Router |--->| 2.5 Date Resolver|-->| 2.6 Statute  |
+   +---------+    | decides  |    +------------------+   |     Mapper   |
+                  |  BLIND   |<---- overrides afterwards |  fires ONLY  |
+                  +----------+                           |  if a code   |
+                                                         |  is NAMED    |
+                                                         +--------------+
+   Works ONLY when the question names a statute. Layman questions name
+   none, so the date is computed and then discarded.
+```
+
+**Verified:** *"husband beats me since 2019"* resolves correctly to both eras, and the Statute Mapper then returns **no filter**, because there is no citation to translate.
+
+**Tested for effect on 27 August, at a cost of one paisa.** Moving the Date Resolver to its designed position changes the outcome of **3 questions out of 120**. It should therefore be built for legal correctness and because it was agreed, **not** because it improves accuracy.
+
+## 3.4 The most consequential omission
+
+`statute_consistency`, the fourth confidence signal. `TARGET_ARCHITECTURE.md` line 352 says of it:
+
+> *"This is the signal that would have caught every routing failure in the recorded runs. It is also the thing the paper argues generic confidence signals lack."*
+
+In plain terms, it measures: **did the passages we found come from the book this question implies?** The three existing signals only examine similarity numbers. This one examines whether the answer is in the right book at all.
+
+It was never built. The paper currently reports that three confidence signals fail, while the one designed to succeed remains untested.
+
+---
+
+# 4. RESEARCH POSITION
+
+All claims below come from arXiv searches run on 26 and 27 August, with paper identifiers for checking.
+
+## 4.1 Where the work is genuinely novel
+
+| Element | Evidence |
+|---|---|
+| The IPC-to-BNS recodification as a retrieval problem | A search for `"Bharatiya Nyaya Sanhita" OR "recodification"` returned **three papers, none of which study the transition** |
+| Corpus-composition default to repealed law | No published work reports this mechanism |
+| Asymmetric naming failure, 97.0 percent against 51.5 percent | Unreported |
+| The routing filter **concealing** the failure it exists to prevent | Methodological; reviewers value this kind of self-scrutiny |
+| Phase H as a controlled context-compliance experiment | Chen et al. 2605.14473 name this problem and describe it as open |
+| The verified IPC-to-BNS mapping table | A citable data artifact |
+| Nearest-neighbour mapping 28 percent wrong | New, 27 August |
+
+## 4.2 Where the work is not novel
+
+| Element | Prior work |
+|---|---|
+| Legal RAG hallucination | **Das et al.** 2608.14210, August 2026 — eight legal RAG systems, hallucination from under 10 percent to nearly half |
+| Laypeople asking Indian legal questions | **ILSIC**, Findings of EACL 2026, IIT Kharagpur — 836 test queries, over 500 statutes |
+| Confidence signals failing to generalise | **Soudani et al.** 2505.07459, **Chifu et al.** 2504.01101 |
+| Threshold-based abstention failing | **GRAB-RAG** 2608.22228, August 2026 |
+
+**ILSIC is the closest competitor.** The opening it leaves: **its corpus is the IPC and CrPC, the repealed books. It never mentions the BNS.** A 2026 benchmark for laypeople, built on law repealed in 2024.
+
+## 4.3 The open question, finally answered
+
+The question from 21 August: are the three orthogonal confidence signals the part that stands out?
+
+**Query Performance Prediction**, or QPP, is a field of information retrieval that estimates how well a search performed **without** being told the correct answer. It dates from the early 2000s. Its standard predictors are **all functions of the score distribution**:
+
+| Standard QPP predictor | What it examines |
+|---|---|
+| WIG | how far the top scores sit above the collection average |
+| NQC | the spread of the top scores |
+| SMV | magnitude and variance together |
+| Clarity | how focused results are against the whole collection |
+
+Compared with the signals in this system:
+
+| Signal | Is it a QPP re-derivation? | AUROC |
+|---|---|---|
+| `top_k_mean` | **Yes**, essentially WIG without normalisation | 0.659 |
+| `score_gap` | **Yes**, a crude NQC | 0.645 |
+| `entity_coverage` | **No**, it examines content rather than scores | 0.492 |
+| **`statute_consistency`** | **No**, domain-specific | **never built** |
+
+**Two of four are re-derivations. Two are not.** But the two QPP-derived signals **outperformed** the novel one, and the novel one carried a defect for most of its life plus an undisclosed confound.
+
+**The question remains open, and one experiment settles it.** Building `statute_consistency` produces one of two outcomes, and both are publishable:
+
+| If it works | If it does not |
+|---|---|
+| "Generic score-based signals fail; a domain-specific consistency signal succeeds." A contribution to the QPP literature **and** to legal RAG | "Even a domain-specific signal fails, so the problem is deeper than signal design." A stronger negative result than currently exists |
+
+## 4.4 Recommended framing
+
+Not recodification alone. Not confidence alone. **Both, joined.**
+
+```
+   THE SPINE OF THE PAPER
+
+   A person asks an undated question in ordinary words
+          |
+          v
+   The system returns the LARGEST book by base rate, 70.4 percent
+   CrPC, and names repealed law twice as often as law in force
+          |
+          v
+   Even when TOLD which book, meaning-based search finds the current
+   code 51.5 percent of the time, and the repealed one 97.0 percent
+          |
+          v
+   Its own confidence signals detect none of this: three generic
+   signals between 0.49 and 0.66, all worse than one raw number
+          |
+          v
+   A domain-specific signal is the thing that could      <-- statute_consistency
+          |
+          v
+   And when retrieval is fixed from 0 to 100 percent, the ANSWER
+   barely follows. Retrieval-side fixes do not propagate.
+```
+
+The recodification is the **setting** that makes the failure visible and measurable. Confidence is the **mechanism** that fails to catch it. Neither carries a paper alone; together they do, and together they satisfy all five of the supervisor's items.
+
+## 4.5 Papers that must be cited
+
+| Paper | Why |
+|---|---|
+| Reuter et al. 2510.06999, NLLP 2025 | Names **DRM**, document-level retrieval mismatch. This work is a **temporal** instance of it |
+| Ovcharov 2605.17639 | Ukrainian statute retrieval, temporal decay. Nearest neighbour |
+| bBSARD 2412.07462 | *"BM25 remains a competitive baseline"* for statutory retrieval. Direct support for hybrid search |
+| Magesh et al. 2405.20362 | Commercial legal RAG hallucinates 17 to 33 percent. The motivation |
+| Gao et al., ALCE 2305.14627 | The established citation-precision protocol. Adopt rather than invent |
+| Soudani et al. 2505.07459, Chifu et al. 2504.01101 | Confidence estimation in RAG is an open problem. Frame the negative result against these |
+
+---
+
+# 5. THE PLAN AHEAD
+
+## 5.1 Budget position
+
+| | |
+|---|---|
+| Account balance | approximately 2,700 rupees |
+| **This key's own spending cap, remaining** | **approximately 32 rupees** |
+| Spent on this key, all time | approximately 1,728 rupees |
+
+The key carries a spending cap separate from the account balance. Raising it is a settings change on openrouter.ai, not a payment.
+
+## 5.2 The phases
+
+### Phase A — Fix the two measurement bugs. Zero cost, half a day.
+
+**The counting bug.** The analysis identified a retrieved passage by reading the first 160 characters of its text and looking for `"Section 190."`. Passages beginning mid-provision, such as *"Explanation.—A threat to injure..."*, carry no number there and were counted as failures. The authoritative `section_number` field was in the payload throughout and was never read. This already halved one published figure: layman retrieval reported as 7.5 percent is actually **15.0 percent**.
+
+**The tier bug.** `agents/answer.py` sets `prompt_variant` to `"HIGH"` and never updates it, even when applying a LOW-confidence disclaimer.
+
+| Actual tier from the score | Logged as | Count |
+|---|---|---|
+| HIGH | HIGH | 490, correct |
+| **MEDIUM** | **HIGH** | **354, wrong** |
+| **LOW** | **HIGH** | **15, wrong** |
+
+**43 percent of all records state the wrong tier.** The disclaimer was applied correctly; only the log is wrong. But the evaluation plan calls tier separation *"the honest headline"* for calibration, and it cannot be computed from these logs.
+
+**Nothing else can be trusted until this is done.**
+
+### Phase B — Compute the metrics never computed. Zero cost, one day.
+
+All of these are required by `docs/EVALUATION_PLAN.md`, none exist, and all are computable from logs already paid for.
+
+| Metric | What it answers |
+|---|---|
+| **Recall at k**, for k of 1, 3, 5, 10 and 15 | How deep in the results does the right passage appear? |
+| **Precision at k** | What fraction of returned passages are relevant? |
+| **MRR**, mean reciprocal rank | On average, how far down is the first correct passage? |
+| **ECE**, expected calibration error | When the system says 66 percent, is it right 66 percent of the time? **The standard calibration metric, and the supervisor's item 3 implies it** |
+| **Reliability diagram** | The figure that shows calibration at a glance |
+| **Tier separation** | Do HIGH, MEDIUM and LOW queries actually differ in accuracy? |
+| **Citation recall** | Of the relevant provisions retrieved, how many did the answer actually cite? |
+
+### Phase C — Build `statute_consistency`. Zero cost, half a day.
+
+**The highest-value item in the plan.** It answers the 21 August question with data, and it converts a negative result into a negative result with a proposed fix, which is the shape the supervisor asked for.
+
+### Phase D — Hybrid search comparison. Approximately 2 rupees, one day.
+
+**BM25** is exact-word search, the opposite of meaning-based search. It is precise about *"318"* and useless at paraphrase. **Hybrid** runs both and merges the two ranked lists using reciprocal rank fusion.
+
+```
+   query: "punishment under Section 318(4) BNS"
+
+   +---------------------------+   +---------------------------+
+   | DENSE, what exists today  |   | BM25, not yet built       |
+   | matches by MEANING        |   | matches EXACT WORDS       |
+   |                           |   |                           |
+   | finds paraphrases         |   | "318" matches only 318    |
+   | but "318" and "420" look  |   | but misses "cheating"     |
+   | nearly identical to it    |   | when text says "deceiving"|
+   +-------------+-------------+   +-------------+-------------+
+                 |                               |
+                 +---------------+---------------+
+                                 v
+                  +--------------------------------+
+                  | HYBRID: merge both ranked lists|
+                  | rank 1 in EITHER scores high   |
+                  +---------------+----------------+
+                                  v
+                        one merged list -> the answer
+```
+
+This is the supervisor's outstanding item 4, and the sharpest reviewer objection: *exact-match search would separate IPC 420 from BNS 318 trivially, so is the failure real or an artefact of choosing the wrong retriever?*
+
+**Either result is publishable.** If hybrid fixes it, a lexical component is **necessary** rather than optional. If it does not, the failure is **architectural**, a stronger claim than currently exists.
+
+This was previously estimated at 100 rupees. That estimate was wrong: comparing which passages come back requires no written answers, so the true cost is about **2 rupees**.
+
+### Phase E — Second embedding model. Zero cost, half a day.
+
+`bge-m3` runs locally at no cost. It answers the objection *is this a fact about Indian law, or about one embedding model?*
+
+### Phase F — Build the missing architecture. Zero cost, one to two days.
+
+In value order: `missing_facts` into routing and retrieval; the `DUAL_REGIME` answer variant that states the answer depends on the date; the Date Resolver moved to stage 1.5; the penal against procedural split; the corrective retry loop.
+
+### Phase G — The no-retrieval baseline. Approximately 50 rupees. Requires the cap raised.
+
+Run the questions with **no retrieval at all** and compare. The evaluation plan calls this *"Important. If the LLM alone scores comparably, retrieval is adding little."*
+
+The existing data already hints at the answer: the right section is cited 85 percent of the time while retrieval supplies it 15 percent of the time. **This turns a hint into a demonstration**, and it may become the most quotable number in the paper.
+
+### Phase H — Full re-run. Approximately 150 rupees. Requires the cap raised.
+
+Everything enabled, answers generated, end-to-end effect measured.
+
+### Phase I — Write. Zero cost, one week.
+
+## 5.3 Summary
+
+| Phase | Cost | Time | Affordable now |
+|---|---|---|---|
+| A, fix measurement bugs | **0** | half day | yes |
+| B, compute missing metrics | **0** | 1 day | yes |
+| **C, build `statute_consistency`** | **0** | half day | yes |
+| D, hybrid and BM25 | **approx 2** | 1 day | yes |
+| E, second embedding model | **0** | half day | yes |
+| F, missing architecture | **0** | 1 to 2 days | yes |
+| G, no-retrieval baseline | approx 50 | 2 hours | needs cap raised |
+| H, full re-run | approx 150 | 1 day | needs cap raised |
+| I, write | **0** | 1 week | yes |
+| **Total** | **approx 202** | **approx 6 days plus writing** | |
+
+**Phases A through F, everything that changes the paper, cost approximately 2 rupees and fit inside the current balance.**
+
+## 5.4 Multilingual work
+
+Deferred, and recommended for deferral beyond this paper. The corpus is English-only, so a Hindi question must be translated before it can match anything; the measurement would capture a translation step rather than a legal-retrieval finding. It also doubles every table at a point where confidence intervals are already too wide.
+
+The layman set already contains code-mixed Hinglish, for example *"ek aadmi ne mujhse paise liye saying double karke dega"*. Reporting how those performed costs nothing and captures the point honestly. Future Work receives one paragraph.
+
+---
+
+# 6. REPOSITORY STATE
+
+## 6.1 What is pushed to GitHub
+
+Remote: `https://github.com/uditauniyal/legal-mvp.git`
+
+| | |
+|---|---|
+| Commits ahead of origin/main | **0** |
+| All source code, tests, query sets and results documents | **pushed** |
+
+## 6.2 What is not yet committed
+
+| File | Status |
+|---|---|
+| `docs/THE_WHOLE_PICTURE.md` | New, uncommitted |
+| `docs/AUDIT_2026-08-26.md` | New, uncommitted |
+| `docs/RESEARCH_POSITION_AND_PLAN.md` | New, uncommitted |
+| `docs/ANSWERS.md` | New, uncommitted |
+| `core/verifier.py` | **Modified and left half-finished.** Two functions were added for the citation-binding fix, then work was stopped mid-edit. It is missing an `import re` that the new code requires |
+| `docs/SESSION_LOG.md` | Appended automatically by a hook on every command |
+
+**`core/verifier.py` must be either finished or reverted before the next commit**, so the repository never contains a half-applied change.
+
+## 6.3 Test suite
+
+```
+python -m pytest tests/ -q        ->  142 passing
+```
+
+| File | Tests |
+|---|---|
+| `tests/test_dates.py` | 35 |
+| `tests/test_statute_mapper.py` | 18 |
+| `tests/test_chunk_filters.py` | 17 |
+| `tests/test_confidence.py` | 14 |
+| `tests/test_router.py` | 13 |
+| `tests/test_citations.py` | 12 |
+| `tests/test_corpus_tagging.py` | 12 |
+| `tests/test_verifier.py` | 11 |
+| `tests/test_run_logger.py` | 10 |
+
+Every expected value in the metric tests is worked out by hand in its docstring. A test whose expectation was produced by running the code proves only that the code is deterministic.
+
+## 6.4 Documentation map
+
+| Document | Purpose |
+|---|---|
+| `docs/STATE.md` | Read first. Where the project stands today |
+| `docs/THE_WHOLE_PICTURE.md` | The complete narrative, A to Z |
+| `docs/AUDIT_2026-08-26.md` | Nine findings from the full re-read |
+| `docs/results/PHASE_G.md` | The baseline, every table with confidence intervals |
+| `docs/results/PHASE_H.md` | The intervention, measured against that baseline |
+| `docs/TARGET_ARCHITECTURE.md` | The agreed design, nine stages |
+| `docs/EVALUATION_PLAN.md` | The supervisor's five items as runnable experiments |
+| `docs/RESEARCH_CONTEXT.md` | The correspondence, verbatim, and the literature |
+| `docs/GAPS.md` | The original 23 findings. **Partly historical** |
+| `docs/WORKLOG.md` | What happened, in order. Append-only |
+| `docs/DECISIONS.md` | Why things are as they are. Append-only |
+| `docs/OPEN_QUESTIONS.md` | Unresolved questions, with how to settle each |
+| `docs/SESSION_LOG.md` | Automatic record of every prompt and command |
+
+`GAPS.md`, `ARCHITECTURE.md`, `FILE_STRUCTURE.md` and `DATAFLOW.md` predate Phase E and still describe defects that are now fixed. Where they disagree with `WORKLOG.md` or `docs/results/`, the latter are correct.
+
+## 6.5 Reproducing the headline finding
+
+```bash
+python scripts/ablate_filter.py
+```
+
+Retrieval only. No answers generated. Costs under one rupee.
+
+---
+
+**End of Part 2.**

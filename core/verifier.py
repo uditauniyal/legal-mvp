@@ -167,6 +167,102 @@ def _vintage_relation(cited: str | None, corpus_acts: set[str]) -> tuple[str, st
     return None
 
 
+_SECTION_HEAD = re.compile(r"Section\s+(\d+[A-Za-z]?)")
+
+
+def provisions_from_chunks(chunks: Iterable[dict]) -> list[Provision]:
+    """The provisions retrieval ACTUALLY returned, with authoritative statutes.
+
+    WHY THIS EXISTS
+        extract_provisions() reads free text and guesses which Act a section
+        number belongs to by looking for an Act name within 60 characters.
+        That is the only option for prose. It is NOT the only option for a
+        retrieved chunk: the chunk carries a `corpus` field written by the
+        ingest pipeline from an explicit filename lookup. That label is a
+        fact, not an inference.
+
+        Using it removes the guess from one whole side of every comparison.
+
+    FALLBACK, AND ITS LIMIT
+        `section_number` is present on every chunk in the index but was not
+        being copied into the run log, so older records only have `text_head`.
+        Section-split chunks usually begin "Section 190. ...", so the number
+        is recoverable -- but NOT always: a continuation piece can begin
+        "Explanation.—A threat to injure ...", with no number at all.
+
+        Those chunks are skipped rather than guessed at. Skipping under-counts
+        what was retrieved, which biases the grounding rate DOWNWARD -- the
+        safe direction for a claim about how ungrounded a system is.
+    """
+    out: list[Provision] = []
+    for c in chunks:
+        corpus = c.get("corpus")
+        if not corpus:
+            continue
+        number = c.get("section_number")
+        if not number:
+            m = _SECTION_HEAD.search(c.get("text_head") or c.get("text") or "")
+            number = m.group(1) if m else None
+        if not number:
+            continue
+        out.append(Provision(raw=f"{corpus} Section {number}",
+                             statute=corpus, kind="section", number=str(number).upper()))
+    return out
+
+
+def reattribute(cited: Iterable[Provision],
+                retrieved: Iterable[Provision]) -> tuple[list[Provision], list[dict]]:
+    """Fix statute labels the proximity heuristic got wrong.
+
+    THE BUG THIS REMOVES
+        Observed in the Phase H run: an answer cited BNS 190 and was recorded
+        as "IPC Section 190", because the phrase "Indian Penal Code" appeared
+        earlier in the same answer -- it was in the QUESTION. Retrieval had
+        returned BNS chunks only. The metric then reported 100% wrong-era
+        citations both before AND after the intervention, and so could not
+        distinguish "wrongly relied on repealed law" from "correctly explained
+        the law changed". Two opposite behaviours, one number.
+
+    THE RULE, DELIBERATELY CONSERVATIVE
+        Re-attribute only when BOTH hold:
+
+          1. nothing retrieved matches the cited statute AND number, and
+          2. exactly one retrieved STATUTE matches the number alone.
+
+        So "you cited IPC 190; no IPC 190 was retrieved, but BNS 190 was, and
+        nothing else numbered 190" -> the proximity guess was wrong, correct it.
+
+        If the cited statute IS present in the retrieval, the citation is left
+        alone -- the model may well have meant it. If several statutes share
+        the number, it is genuinely ambiguous and nothing is changed. Both
+        cases fail toward leaving the original label, because a wrong
+        correction is worse than a missed one.
+
+    Returns (possibly-corrected citations, a record of every change made).
+    """
+    retrieved = list(retrieved)
+    corrections: list[dict] = []
+    out: list[Provision] = []
+
+    for p in cited:
+        exact = [r for r in retrieved if same_provision(p, r)]
+        if exact or not p.statute:
+            out.append(p)
+            continue
+        by_number = [r for r in retrieved if r.kind == p.kind and r.number == p.number]
+        statutes = {r.statute for r in by_number if r.statute}
+        if len(statutes) == 1:
+            corrected = statutes.pop()
+            if corrected != p.statute:
+                corrections.append({"from": str(p), "to": f"{corrected} Section {p.number}",
+                                    "reason": "proximity attribution contradicted by retrieval"})
+                out.append(Provision(raw=p.raw, statute=corrected,
+                                     kind=p.kind, number=p.number))
+                continue
+        out.append(p)
+    return out, corrections
+
+
 def _dedupe(provs: Iterable[Provision]) -> list[Provision]:
     """Collapse exact repeats, preserving order. A provision cited three times
     in one answer is one provision, not three."""
@@ -232,6 +328,7 @@ def audit_answer(
     retrieved_text: str,
     corpus: CorpusIndex,
     panel_text: str | None = None,
+    retrieved_chunks: Iterable[dict] | None = None,
 ) -> AuditResult:
     """Compare what an answer CITED against what was actually RETRIEVED.
 

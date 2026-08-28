@@ -5245,3 +5245,567 @@ echo "=== project .claude/settings.json ==="; cat /c/Users/uniya/legal-mvp/.clau
 ```bash
 echo "=== STATE.md â€” first 50 lines, last modified ==="; ls -la docs/STATE.md; echo; head -50 docs/STATE.md
 ```
+
+`2026-08-26 13:53:51` · **cmd** — Commit the rewritten STATE.md
+```bash
+git add -A && git -c core.quotepath=false commit -q -m "$(cat <<'MSG'
+Rewrite docs/STATE.md â€” it still said "no fixes have been applied"
+
+CLAUDE.md tells every new session to read STATE.md before doing anything
+substantive. It was written 2026-08-17 and described the project as
+untouched since February: 1,011 chunks, no fixes applied, 23 open gaps.
+Four phases and 617 evaluation queries later, a session opening cold would
+have loaded a false picture and acted on it.
+
+Now carries the actual state: the headline finding with its reproducing
+command, the two negative results, current index compo
+… [truncated, 758 more chars]
+```
+
+`2026-08-26 13:54:09` · **cmd** — Check whether the work is pushed to a remote
+```bash
+echo "=== remote ==="; git remote -v
+echo; echo "=== unpushed commits ==="; git log --oneline origin/main..HEAD 2>/dev/null | wc -l
+echo; echo "=== list them ==="; git log --oneline origin/main..HEAD 2>/dev/null | head -20
+echo; echo "=== untracked/uncommitted ==="; git status --porcelain | head
+```
+
+### 2026-08-26 14:43:38 · prompt
+
+hey, i am back with new account, reterived the old chat, yayyy!! now
+  help me with these
+
+2)what's the plan ahead,like you kniw your exolanation was not at all elaborate and did not explain things in depth. like i shuld undertsan dhwweatver uou have made so well, like a stiry what you did - explain arhcitetcure and ifnfings again an dmoney spent on api key too
+3)howre you using plugins and various mcp?
+4)behcnmark my findings wrt to what is ahppening in similiar doamin in  reserach and paper
+5)how close are we what my prof wanted
+6)chances of representing work in top conf and papers
+7)how impressive and novel the work is
+
+`2026-08-26 14:44:28` · **cmd** — Compute actual token usage from run logs
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== does the log record cost directly? ==="
+./venv/Scripts/python.exe -c "
+import json,glob,io,sys
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+p=sorted(glob.glob('runs/**/queries.jsonl',recursive=True))[-1]
+r=json.loads(open(p,encoding='utf-8').readlines()[-1])
+print('answer bucket keys:', sorted(r.get('answer',{}).keys()))
+print('has total_cost?', 'total_cost' in json.dumps(r))
+"
+echo
+echo "=== total tokens across every recorded query ==="
+./venv/Scripts/python.exe -c "
+import json,glob,io,sys,collections
+sys.stdout=io.TextIOWrapper(sys.st
+… [truncated, 876 more chars]
+```
+
+`2026-08-26 14:44:46` · **cmd** — Read cost and professor directive memory
+```bash
+echo "=== memory: llm-token-costs.md ==="
+cat "/c/Users/uniya/.claude/projects/C--Users-uniya-legal-mvp/memory/llm-token-costs.md" 2>/dev/null
+echo
+echo "=== memory: professor directive ==="
+cat "/c/Users/uniya/.claude/projects/C--Users-uniya-legal-mvp/memory/professor-directive-2026-08-06.md" 2>/dev/null
+```
+
+`2026-08-26 14:45:17` · **cmd** — Compute total API spend
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import io,sys; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+IN,OUT,EMB=0.375,1.875,0.02   # \$ per million tokens, measured 2026-08-22
+pt,ct,n=2401487,1435725,858
+gi,go=pt*IN/1e6, ct*OUT/1e6
+print('MEASURED â€” Answer agent (every token counted in the run log)')
+print('  input   {:>10,} tok  x \${}/M  =  \${:.2f}'.format(pt,IN,gi))
+print('  output  {:>10,} tok  x \${}/M  =  \${:.2f}'.format(ct,OUT,go))
+print('  subtotal                            \${:.2f}'.format(gi+go))
+print()
+ip,io_=n*500,n*450
+ii,oo=ip*IN/1e6, io
+… [truncated, 664 more chars]
+```
+
+`2026-08-26 14:45:44` · **cmd** — Check MCP servers and plugins in use
+```bash
+echo "=== MCP servers configured ==="; cat /c/Users/uniya/.claude.json 2>/dev/null | ./venv/Scripts/python.exe -c "
+import json,sys,io
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+try:
+    d=json.load(sys.stdin)
+except Exception as e:
+    print('could not parse'); raise SystemExit
+def walk(o,path=''):
+    if isinstance(o,dict):
+        if 'mcpServers' in o and o['mcpServers']:
+            print(' at',path or 'root',':',list(o['mcpServers'].keys()))
+        for k,v in o.items():
+            if k in ('projects','mcpServers'): walk(v,path+'/'+k)
+walk(d)
+" 2>/dev/null || echo "(
+… [truncated, 439 more chars]
+```
+
+`2026-08-26 14:47:46` · **cmd** — Check push status and tests
+```bash
+git fetch -q origin 2>/dev/null; echo "unpushed commits: $(git log --oneline origin/main..HEAD 2>/dev/null | wc -l)"; echo "tests: $(./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -1)"
+```
+
+`2026-08-26 15:26:49` · **cmd** — Check whether CaseContext fields are still used
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== CaseContext fields ==="
+grep -n "class CaseContext" -A 20 agents/intake.py | head -25
+echo
+echo "=== where are CaseContext fields actually READ? ==="
+grep -rn "case_context\.\|context\.predicted_legal_domain\|context\.legal_issues\|\.user_persona\|\.urgency\|\.complexity\|\.financial_status\|\.missing_facts" --include=*.py agents/ app.py | grep -v "^agents/intake.py" | head -20
+```
+
+`2026-08-26 15:27:06` · **cmd** — Check answer agent and the originally proposed ordering
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== does the Answer agent use CaseContext at all? ==="
+grep -n "case_context\|CaseContext\|persona\|urgency\|financial" agents/answer.py | head -10 || echo "  NO â€” the Answer agent never sees CaseContext"
+echo
+echo "=== what did TARGET_ARCHITECTURE.md propose for ordering? ==="
+grep -n "1\.5\|2\.5\|Date Resolver\|Statute Map" docs/TARGET_ARCHITECTURE.md | head -25
+```
+
+`2026-08-26 15:34:25` · **cmd** — Inspect the audit call site and chunk shape
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== how app.py calls audit_answer ==="
+grep -n "retrieved_text\|audit_answer\|audit\." app.py | head -20
+echo
+echo "=== what a logged chunk carries ==="
+./venv/Scripts/python.exe -c "
+import json,glob,io,sys; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+p=sorted(glob.glob('runs/**/queries.jsonl',recursive=True))[-1]
+r=json.loads(open(p,encoding='utf-8').readlines()[-1])
+c=(r['retrieval']['chunks'] or [{}])[0]
+print('chunk keys :', sorted(c.keys()))
+print('corpus     :', c.get('corpus'))
+print('text_head  :', (c.get('text_head') or '')[:70])
+
+… [truncated, 87 more chars]
+```
+
+### 2026-08-26 15:38:58 · prompt
+
+stop whatever the fuck youre doing tell me what you didi anmd i never akse dyou to create an articraft create a simple .md which can open and be shared anyehre please dont fuck up man or a simple html
+
+### 2026-08-26 15:40:22 · prompt
+
+a/b i will tell you l;ater create that .md file stat
+
+### 2026-08-27 15:14:47 · prompt
+
+I read your complete.md document and I have some questions. 1)if you have the 100% context and if your shitty model opus 5 is working for wjich i am paying exhorbitant amount - you'd know that we agreed on an architecture - where the missing facts were used as an input friled for the answer agernt. you yourself told me that plan, and i agreed- so ghow the fuck did you missed it!! i am glad i asked youyre creating a mockery put of my hard work man just fuck off 2)With everything running the hooks, etc., you will keep on telling me the cost, right? Tell me how much money is left in the API key also. 3)[Image #1] I read this plan and agree with it but explain this plan to me in detail. If the composite score is not working, the different parameters which we took, the top came in the entity coverage and the gap penalty, all these three signals are not working. Then why should we even keep it in the paper or is there a way we can make it better?
+
+`2026-08-27 15:15:09` · **cmd** — Check what was agreed about missing_facts
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== missing_facts in TARGET_ARCHITECTURE.md ==="
+grep -n "missing_facts\|missing facts" docs/TARGET_ARCHITECTURE.md | head -20
+echo
+echo "=== context around each hit ==="
+grep -n "missing_facts" -B 3 -A 6 docs/TARGET_ARCHITECTURE.md | head -60
+```
+
+`2026-08-27 15:15:36` · **cmd** — Check which agreed design decisions were actually built
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== the 8 agreed design decisions ==="
+sed -n '525,540p' docs/TARGET_ARCHITECTURE.md
+echo
+echo "=== which are actually built? ==="
+for s in "date_mentioned" "date_expression" "missing_facts_prompt" "date_caveat" "DUAL_REGIME" "cost_usd" "corrective" "loop"; do
+  n=$(grep -rl "$s" --include=*.py agents/ core/ app.py 2>/dev/null | tr '\n' ' ')
+  printf "  %-22s %s\n" "$s" "${n:-NOT BUILT}"
+done
+```
+
+`2026-08-27 15:15:52` · **cmd** — Check remaining OpenRouter credit balance
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import os,io,sys,json,urllib.request
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+from dotenv import load_dotenv
+load_dotenv('.env')
+key=os.getenv('OPENROUTER_API_KEY') or os.getenv('OPENAI_API_KEY')
+if not key:
+    print('no key found in .env'); raise SystemExit
+for path in ('credits','auth/key'):
+    try:
+        r=urllib.request.Request('https://openrouter.ai/api/v1/'+path,
+            headers={'Authorization':'Bearer '+key})
+        d=json.load(urllib.request.urlopen(r,timeout=15))
+        print('/'+path, '->', j
+… [truncated, 120 more chars]
+```
+
+### 2026-08-27 15:21:20 · prompt
+
+So now that you have deviated from the architecture and already run so many queries, first tell me: ever since this August, from when we started again NealMVP, we have spent Rs. 350 on the API key, right? Now changing the architecture, running the queries again and testing again, don't you think you have wasted my time and my compute? Will changing the architecture, I don't know, even also help?
+
+### 2026-08-27 15:26:08 · prompt
+
+okay go ahead tell me your findings
+
+`2026-08-27 15:27:09` · **cmd** — Test whether era-based filtering helps layman retrieval
+```bash
+cd /c/Users/uniya/legal-mvp
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/era_probe.py <<'PY'
+"""Does era-based corpus filtering help layman queries? Retrieval only, no LLM."""
+import sys, io, json, re, math, collections
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+from datetime import date
+from clients.openai_client import embed_texts
+from clients.qdrant_client import COLLECTION, qdrant
+from core.dates import resolve, IPC_ERA, BNS_ERA, BOTH_ERAS, UNKNOWN
+
+REF = date(2026, 8,
+… [truncated, 3456 more chars]
+```
+
+`2026-08-27 15:27:40` · **cmd** — Report actual spend after the probe
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import os,io,sys,json,urllib.request
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+from dotenv import load_dotenv; load_dotenv('.env')
+k=os.getenv('OPENROUTER_API_KEY') or os.getenv('OPENAI_API_KEY')
+d=json.load(urllib.request.urlopen(urllib.request.Request(
+   'https://openrouter.ai/api/v1/auth/key',headers={'Authorization':'Bearer '+k}),timeout=15))['data']
+print('key remaining : \$%.4f  (Rs %.2f)'%(d['limit_remaining'], d['limit_remaining']*88))
+print('spent today   : \$%.6f  (Rs %.3f)'%(d['usage_daily'], d['usage_
+… [truncated, 14 more chars]
+```
+
+### 2026-08-27 15:30:04 · prompt
+
+Whatever you are writing, everything is looking like gibberish to me. I don't understand what I have made. I don't even understand what I am trying to change. I don't understand the result. I don't understand anything. I don't even understand your plan ahead. Can you just explain everything to me in simple words?
+
+### 2026-08-27 15:36:57 · prompt
+
+<task-notification>
+<task-type>artifact-watch-lifecycle</task-type>
+<summary>Stopped watching Artifact: "Thirteen answers, and one thing I got wrong" (artifact not found)</summary>
+<event>Watch on https://claude.ai/code/artifact/afa0dd5b-b26c-42b7-bc44-7417e693311a ended â€” no such artifact for this account (it was deleted, or it has not been shared with the user). This session will no longer hear when it is republished; there is nothing to retry unless the artifact is shared with the user again.</event>
+</task-notification>
+
+### 2026-08-27 15:39:08 · prompt
+
+First and foremost read the entire log entry of this chat. Every line of code, whatever has been happening. I don't want you to lose any context. How the hell can you make a mistake while counting? Second just explain to me: how are we standing out? What is the whole point of centering my paper around recodification if we are not considering layman queries Third tell me the entire plan: Phase A, B, C, D, E, F. What do you plan to do ahead? How? The money. Do that while first getting the entire context, reading every line of code, reading every log entry of this chat, storing it in your memory, keeping it in your memory, and then doing research about the kind of work I have done up till now. What will make my paper, my work, stand out better, be novel, and actually be loved by the reviewer? Do that also.
+
+Once that's done get back to me and tell me the different phases ahead: A, B, C, D, hybrid retrieval when the query is running, everything, every phase. Let's just get into that. Let me understand that. Check all the phases, the cost, everything. Tell me everything. Once I approve the plan, you run everything by the book, all the phases. Before running all the phases you need to have all the context. You need to be well about the research paper on a similar domain.
+
+`2026-08-27 15:40:03` · **cmd** — Measure whether laypeople get repealed or current law
+```bash
+cd /c/Users/uniya/legal-mvp
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/layman_lean.py <<'PY'
+"""For LAYMAN queries (no code named): does the system serve repealed or current law?
+Reads existing run logs only. Zero API cost."""
+import sys, io, json, glob, collections, math
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+
+recs = {}
+for p in glob.glob("runs/**/queries.jsonl", recursive=True):
+    for l in open(p, encoding="utf-8"):
+        try: r = json.loads(l)
+        except: continue
+        recs[r.
+… [truncated, 2674 more chars]
+```
+
+`2026-08-27 15:41:01` · **cmd** — Save the layman dominance finding to memory
+```bash
+cd /c/Users/uniya/.claude/projects/C--Users-uniya-legal-mvp/memory && cat > layman-corpus-dominance.md <<'EOF'
+---
+name: layman-corpus-dominance
+description: The finding that reframes the paper â€” for layman queries the system retrieves 70.4% CrPC and only 7.6% BNS, so laypeople are served procedure and repealed law by default
+metadata:
+  type: project
+---
+
+Measured 2026-08-26 from the existing Phase G layman run (`eval_2026-08-23_0231_5184e78`, 120 queries). Zero API cost â€” read from logs.
+
+## What laypeople actually get
+
+| Book | Passages retrieved | Share |
+|---|---|---|
+| **CrPC** (proc
+… [truncated, 2530 more chars]
+```
+
+### 2026-08-27 15:43:07 · prompt
+
+No before you start writing the plan, I asked: how the hell can I centre my paper around recodification if we are not considering layman queries? I believe layman queries are essential and our testing should include them. I don't know, correct me if I am wrong. And then I wanted you to do the deep research about all the kind of work that we have done, not just recodification, confidence calibration, every field that we have calculated, every deduction, and how that is. Are there people who have done the work in a similar domain? Their findings, novelty of my paper, how good and robust it is as to what has already been published, etc., not just recodification but the entire paper. And findings.
+
+### 2026-08-27 15:49:03 · prompt
+
+No first, don't fuck around. Read this entire chart. Read the entire codebase. Read everything. Please read this entire chart. I have been documenting everything. Read everything and then come back to me.
+
+`2026-08-27 15:49:27` · **cmd** — Inventory the full repository
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== DOCS ==="
+for f in docs/*.md docs/results/*.md; do [ -f "$f" ] && printf "%6d lines  %s\n" "$(wc -l < "$f")" "$f"; done | sort -rn
+echo
+echo "=== SOURCE (live) ==="
+for f in app.py streamlit_app.py agents/*.py core/*.py clients/*.py ingest/*.py eval/*.py scripts/*.py report/*.py; do
+  [ -f "$f" ] && printf "%6d  %s\n" "$(wc -l < "$f")" "$f"; done | sort -rn | head -50
+echo
+echo "=== TESTS ==="
+for f in tests/*.py; do [ -f "$f" ] && printf "%6d  %s\n" "$(wc -l < "$f")" "$f"; done | sort -rn
+echo
+echo "=== totals ==="
+echo "docs:   $(cat docs/*.md docs/resul
+… [truncated, 160 more chars]
+```
+
+`2026-08-27 15:49:47` · **cmd** — Read PLAN.md and PROJECT_CONTEXT.md
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import io,sys; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+for f in ['docs/PLAN.md','docs/PROJECT_CONTEXT.md']:
+    print('='*100); print('FILE:',f); print('='*100)
+    print(open(f,encoding='utf-8').read())
+"
+```
+
+`2026-08-27 15:50:22` · **cmd** — Check every designed field against the code
+```bash
+cd /c/Users/uniya/legal-mvp
+chk() { if grep -rq "$2" --include=*.py agents/ core/ ingest/ app.py 2>/dev/null; then echo "  BUILT     $1"; else echo "  MISSING   $1"; fi; }
+echo "STAGE 1 Â· INTAKE"
+chk "date_mentioned"            "date_mentioned"
+chk "date_expression"           "date_expression"
+chk "missing_facts -> answer"   "missing_facts_prompt"
+echo "STAGE 1.5 Â· DATE RESOLVER"
+chk "event_date"                "event_date"
+chk "date_confidence"           "date_confidence"
+chk "date_range"                "date_range"
+chk "SPANS_BOUNDARY / BOTH"     "BOTH_ERAS\|SPANS_BOUNDARY"
+chk "LLM fallba
+… [truncated, 1317 more chars]
+```
+
+`2026-08-27 15:50:34` · **cmd** — Verify the procedural split claim
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== where does 'procedural' appear? ==="
+grep -rn "procedural" --include=*.py agents/ core/ app.py | head -5
+echo
+echo "=== the router's actual corpus-selection code ==="
+sed -n '100,150p' agents/router.py
+```
+
+`2026-08-27 15:51:40` · **cmd** — Read the Answer agent
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import io,sys; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+for f in ['agents/answer.py']:
+    print('='*90); print(f); print('='*90); print(open(f,encoding='utf-8').read())
+"
+```
+
+`2026-08-27 15:52:03` · **cmd** — Check whether prompt_variant is ever correct
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import json,glob,collections,io,sys
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+recs={}
+for p in glob.glob('runs/**/queries.jsonl',recursive=True):
+    for l in open(p,encoding='utf-8'):
+        try: r=json.loads(l)
+        except: continue
+        recs[r.get('req_id')]=r
+v=collections.Counter(); tier=collections.Counter(); pair=collections.Counter()
+for r in recs.values():
+    pv=(r.get('answer') or {}).get('prompt_variant')
+    c=(r.get('confidence') or {}).get('composite')
+    if pv is None or c is None: continue
+… [truncated, 326 more chars]
+```
+
+`2026-08-27 15:52:16` · **cmd** — Check for duplicate mapping work
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== build_ipc_bns_map.py â€” does it duplicate my recodification map? ==="
+head -40 scripts/build_ipc_bns_map.py
+echo
+echo "=== does a data/ipc_bns_mapping.csv exist (as TARGET_ARCHITECTURE specified)? ==="
+ls -la data/ 2>/dev/null
+```
+
+`2026-08-27 15:52:36` · **cmd** — Compare the existing candidate map with mine
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import csv,io,sys,json
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+rows=list(csv.DictReader(open('data/ipc_bns_map_candidates.csv',encoding='utf-8')))
+print('candidate rows :',len(rows))
+print('columns        :',list(rows[0].keys()))
+print('verified=true  :',sum(1 for r in rows if str(r.get('verified','')).lower()=='true'))
+print()
+mine={m['from'] for m in json.load(open('data/recodification_map.json',encoding='utf-8'))['mappings']}
+theirs={('IPC '+r.get('ipc_section','')).strip() for r in rows}
+print('my verified m
+… [truncated, 710 more chars]
+```
+
+### 2026-08-27 15:57:16 · prompt
+
+Did you read this Claude's entire chat in which I've been working?
+
+`2026-08-27 15:57:57` · **cmd** — Extract every user message from the transcript
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import json,io,sys,collections
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+p=r'C:\Users\uniya\.claude\projects\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408.jsonl'
+kinds=collections.Counter(); users=[]; first=None; last=None
+for line in open(p,encoding='utf-8'):
+    try: r=json.loads(line)
+    except: continue
+    kinds[r.get('type')]+=1
+    ts=r.get('timestamp')
+    if ts:
+        if first is None: first=ts
+        last=ts
+    if r.get('type')=='user':
+        m=r.get('message') or {}
+        c=m.ge
+… [truncated, 694 more chars]
+```
+
+`2026-08-27 15:58:19` · **cmd** — Read the architecture decision messages in full
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import json,io,sys
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+p=r'C:\Users\uniya\.claude\projects\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408.jsonl'
+users=[]
+for line in open(p,encoding='utf-8'):
+    try: r=json.loads(line)
+    except: continue
+    if r.get('type')=='user':
+        m=r.get('message') or {}
+        c=m.get('content')
+        if isinstance(c,str): txt=c
+        elif isinstance(c,list):
+            txt=' '.join(x.get('text','') for x in c if isinstance(x,dict) and x.get('type')=='tex
+… [truncated, 327 more chars]
+```
+
+`2026-08-27 15:58:39` · **cmd** — Check the QPP paper she gave me
+```bash
+ls -la "/c/Users/uniya/Downloads/2604.27244v1.pdf" 2>/dev/null || echo "PDF not found at that path"
+echo
+echo "=== is that paper referenced anywhere in the repo? ==="
+grep -rl "2604.27244\|RAQG\|query variant" /c/Users/uniya/legal-mvp/docs/ 2>/dev/null || echo "  NOT referenced in any doc"
+echo
+echo "=== is QPP discussed anywhere in the docs? ==="
+grep -rn "QPP\|query performance prediction" -i /c/Users/uniya/legal-mvp/docs/*.md 2>/dev/null | head -10 || echo "  QPP never mentioned in docs"
+```
+
+`2026-08-27 15:58:56` · **cmd** — Read what was concluded about QPP on 21 August
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import io,sys
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+L=open('docs/SESSION_LOG.md',encoding='utf-8').readlines()
+for i in range(770,900):
+    if i < len(L): print(L[i].rstrip())
+"
+```
+
+`2026-08-27 15:59:31` · **cmd** — Read the phase-agreement messages
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import json,io,sys
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+p=r'C:\Users\uniya\.claude\projects\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408.jsonl'
+users=[]
+for line in open(p,encoding='utf-8'):
+    try: r=json.loads(line)
+    except: continue
+    if r.get('type')=='user':
+        m=r.get('message') or {}
+        c=m.get('content')
+        txt=c if isinstance(c,str) else (' '.join(x.get('text','') for x in c if isinstance(x,dict) and x.get('type')=='text') if isinstance(c,list) else '')
+        t
+… [truncated, 227 more chars]
+```
+
+### 2026-08-27 16:09:09 · prompt
+
+since you have access to the log of chat andverything that has been done from atoz , the entrie archidteude, derouutes, research, where we are what he plan ahead[Image #3]?, explain everything to me in deepest and most elabortaiv elanguage! do not fuck up
+
+### 2026-08-28 18:16:52 · prompt
+
+can you please do 1 thing - whatever we have done since august - in code, testing question, brainstorming etc- the deroubts, arhcitetcture, plan a eahead what you sugges different phases- record that in readme? keep the existing readme of what was done uptil now and then edit it and then readme of what we have done and what ahead, please keep it elaborate, no emojis, extensive diagrams, informative, and most impoertantly comporehsible, and how much is not pushed in github?
+
+`2026-08-28 18:17:25` · **cmd** — Check README and push status
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== README.md (root) ==="
+ls -la README.md 2>/dev/null && wc -l README.md
+echo
+echo "--- content ---"
+cat README.md 2>/dev/null | head -80
+echo
+echo "=== GIT: unpushed ==="
+git fetch -q origin 2>/dev/null
+echo "commits ahead of origin/main: $(git log --oneline origin/main..HEAD 2>/dev/null | wc -l)"
+git log --oneline origin/main..HEAD 2>/dev/null
+echo
+echo "=== uncommitted ==="
+git status --porcelain
+```
+
+`2026-08-28 18:17:48` · **cmd** — Check README ending and stale claims
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== last 30 lines of README ==="
+tail -30 README.md
+echo
+echo "=== claims in the README now known to be false ==="
+grep -n "BNSS\|BSA\|Constitution\|1,011\|refuses to answer\|Calibrated refusal\|GPT-4o-mini\|judicial precedent" README.md | head -12
+```
+
+`2026-08-28 18:24:35` · **cmd** — Append Part 2 and verify
+```bash
+cd /c/Users/uniya/legal-mvp
+cat "/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/part2.md" >> README.md
+echo "README now: $(wc -l < README.md) lines, $(ls -la README.md | awk '{print $5}') bytes"
+echo
+echo "=== structure check ==="
+grep -n "^# PART 2\|^# 3\.\|^# 4\.\|^# 5\.\|^# 6\.\|^## 2\.\|READ THIS FIRST" README.md | head -20
+echo
+echo "=== emoji check in the appended part (should be none) ==="
+./venv/Scripts/python.exe -c "
+import io,sys,re
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+t=open('README.md',en
+… [truncated, 254 more chars]
+```
+
+### 2026-08-28 18:27:35 · prompt
+
+i will commit it myself and push it myself too please wait i will get back to you just tell me about what all i have to read the docs, etc you made to undertsand everyhting
