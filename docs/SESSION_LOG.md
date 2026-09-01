@@ -11100,3 +11100,111 @@ ok cool, ping me when they're done
 ### 2026-09-01 21:11:15 · prompt
 
 ok cool, ping me when they're done
+
+`2026-09-01 21:12:03` · **cmd** — Merge blocks, append worklog, commit Wave 3
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"
+for n in 1 2; do { echo; echo "---"; echo; cat "results/_explain_w3_s${n}.md"; } >> results/EXPLAIN.md; done
+rm results/_explain_w3_s*.md
+cat "$SP/w3_worklog.md" >> docs/WORKLOG.md
+git add -A && git commit -q -F "$SP/w3msg.txt"
+echo "EXPLAIN.md: $(wc -l < results/EXPLAIN.md) lines, $(grep -c '^## ' results/EXPLAIN.md) blocks"
+python -c "
+import glob
+t=sum(sum(1 for _ in open(f,encoding='utf-8'))-1 for f in glob.glob('results/*.csv'))
+print('result r
+… [truncated, 283 more chars]
+```
+
+### 2026-09-01 21:37:57 · prompt
+
+go ahead run wave 4
+
+`2026-09-01 21:38:42` · **cmd** — Verify EXPLAIN.md covers every output file with 8 headings
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== output files that exist in results/ ==="
+ls results/ | sed 's/^/  /'
+echo
+echo "=== blocks present in EXPLAIN.md ==="
+grep -n '^## ' results/EXPLAIN.md | sed 's/^/  /'
+echo
+echo "=== heading count per block (want 8 each) ==="
+./venv/Scripts/python.exe -c "
+import re,pathlib
+t=pathlib.Path('results/EXPLAIN.md').read_text(encoding='utf-8')
+blocks=re.split(r'^## ',t,flags=re.M)[1:]
+bad=0
+for b in blocks:
+    title=b.split(chr(10))[0].strip()
+    n=len(re.findall(r'^### ',b,flags=re.M))
+    flag='' if n==8 else '   <-- NOT 8'
+    if n!=8: bad+=1
+    print(f'  
+… [truncated, 100 more chars]
+```
+
+`2026-09-01 21:39:08` · **cmd** — Diagnose the two malformed block regions
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== inside the 16-heading 'Confidence ablation' block (2272-2862) ==="
+sed -n '2272,2862p' results/EXPLAIN.md | grep -n '^#\{1,4\} ' | sed 's/^/  /'
+echo
+echo "=== the 9-heading 'Retrieval metrics' block ==="
+sed -n '1099,1342p' results/EXPLAIN.md | grep -n '^### ' | sed 's/^/  /'
+```
+
+`2026-09-01 21:39:48` · **cmd** — Normalise heading levels and re-verify EXPLAIN.md
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+import pathlib, re
+p = pathlib.Path("results/EXPLAIN.md")
+lines = p.read_text(encoding="utf-8").split("\n")
+out, in_sc = [], False
+fixes = []
+for i, ln in enumerate(lines):
+    if ln.strip() == "# Robustness and clustering":
+        ln = "## Robustness and clustering"; fixes.append((i+1, "h1->h2 robustness"))
+    elif ln.strip() == "# statute_consistency":
+        ln = "## statute_consistency"; in_sc = True; fixes.append((i+1, "h1->h2 statute_consistency"))
+    elif in_sc and re.match(r"^## (BM25|Robustness|Calibration|Retrieval
+… [truncated, 762 more chars]
+```
+
+`2026-09-01 21:40:24` · **cmd** — Inspect metric vocabularies across the eight CSVs
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import pandas as pd, glob, os
+for f in sorted(glob.glob('results/*.csv')):
+    d=pd.read_csv(f)
+    print(f'--- {os.path.basename(f)}  ({len(d)} rows) ---')
+    print('  metrics:', ', '.join(sorted(d['metric'].astype(str).unique())[:14]))
+    print('  stages :', ', '.join(sorted(d['stage'].astype(str).unique())[:10]))
+    print('  defs   :', ', '.join(sorted(d['definition'].astype(str).unique())[:8]))
+" 2>&1 | head -60
+```
+
+`2026-09-01 21:43:15` · **cmd** — Generate RESULTS.md and spot-check the headline table
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe experiments/assemble_results.py
+echo
+echo "=== RESULTS.md shape ==="
+wc -l results/RESULTS.md
+echo "sections: $(grep -c '^## ' results/RESULTS.md)  headline tables: $(grep -c '^### ' results/RESULTS.md)"
+echo
+echo "=== spot-check: the headline table is real data, not typed ==="
+sed -n '/### Cross-statute accuracy/,/^$/p' results/RESULTS.md | head -20
+```
+
+`2026-09-01 21:43:41` · **cmd** — Print the assembled headline tables
+```bash
+cd /c/Users/uniya/legal-mvp
+awk '/^### Cross-statute accuracy/{f=1} f&&/^\| /{print} f&&/^<details>/{exit}' results/RESULTS.md | head -18
+echo
+echo "=== the gold-reachability ceiling table ==="
+awk '/^### Gold-section reachability/{f=1} f&&/^\| /{print} f&&/^<details>/{exit}' results/RESULTS.md | head -10
+```

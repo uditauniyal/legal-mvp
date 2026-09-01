@@ -2638,7 +2638,7 @@ Cluster bootstraps are computed only for the `retrieved@k` headline rows in part
 
 ---
 
-# Robustness and clustering
+## Robustness and clustering
 
 Output file: `results/robustness.csv`
 Regenerate with: `./venv/Scripts/python.exe experiments/exp05_robustness.py`
@@ -2851,7 +2851,7 @@ The **`grounded` definition has 27 positives out of 617 (4.4%)**, and **zero** o
 
 ---
 
-# statute_consistency
+## statute_consistency
 
 Output file: `results/statute_consistency.csv`
 Regenerate with: `./venv/Scripts/python.exe experiments/exp06_statute_consistency.py`
@@ -2860,7 +2860,7 @@ Owner: Wave 3 Subagent 1
 
 ---
 
-## 1. ELI5 — what does this measure?
+### 1. ELI5 — what does this measure?
 
 Ask the system a question and it fetches 15 passages. The three confidence
 signals already in the system all ask the *same kind* of question about those
@@ -2948,7 +2948,7 @@ incident dated to the BNS era, gold `BNS 64`:
 
 ---
 
-## 2. Technically
+### 2. Technically
 
 ### The definition, and why this one
 
@@ -3042,7 +3042,7 @@ Every chunk carries a `statute_code`, so nothing is dropped.
 
 ---
 
-## 3. What the number came out as
+### 3. What the number came out as
 
 n = **617** gold-labelled rows (621 after `load_logs()` dedupe, 4 dropped for
 having no gold section). 177 `pair_id` clusters. Positives: **327** under
@@ -3257,7 +3257,7 @@ FOOTNOTE — the digits are a footnote marker, not a section number:
 
 ---
 
-## 4. How to read it
+### 4. How to read it
 
 **AUROC** is "pick one query the system got right and one it got wrong at
 random; how often does the signal score the right one higher?" 0.5 = a coin
@@ -3299,7 +3299,7 @@ concentrates the error rather than removing it.
 
 ---
 
-## 5. What this means for the paper
+### 5. What this means for the paper
 
 ### State it plainly
 
@@ -3383,7 +3383,7 @@ would overstate the harm badly.
 
 ---
 
-## 6. What broke while computing this
+### 6. What broke while computing this
 
 **Three things broke. All three are recorded, none was worked around.**
 
@@ -3434,7 +3434,7 @@ affected `req_id` is printed by `check06`.
 
 ---
 
-## 7. What I could not compute, and why
+### 7. What I could not compute, and why
 
 | wanted | why not |
 |---|---|
@@ -3448,7 +3448,7 @@ affected `req_id` is printed by `check06`.
 
 ---
 
-## 8. What surprised me
+### 8. What surprised me
 
 **1. The false `entity_coverage` matches are not normaliser artefacts at all.
 They are cross-references inside genuine provisions.** The task brief
