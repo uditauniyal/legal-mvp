@@ -1061,3 +1061,260 @@ Wave 3 — two experiments. `statute_consistency` (the fourth confidence signal,
 specified and never built) and BM25 plus hybrid retrieval. `rank_bm25` is NOT
 installed and must not be installed without a decision, since a previous install
 into this venv upgraded starlette and broke fastapi.
+
+---
+
+## 2026-09-01 — Wave 3: BM25 inverts the failure, and a gold-reachability ceiling
+
+Branch `metrics/sept-01`. Two subagents concurrent, one owner per file, neither
+ran git, both imported `experiments/metrics_lib.py`. Eight result CSVs now share
+the exact long-format schema: **2,727 rows**. Suite 237 passing.
+
+Cost: **13,375 embedding tokens, $0.000268, about 2 paise.** Zero generation
+calls. Embeddings cached outside the repo, so re-runs are free.
+
+### Environment change, approved by Udita and verified
+
+`rank_bm25` 0.2.2 installed with `pip install rank_bm25 --no-deps`. The
+`--no-deps` flag prevents pip from upgrading or touching any other package, so
+it cannot repeat the earlier starlette/fastapi breakage. Verified by diffing
+`pip freeze` before and after: **154 -> 155 packages, exactly one line added**
+(`rank-bm25==0.2.2`). fastapi 0.115.0 and starlette 0.38.6 unmoved, `import app`
+succeeds, 237 tests pass.
+
+### S2 — BM25 AND HYBRID. The sharpest reviewer objection, answered.
+
+The objection: *an exact-word search would separate IPC 420 from BNS 318
+trivially, so the failure is an artefact of choosing a dense retriever.*
+
+66 numbered paired queries, corpus filter DISABLED, dominant corpus among top 15:
+
+| Query names | dense | bm25 | hybrid RRF | chance |
+|---|---|---|---|---|
+| **IPC** | **97.0%** [84.7, 99.5] | **0.0%** [0.0, 10.4] | 45.5% [29.8, 62.0] | 31.3% |
+| **BNS** | 51.5% [35.2, 67.5] | **97.0%** [84.7, 99.5] | 78.8% [62.2, 89.3] | 22.3% |
+
+Top-1: IPC dense 90.9% / bm25 45.5% / hybrid 87.9%. BNS dense 42.4% /
+bm25 84.8% / hybrid 66.7%.
+
+**BM25 does not fix the failure. It INVERTS it.** BNS-named accuracy moves off
+51.5% — UP by 45.5 points to 97.0%, intervals non-overlapping — while IPC-named
+collapses 97.0% -> 0.0%, below chance, all 33 landing in the CrPC. The two
+retrievers fail on opposite halves of the same 66 queries.
+
+**MECHANISM, MEASURED NOT INFERRED.** `sanhita` occurs in 30 chunks, all BNS,
+idf 4.12 — the 2023 BNS names itself in its operative text. `penal` occurs in
+82 CrPC chunks against 23 IPC, idf 2.79 — the 1860 IPC never names itself, so
+"Indian Penal Code" is lexically a *CrPC* phrase, appearing there only as
+cross-references.
+
+**The IPC cannot be found by its own name in this corpus.** That is a property
+of statutory drafting and statute age, not of any retriever, and it is the
+paper's real contribution.
+
+**Fusion made it worse.** Reciprocal Rank Fusion (Cormack, Clarke and Buttcher,
+SIGIR 2009, k=60) scores 62.1% pooled against dense 74.2%, and Recall@15 0.531
+against dense 0.558. Averaging two complementary failure modes produces a system
+that fails at both. No reweighting of these two signals fixes both halves —
+independent support for an explicit statute-and-date resolution layer, i.e. for
+the Phase H mapper.
+
+Recall@15 per set (binary, compressed convention), n=518 unique queries:
+
+| set | n | dense | bm25 | hybrid |
+|---|---|---|---|---|
+| generated | 200 | 0.645 | 0.635 | 0.650 |
+| paired_recodification | 99 | **0.737** | 0.576 | 0.717 |
+| paired_dated_conflict | 99 | **0.697** | 0.434 | 0.616 |
+| layman | 120 | **0.150** | 0.025 | 0.108 |
+| ALL | 518 | **0.558** [0.515, 0.600] | 0.444 | 0.531 |
+
+Pooled MRR@15: dense 0.4245, bm25 0.2967, hybrid 0.4059. nDCG@15: 0.4564 /
+0.3319 / 0.4362.
+
+Tokenisation rule (the crux — a tokeniser that strips numerals destroys the only
+signal BM25 has here): lowercase, normalise unicode dashes and quotes, scan
+`\d+[a-z]{0,2}(?:\([0-9a-z]+\))*|[a-z]+`, then expand each numeric to its
+statutory ancestors. `318(4)` -> `318(4), 318`; `304b` -> `304b, 304`;
+`498a(1)(b)` -> `498a(1)(b), 498a(1), 498a, 498`. Expansion is required because
+headings are bare (`Section 318.`) while queries cite subsections; applied
+identically to documents and queries so matching stays symmetric. The bare
+subsection digit is deliberately NOT emitted — near-zero idf, no recall gained,
+noise in length normalisation. Index: 1,899 documents, 6,355 distinct tokens,
+mean 156.3 tokens per chunk.
+
+### NEW AND IMPORTANT — the gold-reachability ceiling
+
+**22 of the 33 BNS-named gold labels name subsections (`BNS 318(4)`) that the
+index records only as bare sections (`318`).** Under strict `same_section` those
+are unreachable by ANY retriever.
+
+| Set | Ceiling |
+|---|---|
+| **BNS-named** | **11/33 = 0.333** |
+| paired_recodification | 75/99 |
+| paired_dated_conflict | 73/99 |
+| layman | 96/120 |
+| **pooled** | **444/518 = 0.857** |
+
+Gold-section recall on BNS-named: dense 11/33 and hybrid 11/33 — **both
+saturate the ceiling exactly**; bm25 10/33. On the reachable subset, dense
+retrieval is perfect.
+
+**CORRECTION TO A NUMBER I PUBLISHED AT THE GATE.** I reported BNS-named gold
+recall of 11/33 = 33.3% and presented it as a retrieval failure. **It is the
+ceiling, not a failure.** Any recall figure on that subset must be quoted
+against 0.333, not 1.0.
+
+The two headline figures are UNAFFECTED: 97.0% and 51.5% measure which BOOK was
+retrieved, not which section, so subsection granularity does not touch them.
+
+Reported, not repaired — patching gold labels is forbidden on this project.
+Pinned as invariant C6 in `check07`.
+
+Honest caveat S2 raised itself: BM25's IPC 0.0% is a TAIL effect. On query P0001
+it puts the correct IPC section at rank 1, but ranks 6-15 flood with CrPC
+cross-references, so dominant-corpus scores it zero. Dominant-corpus is a coarse
+instrument and must be quoted alongside top-1, where BM25 gets IPC 45.5%.
+
+`paired_dated_conflict` is 99 queries here, not 197 rows: per `app.py` the
+date/mapper intervention acts ONLY by rewriting `plan.target_corpora`, so with
+the corpus filter disabled it is a no-op for retrieval.
+
+**17 paired checks, all passing.** A second BM25 written from the Okapi formula
+in plain Python reproduces 32/33 and 0/33 exactly. A second tokeniser built by
+character scan rather than regex agrees on 52 real chunks. The dense arm
+reproduces `ablate_filter.py`'s published 32/33, 17/33, 30/33, 14/33
+query-for-query. RRF verified against a hand-computed toy worked out on paper
+before the code was written; single-list RRF is the identity on all 66 real
+dense lists.
+
+Clustered CI collapsed on pooled-66 BM25 — [0.455, 0.500] against naive
+[0.368, 0.603], design effect **0.19** — because BM25 scores exactly one of
+every pair right, so every cluster contributes an identical 1/2. Expected, per
+Wave 2's note on contrastive variants.
+
+RRF margins can be minute: on P0002 the correct chunk won by 0.0000084.
+
+### S1 — statute_consistency, the fourth confidence signal
+
+Built as specified in `docs/TARGET_ARCHITECTURE.md` and never previously
+implemented: the fraction of retrieved chunks whose `statute_code` lies in the
+set implied by the query plus its date.
+
+`retrieved@k` at `raw_15`, primary variant:
+
+| Scope | n | AUROC | clustered CI | vs composite | vs max_score |
+|---|---|---|---|---|---|
+| **ALL** | 617 | **0.685** | [0.659, 0.709] | +0.021 p=0.50 | **-0.099** p=0.0002 |
+| **paired_dated_conflict** | 197 | **0.830** | [0.797, 0.867] | **+0.359** p<1e-4 | **+0.174** p=0.0008 |
+| layman | 120 | 0.566 | [0.474, 0.675] | -0.005 p=0.98 | +0.014 p=0.87 |
+| generated | 198 | 0.500 | constant | -0.373 p<1e-4 | -0.380 p<1e-4 |
+| paired_recodification | 99 | 0.500 | constant | +0.147 p=0.038 | -0.235 p=0.0002 |
+
+`reranked_15` is identical to `raw_15` by construction — a fraction over a SET
+ignores order. `filtered_n` pooled 0.658; dated 0.806.
+
+Four-row ablation picture at `raw_15`, `retrieved@k`, n=617:
+max_score 0.784 > top_k_mean 0.757 > **statute_consistency 0.685** >
+composite 0.663 > entity_coverage 0.581 > deployed gap_term 0.270.
+The five pre-existing rows reproduce `ablation.csv` to 0.00e+00.
+
+**VERDICT: pooled, it does NOT beat the generic signals.** It ties the composite
+(p=0.50) and loses to `max_score` (p=0.0002).
+
+**Conditionally, it is the only signal that works.** On the 197 dated-conflict
+queries the deployed composite is BELOW CHANCE at 0.471 and statute_consistency
+reaches 0.830.
+
+**And S1 diagnosed why it looks weaker than it is.** On 343 of 617 rows the
+Qdrant corpus filter was derived from the SAME query-plus-date inputs, so the
+signal cannot fail by construction — it is measuring the output of a mechanism
+built from its own inputs. Variants restricted to deployed information alone are
+CONSTANT at 1.0, AUROC 0.5, no information. The signal earns its keep only where
+the filter follows the NAMED code while the DATE disagrees, which is exactly the
+dated-conflict set.
+
+**A confidence signal placed downstream of a filter built from the same inputs
+is a tautology.** That is an architectural finding, and it belongs in the paper.
+
+Worked example D0001: composite 0.7895 (logged HIGH), entity_coverage 1.0, all
+15 retrieved chunks IPC, gold `BNS 190` never retrieved, and
+statute_consistency **0.000**. One row that shows the whole argument.
+
+ECE 0.319 pooled against composite 0.241 and max_score 0.127 — flagged in-file
+as a category reading, since this is a consistency FRACTION, not a probability.
+
+Oracle variant reaches only 0.704, a mere +0.019 over the deployable version, so
+the gap is not an implementation shortfall.
+
+### entity_coverage recomputed from the payload, and GAPS.md corrected
+
+| | logged substring match | payload `section_number` |
+|---|---|---|
+| mean | 0.5778 | 0.5494 |
+| AUROC pooled | 0.5806 | **0.6050** (paired +0.0245) |
+| AUROC generated | 0.8799 | **0.9854** (paired **+0.1055**) |
+
+18 of 617 rows change, all downward.
+
+**Wave 2's correction is fully confirmed by an independent route.** Values take
+only {0, 0.5, 1.0}; maximum is 1.0; there is no free 0.30 default (the neutral
+constant is 0.5, contributing 0.5 x 0.30 = 0.15); pooled AUROC 0.580565; 43.27%
+sit at the constant; 120 of 120 layman rows are exactly 0.500; recodification
+0.385669. **`docs/GAPS.md` #1 and #2 describe PRE-FIX code and must be marked as
+superseded.**
+
+### The normaliser artefact rate — and why the scary number is not the story
+
+3,302 rewrites; 100 sampled without replacement, `default_rng(20260901)`:
+
+| Class | k/100 | 95% Wilson |
+|---|---|---|
+| genuine section heading | 36 | [0.273, 0.458] |
+| contents/index row | 47 | [0.375, 0.567] |
+| footnote, digits not a section at all | 17 | [0.109, 0.255] |
+| **artefact, strict** | **64** | **[0.542, 0.727]** |
+
+**But only 1 of those 64 survives into Qdrant.** `is_contents_entry()` and
+`footnote_verdict()` catch 63. **Both numbers must be reported** — quoting 64%
+alone badly overstates the harm.
+
+**SURPRISE: the entity_coverage false matches are not normaliser artefacts at
+all.** All 17 are statutory CROSS-REFERENCES. Example:
+`Section 454. Appeal against orders under section 452 or section 453` matches a
+query for s.452. The briefed hypothesis — page numbers and list items — is
+WRONG. The cause is 160-year-old drafting convention.
+
+### Paired checks
+
+`check06` PASSED. Mean statute_consistency at `filtered_n` computed from the raw
+`runs/*/queries.jsonl` `retrieval.chunks[*].corpus` field matches the
+`stages.jsonl` replay to **0.000000 on every query set**. At chunk level, 6
+differing chunks in 5,879 slots (0.102%, 5 rows), every `req_id` printed —
+consistent with Wave 2's one-in-608 cosine-tie note, and the means are unchanged
+because the differing chunks fall inside the same admissible set. The 3,302
+population was re-derived by two further regex routes. exp04 AUROCs reproduce
+exactly, pooled and per set.
+
+`check06` failed twice before passing, both faults S1's own: a dedupe ordering
+that differed from `load_logs()`, and a notes parser that let layman values
+masquerade as pooled ones. Documented in its section 6. One reconstruction
+mismatch remains, a single stale pre-`ENTITY_NEUTRAL` log row
+(`req_id=40bd347de051`), named in the CSV. Nothing was tuned after seeing an
+AUROC, so no train/test refit was required.
+
+### Next
+
+Wave 4 — assemble. Concatenate all eight CSVs into `results/RESULTS.md`, verify
+every referenced path exists, confirm `results/EXPLAIN.md` carries one complete
+block per output file, and list separately: every number that CHANGED from what
+`README.md` publishes, every failed assertion, and everything that could not be
+computed.
+
+Carry into Wave 4 as explicit agenda items:
+- the gold-reachability ceiling, and the correction to the gate's 33.3% figure
+- `docs/GAPS.md` #1 and #2 describe pre-fix code and are superseded
+- the three `cited` values (533 logged / 538 re-parsed / 587 lenient)
+- the 3 dropped labelled rows, n=617 vs 620, disclosed not fixed
+- `ranked_sections()` rank compression, which inflates every k<15 figure

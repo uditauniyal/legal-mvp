@@ -9834,3 +9834,1269 @@ echo
 echo "=== explanation blocks: 8 headings each ==
 … [truncated, 460 more chars]
 ```
+
+`2026-09-01 15:06:28` · **cmd** — Merge blocks, append worklog, commit Wave 2
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"
+# merge the five blocks into EXPLAIN.md
+for n in 1 2 3 4 5; do
+  { echo; echo "---"; echo; cat "results/_explain_w2_s${n}.md"; } >> results/EXPLAIN.md
+done
+rm results/_explain_w2_s*.md
+cat "$SP/w2_worklog.md" >> docs/WORKLOG.md
+git add -A && git commit -q -F "$SP/w2msg.txt"
+echo "EXPLAIN.md: $(wc -l < results/EXPLAIN.md) lines, $(grep -c '^## ' results/EXPLAIN.md) blocks"
+git log --oneline -1
+echo "uncommitted: $(git status --porcelain | wc -l)"
+```
+
+### 2026-09-01 15:27:26 · prompt
+
+Two decisions.
+
+1. rank_bm25: install it with `pip install rank_bm25 --no-deps`. The
+   --no-deps flag means pip cannot upgrade or touch any other package,
+   so it cannot repeat the starlette/fastapi breakage. Verify fastapi
+   still imports afterwards, then proceed.
+
+2. The 3 dropped rows (G0107, G0190, D0094): leave them. I agree with
+   your reasoning. n=617 stands, disclosed as a limitation. Do not
+   re-run six CSVs for 0.5%.
+
+Then run Wave 3.
+
+`2026-09-01 15:28:38` · **cmd** — Verify fastapi, the server module, and BM25 all work
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import fastapi, starlette, pydantic, qdrant_client, rank_bm25
+from qdrant_client import QdrantClient
+print('fastapi   ', fastapi.__version__)
+print('starlette ', starlette.__version__)
+print('pydantic  ', pydantic.VERSION)
+print('qdrant_client imports, QdrantClient OK')
+from rank_bm25 import BM25Okapi
+b = BM25Okapi([['section','420','ipc'],['section','318','bns']])
+print('BM25Okapi works, scores:', b.get_scores(['420']).round(3).tolist())
+import app
+print('app.py imports OK -- the server module still loads')
+"
+echo "--- suite ---"
+./ve
+… [truncated, 56 more chars]
+```
+
+`2026-09-01 15:29:13` · **cmd** — Check the statute_consistency spec and BM25 text availability
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== the spec for statute_consistency ==="
+if [ -f docs/TARGET_ARCHITECTURE.md ]; then sed -n '344,362p' docs/TARGET_ARCHITECTURE.md; else echo "TARGET_ARCHITECTURE.md MISSING"; grep -rl "statute_consistency" docs/ 2>/dev/null; fi
+echo
+echo "=== is full chunk text available for a BM25 index? ==="
+curl -s -m 10 -X POST http://127.0.0.1:6333/collections/legal_mvp/points/scroll -H 'Content-Type: application/json' -d '{"limit":1,"with_payload":true}' | ./venv/Scripts/python.exe -c "
+import sys,json
+d=json.load(sys.stdin)['result']['points'][0]['payload']
+print('pay
+… [truncated, 112 more chars]
+```
+
+`2026-09-01 15:30:22` · **cmd** — List repo structure
+```bash
+ls && echo "---EXPERIMENTS---" && ls experiments/ && echo "---RESULTS---" && ls results/ 2>/dev/null && echo "---DOCS---" && ls docs/
+```
+
+`2026-09-01 15:30:23` · **cmd** — List runs and eval dirs
+```bash
+git branch --show-current 2>/dev/null; echo "(branch check only)"; ls runs/ 2>/dev/null | head -30; echo "---EVAL---"; ls eval/ 2>/dev/null | head -30
+```
+
+`2026-09-01 15:30:32` · **cmd** — Read metrics_lib header
+```bash
+wc -l experiments/metrics_lib.py && sed -n '1,200p' experiments/metrics_lib.py
+```
+
+`2026-09-01 15:30:33` · **cmd** — Read experiments SCHEMA.md
+```bash
+cat experiments/SCHEMA.md
+```
+
+`2026-09-01 15:30:39` · **cmd** — Read rest of metrics_lib
+```bash
+sed -n '200,568p' experiments/metrics_lib.py
+```
+
+`2026-09-01 15:30:47` · **cmd** — Find statute_consistency spec
+```bash
+grep -n -i -B5 -A25 'statute_consistency' docs/TARGET_ARCHITECTURE.md | head -120
+```
+
+`2026-09-01 15:30:48` · **cmd** — Peek stages.jsonl
+```bash
+head -c 2000 experiments/stages.jsonl && echo && echo "---LINECOUNT---" && wc -l experiments/stages.jsonl
+```
+
+`2026-09-01 15:30:57` · **cmd** — Read exp04 ablation start
+```bash
+sed -n '1,120p' experiments/exp04_ablation.py
+```
+
+`2026-09-01 15:30:58` · **cmd** — Peek ablation.csv
+```bash
+head -3 results/ablation.csv && echo "..." && cat results/ablation.csv | head -30
+```
+
+`2026-09-01 15:31:01` · **cmd** — List experiments, results, scripts
+```bash
+ls experiments/ results/ scripts/ 2>&1 | head -60
+```
+
+`2026-09-01 15:31:12` · **cmd** — Read ablate_filter.py
+```bash
+cat scripts/ablate_filter.py
+```
+
+`2026-09-01 15:31:13` · **cmd** — List eval and runs
+```bash
+ls eval/ && echo "---" && ls runs/ | head -40
+```
+
+`2026-09-01 15:31:19` · **cmd** — Load logs summary
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import *
+import pandas as pd, json, collections
+df = load_logs()
+print('rows', len(df), 'before', df.attrs['rows_before_dedupe'])
+print(df['query_set'].value_counts(dropna=False))
+print('pair_id null', df['pair_id'].isna().sum())
+print(df['expected_corpus'].value_counts(dropna=False))
+"
+```
+
+`2026-09-01 15:31:23` · **cmd** — Read exp01_retrieval.py
+```bash
+cat experiments/exp01_retrieval.py
+```
+
+`2026-09-01 15:31:28` · **cmd** — Inspect era/router/mapper fields
+```bash
+./venv/Scripts/python.exe -c "
+import json,collections
+from pathlib import Path
+rows=[]
+for f in Path('runs').rglob('queries.jsonl'):
+    for line in f.read_text(encoding='utf-8').splitlines():
+        if line.strip():
+            try: rows.append(json.loads(line))
+            except: pass
+print(len(rows))
+srv={r['req_id']:r for r in rows if r.get('req_id')}
+print('uniq',len(srv))
+c=collections.Counter((r.get('date') or {}).get('era') for r in srv.values()); print('era',c)
+c=collections.Counter((r.get('date') or {}).get('mode') for r in srv.values()); print('mode',c)
+c=collections.Counter((r.g
+… [truncated, 336 more chars]
+```
+
+`2026-09-01 15:31:31` · **cmd** — Peek query sets
+```bash
+head -c 1200 eval/paired_queryset.jsonl; echo; echo "=== counts"; for f in eval/*.jsonl; do echo "$f $(wc -l < $f)"; done
+```
+
+`2026-09-01 15:31:51` · **cmd** — Inspect query set schemas
+```bash
+for f in eval/generated_queryset.jsonl eval/layman_queryset.jsonl eval/paired_queryset.jsonl eval/paired_dated_queryset.jsonl eval/queryset.jsonl; do echo "=== $f  ($(wc -l < $f) rows)"; head -1 $f | ./venv/Scripts/python.exe -c "import sys,json; d=json.loads(sys.stdin.read()); [print(' ',k,'=',repr(v)[:140]) for k,v in d.items()]"; done
+```
+
+`2026-09-01 15:33:02` · **cmd** — Read openai client
+```bash
+sed -n 1,200p clients/openai_client.py
+```
+
+`2026-09-01 15:33:07` · **cmd** — Query set field distributions
+```bash
+./venv/Scripts/python.exe -c "
+import sys,json,collections; sys.path.insert(0,'.')
+from experiments.metrics_lib import load_queryset
+from pathlib import Path
+for f in ['generated','layman','paired','paired_dated']:
+    df=load_queryset(Path('eval')/(f+'_queryset.jsonl'))
+    print('===',f,len(df))
+    for c in ['category','variant','expected_corpus','applicable_regime','date_stated','gold_mode','numbering_scheme','conflict']:
+        if c in df: print('  ',c,dict(df[c].astype(str).value_counts()))
+    if 'expected_corpora' in df: print('   expected_corpora',collections.Counter(tuple(x) if isin
+… [truncated, 57 more chars]
+```
+
+`2026-09-01 15:33:11` · **cmd** — Read qdrant client, verify rank_bm25
+```bash
+cat clients/qdrant_client.py && ./venv/Scripts/python.exe -c "import rank_bm25, sys; print(rank_bm25.__file__); print(sys.version)"
+```
+
+`2026-09-01 15:33:27` · **cmd** — Check Qdrant collection
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from clients.qdrant_client import qdrant, COLLECTION
+c=qdrant()
+print(COLLECTION, c.count(COLLECTION))
+pts,_=c.scroll(collection_name=COLLECTION, limit=2, with_payload=True, with_vectors=False)
+import json
+for p in pts:
+    d=dict(p.payload)
+    d['text']=d.get('text','')[:200]+'...'
+    print(json.dumps(d, indent=1, default=str)[:1500])
+"
+```
+
+### 2026-09-01 15:33:34 · prompt
+
+sorrt thongs stopped
+
+`2026-09-01 15:33:47` · **cmd** — Inspect all query sets
+```bash
+./venv/Scripts/python.exe -c "
+import json,collections
+for f in ['generated_queryset','layman_queryset','paired_dated_queryset','paired_queryset','queryset']:
+    rows=[json.loads(l) for l in open('eval/%s.jsonl'%f,encoding='utf-8') if l.strip()]
+    print(f, len(rows), 'keys:', sorted(rows[0].keys()))
+    print('  categories:', collections.Counter(r.get('category') for r in rows))
+    print('  variants:', collections.Counter(r.get('variant') for r in rows))
+    print('  sample:', json.dumps(rows[0])[:400])
+"
+```
+
+`2026-09-01 15:33:48` · **cmd** — Field availability in server logs
+```bash
+./venv/Scripts/python.exe -c "
+import json,collections
+from pathlib import Path
+srv={}
+for f in Path('runs').rglob('queries.jsonl'):
+    for line in f.read_text(encoding='utf-8').splitlines():
+        if line.strip():
+            try:
+                r=json.loads(line); srv[r['req_id']]=r
+            except: pass
+print('n',len(srv))
+def g(r,*ks):
+    d=r
+    for k in ks:
+        d=(d or {}).get(k)
+    return d
+print('named_statutes', collections.Counter(tuple(g(r,'retrieval','named_statutes') or []) for r in srv.values()).most_common(15))
+print('unavailable', collections.Counter(tuple(g(r,'ret
+… [truncated, 576 more chars]
+```
+
+`2026-09-01 15:33:55` · **cmd** — Check Wave 3 progress and repo integrity
+```bash
+cd /c/Users/uniya/legal-mvp
+date "+now: %H:%M:%S"
+echo "=== Wave 3 files ==="
+for f in experiments/exp06_statute_consistency.py experiments/check06_statute_check.py results/statute_consistency.csv results/_explain_w3_s1.md experiments/exp07_hybrid.py experiments/check07_hybrid_check.py results/hybrid_comparison.csv results/_explain_w3_s2.md; do
+  if [ -f "$f" ]; then printf "  %-48s %8s bytes  %s\n" "$f" "$(stat -c%s "$f")" "$(stat -c%y "$f" | cut -d' ' -f2 | cut -d. -f1)"; else printf "  %-48s -- not yet\n" "$f"; fi
+done
+echo
+echo "=== repo state (committed work is safe) ==="
+git log --onelin
+… [truncated, 34 more chars]
+```
+
+`2026-09-01 15:34:04` · **cmd** — Find intervention mechanism
+```bash
+grep -rn "intervention" --include=*.py agents/ core/ scripts/ app.py 2>/dev/null | head -30; echo "=== date mode"; grep -rn "def .*date\|date_mode\|\"mode\"" core/*.py agents/*.py | head -30
+```
+
+`2026-09-01 15:34:13` · **cmd** — Read app.py intervention block
+```bash
+sed -n 150,240p app.py
+```
+
+`2026-09-01 15:34:15` · **cmd** — Join logs to date/router fields
+```bash
+./venv/Scripts/python.exe -c "
+import sys,json,collections; sys.path.insert(0,'.')
+sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs, load_stages
+from pathlib import Path
+import pandas as pd
+srv={}
+for f in Path('runs').rglob('queries.jsonl'):
+    for line in f.read_text(encoding='utf-8').splitlines():
+        if line.strip():
+            try:
+                r=json.loads(line); srv[r['req_id']]=r
+            except: pass
+df=load_logs()
+def get(rid,*ks):
+    d=srv.get(rid)
+    for k in ks: d=(d or {}).get(k)
+    return d
+df['era']=[get(r,'date','era') for r in df.req_id]
+df[
+… [truncated, 570 more chars]
+```
+
+`2026-09-01 15:34:23` · **cmd** — Read retriever
+```bash
+sed -n 1,140p agents/retriever.py
+```
+
+`2026-09-01 15:34:29` · **cmd** — Read retriever search part
+```bash
+sed -n 140,260p agents/retriever.py
+```
+
+`2026-09-01 15:34:40` · **cmd** — Check rewritten_query
+```bash
+grep -n "rewritten_query" agents/router.py | head -20
+```
+
+`2026-09-01 15:34:41` · **cmd** — Peek stages.jsonl
+```bash
+head -c 600 experiments/stages.jsonl; echo; wc -l experiments/stages.jsonl
+```
+
+`2026-09-01 15:34:46` · **cmd** — Read router rewrite
+```bash
+sed -n 130,170p agents/router.py
+```
+
+`2026-09-01 15:34:51` · **cmd** — Stage chunk stats
+```bash
+./venv/Scripts/python.exe -c "
+import sys,json,collections; sys.path.insert(0,'.')
+from experiments.metrics_lib import load_stages, STAGES
+st=load_stages()
+c=collections.Counter(); n=collections.Counter(); ns=collections.Counter()
+lens=collections.Counter()
+for rid,d in st.items():
+    for s in STAGES:
+        lens[(s,len(d[s]))]+=0
+        n[s]+=len(d[s])
+        for ch in d[s]:
+            if s=='raw_15': c[ch.get('corpus')]+=1
+            if s=='raw_15': ns[ch.get('section_number') is None or ch.get('section_number')=='']+=1
+print('chunk counts per stage', dict(n))
+print('corpus in raw_15',
+… [truncated, 392 more chars]
+```
+
+`2026-09-01 15:35:12` · **cmd** — Scroll Qdrant payload (read-only)
+```bash
+./venv/Scripts/python.exe -c "
+from qdrant_client import QdrantClient
+import collections
+c=QdrantClient(url='http://127.0.0.1:6333')
+print([x.name for x in c.get_collections().collections])
+info=c.get_collection('legal_mvp'); print('points', info.points_count)
+pts,off=c.scroll('legal_mvp', limit=2000, with_payload=True, with_vectors=False)
+print('scrolled', len(pts))
+print('keys', sorted(pts[0].payload.keys()))
+cc=collections.Counter((p.payload.get('corpus'), p.payload.get('statute_code')) for p in pts)
+print('corpus x statute_code', cc.most_common())
+print('doc_name', collections.Counter(p.pa
+… [truncated, 444 more chars]
+```
+
+`2026-09-01 15:36:11` · **cmd** — Read retriever entity_coverage
+```bash
+grep -n 'entity_coverage\|ENTITY_NEUTRAL\|def _entity\|boost_terms' agents/retriever.py | head -40; echo "=== context ==="; sed -n '80,150p' agents/retriever.py
+```
+
+`2026-09-01 15:36:12` · **cmd** — Find section normaliser in ingest
+```bash
+grep -rn 'Section \|section_number\|normalis\|normaliz' ingest/chunk.py | head -40
+```
+
+`2026-09-01 15:36:17` · **cmd** — Scroll corpus, inspect section numbers
+```bash
+./venv/Scripts/python.exe -c "
+import sys,re; sys.path.insert(0,'.')
+from clients.qdrant_client import qdrant, COLLECTION
+c=qdrant()
+pts,off=c.scroll(collection_name=COLLECTION, limit=2000, with_payload=True, with_vectors=False)
+print(len(pts), off)
+import collections
+print(collections.Counter(p.payload.get('corpus') for p in pts))
+# look for subsection-heavy text
+for p in pts:
+    t=p.payload.get('text','')
+    if '(4)' in t and 'Section 3' in t:
+        print(repr(t[:300])); break
+print('---section_number samples---')
+sns=[p.payload.get('section_number') for p in pts]
+print(collections.Count
+… [truncated, 114 more chars]
+```
+
+`2026-09-01 15:36:21` · **cmd** — Read normaliser regex
+```bash
+sed -n '35,110p' ingest/chunk.py
+```
+
+`2026-09-01 15:36:31` · **cmd** — Find PDF extraction code
+```bash
+ls ingest/ data/ && echo "=== extract ===" && sed -n '1,60p' ingest/extract.py 2>/dev/null || grep -rn 'fitz\|pdfplumber\|PyPDF\|extract_text' ingest/*.py | head -20
+```
+
+`2026-09-01 15:36:43` · **cmd** — Locate source PDFs
+```bash
+find . -iname '*.pdf' -not -path './venv/*' 2>/dev/null | head -20; echo "==="; grep -rn 'PDF_DIR\|pdf_dir\|glob.*pdf\|\.pdf' scripts/ingest_cli_debug.py 2>/dev/null | head
+```
+
+`2026-09-01 15:37:00` · **cmd** — Find corpus PDF location
+```bash
+sed -n '1,40p' scripts/ingest_cli_debug.py; echo "=== search for source pdfs anywhere ==="; ls -la x 2>/dev/null | head; find / -maxdepth 4 -iname 'Bharatiya_Nyaya_Sanhita*' 2>/dev/null | head
+```
+
+`2026-09-01 15:37:05` · **cmd** — Check tests/data for PDFs
+```bash
+ls -la tests/ 2>/dev/null; ls -la tests/data 2>/dev/null | head -20
+```
+
+`2026-09-01 15:37:49` · **cmd** — Time bootstrap functions
+```bash
+./venv/Scripts/python.exe -c "
+import sys,time; sys.path.insert(0,'.')
+import numpy as np
+from experiments.metrics_lib import auroc_bootstrap_ci, paired_bootstrap_auroc_diff, N_BOOT
+rng=np.random.default_rng(0)
+s=rng.random(617); y=(rng.random(617)<0.5).astype(int)
+t=time.time(); auroc_bootstrap_ci(s,y); print('boot ci', round(time.time()-t,2))
+t=time.time(); paired_bootstrap_auroc_diff(s,rng.random(617),y); print('paired', round(time.time()-t,2))
+c=rng.integers(0,177,617)
+t=time.time(); auroc_bootstrap_ci(s,y,cluster_ids=c); print('cluster', round(time.time()-t,2))
+"
+```
+
+`2026-09-01 15:38:15` · **cmd** — Check queryset join coverage
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs, load_queryset
+from pathlib import Path
+import pandas as pd
+df=load_logs()
+df=df[df.expected_sections.map(len)>0].reset_index(drop=True)
+print('gold rows',len(df))
+qs={}
+for f in Path('eval').glob('*_queryset.jsonl'):
+    d=load_queryset(f)
+    for r in d.to_dict('records'):
+        qs[r['query_id']]=r
+print('queryset rows',len(qs))
+miss=[q for q in df.query_id if q not in qs]
+print('unjoined',len(miss), miss[:10])
+import collections
+print(collections.Counter(qs[q].get('applicable_re
+… [truncated, 151 more chars]
+```
+
+`2026-09-01 15:38:39` · **cmd** — Read retriever pipeline order
+```bash
+sed -n '155,300p' agents/retriever.py
+```
+
+`2026-09-01 15:38:46` · **cmd** — Read rerun_stages header
+```bash
+sed -n '1,80p' experiments/rerun_stages.py
+```
+
+`2026-09-01 15:39:12` · **cmd** — Test tokeniser
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.exp07_hybrid import tokenise, expand_numeric
+ex=['Section 318(4).','What is BNS 304B?','Section 41A CrPC','s. 498A(1)(b)','Punishment for murder under Section 302 IPC','Section 373. Appeal from orders requiring securityâ€”Any person,â€”','the Bharatiya Nyaya Sanhita, 2023','420']
+for e in ex: print(repr(e),'->',tokenise(e))
+print()
+for t in ['318(4)','304b','41a','498a(1)(b)','318','2023','420']: print(t,'->',expand_numeric(t))
+"
+```
+
+`2026-09-01 15:39:14` · **cmd** — Count normaliser rewrites across PDFs
+```bash
+./venv/Scripts/python.exe -c "
+import sys,re; sys.path.insert(0,'.')
+import fitz
+from ingest.chunk import SECTION_NORMALISE
+from pathlib import Path
+tot=0
+for p in sorted(Path('tests/data').glob('*.pdf')):
+    doc=fitz.open(str(p)); n=0
+    for i in range(doc.page_count):
+        t=doc.load_page(i).get_text('text') or ''
+        n+=len(SECTION_NORMALISE.findall(t))
+    print(p.name, doc.page_count, 'rewrites', n); tot+=n
+print('total',tot)
+"
+```
+
+`2026-09-01 15:39:38` · **cmd** — Dry run BM25 half
+```bash
+./venv/Scripts/python.exe -c "
+import sys,time,collections; sys.path.insert(0,'.')
+from experiments.exp07_hybrid import load_corpus, build_bm25, bm25_topn, tokenise
+t=time.time(); docs=load_corpus(); print('scroll',len(docs), round(time.time()-t,1),'s')
+t=time.time(); bm25,tok=build_bm25(docs); print('index',len(tok), round(time.time()-t,1),'s')
+q='What is the punishment for unlawful assembly - common object under Section 190 of the Bharatiya Nyaya Sanhita?'
+t=time.time(); ix=bm25_topn(bm25,q,15); print('search',round(time.time()-t,3),'s')
+for j in ix[:8]:
+    d=docs[j]; print(' ',d.get('corpu
+… [truncated, 143 more chars]
+```
+
+`2026-09-01 15:39:40` · **cmd** — Draw and print 100-line sample
+```bash
+cat > "$TMPDIR/sample.py" 2>/dev/null; ./venv/Scripts/python.exe - <<'PY'
+import sys, json, re
+sys.path.insert(0,'.')
+import fitz, numpy as np
+from ingest.chunk import SECTION_NORMALISE
+from pathlib import Path
+
+SEED=20260901
+pop=[]
+for p in sorted(Path('tests/data').glob('*.pdf')):
+    doc=fitz.open(str(p))
+    for i in range(doc.page_count):
+        t=doc.load_page(i).get_text('text') or ''
+        lines=t.split('\n')
+        for ln_i,ln in enumerate(lines):
+            m=SECTION_NORMALISE.match(ln)
+            # SECTION_NORMALISE is (?m)^ anchored; match per-line reproduces it
+            i
+… [truncated, 746 more chars]
+```
+
+`2026-09-01 15:43:46` · **cmd** — Run exp07
+```bash
+./venv/Scripts/python.exe experiments/exp07_hybrid.py 2>&1 | tail -120
+```
+
+`2026-09-01 15:44:17` · **cmd** — Document frequency of key tokens by corpus
+```bash
+./venv/Scripts/python.exe -c "
+import sys,collections; sys.path.insert(0,'.')
+from experiments.exp07_hybrid import load_corpus, tokenise
+docs=load_corpus()
+tok=[set(tokenise(d.get('text') or '')) for d in docs]
+corp=[d.get('corpus') for d in docs]
+def df(t):
+    c=collections.Counter(cp for cp,ts in zip(corp,tok) if t in ts)
+    return dict(c), sum(c.values())
+for t in ['penal','indian','code','sanhita','bharatiya','nyaya','149','190','302','103']:
+    d,n=df(t); print('%-10s total=%4d  %s' % (t,n,d))
+"
+```
+
+`2026-09-01 15:44:30` · **cmd** — Smoke run with tiny bootstrap
+```bash
+SP="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && ./venv/Scripts/python.exe - <<'PY'
+from pathlib import Path
+sp = Path("C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad")
+src = Path("experiments/exp06_statute_consistency.py").read_text(encoding="utf-8")
+patch = """
+# SMOKE PATCH -- scratchpad copy only
+auroc_bootstrap_ci.__defaults__ = (40, SEED, None)
+paired_bootstrap_auroc_diff.__defaults__ = (40, SEED, None)
+cluster_bootstrap.__defaults__ = (40, SEED)
+"""
+… [truncated, 511 more chars]
+```
+
+`2026-09-01 15:44:49` · **cmd** — Build worked example
+```bash
+./venv/Scripts/python.exe -c "
+import sys,collections,json; sys.path.insert(0,'.')
+import experiments.exp07_hybrid as E
+from experiments.metrics_lib import load_queryset
+docs=E.load_corpus(); bm25,_=E.build_bm25(docs)
+from clients.qdrant_client import qdrant, COLLECTION
+cl=qdrant(); id2ix={d['_point_id']:i for i,d in enumerate(docs)}
+qs=load_queryset('eval/paired_queryset.jsonl')
+rows=[r for r in qs.to_dict('records') if r['variant']=='bns_numbered']
+vecs,tk=E.embed_queries([r['text'] for r in rows]); print('tokens charged',tk)
+import numpy as np
+fails=[]
+for r,v in zip(rows,vecs):
+    d=E.den
+… [truncated, 1148 more chars]
+```
+
+`2026-09-01 15:44:50` · **cmd** — Smoke run v2
+```bash
+./venv/Scripts/python.exe - <<'PY'
+from pathlib import Path
+sp = Path("C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad")
+src = Path("experiments/exp06_statute_consistency.py").read_text(encoding="utf-8")
+src = src.replace('sys.path.insert(0, str(Path(__file__).resolve().parents[1]))',
+                  'sys.path.insert(0, r"C:\\Users\\uniya\\legal-mvp")', 1)
+src = src.replace('ROOT = Path(__file__).resolve().parents[1]',
+                  'ROOT = Path(r"C:\\Users\\uniya\\legal-mvp")', 1)
+marker = 'OUT = ROOT / "results" / "statu
+… [truncated, 475 more chars]
+```
+
+`2026-09-01 15:45:17` · **cmd** — Read rank_bm25 source
+```bash
+sed -n 1,140p venv/Lib/site-packages/rank_bm25.py
+```
+
+`2026-09-01 15:45:29` · **cmd** — Smoke run v3
+```bash
+./venv/Scripts/python.exe - <<'PY'
+from pathlib import Path
+sp = Path("C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad")
+R = "C:/Users/uniya/legal-mvp"
+src = Path("experiments/exp06_statute_consistency.py").read_text(encoding="utf-8")
+src = src.replace('sys.path.insert(0, str(Path(__file__).resolve().parents[1]))',
+                  'sys.path.insert(0, "%s")' % R, 1)
+src = src.replace('ROOT = Path(__file__).resolve().parents[1]',
+                  'ROOT = Path("%s")' % R, 1)
+marker = 'OUT = ROOT / "results" / "statute_consistenc
+… [truncated, 469 more chars]
+```
+
+`2026-09-01 15:46:19` · **cmd** — Diagnose entity_coverage reconstruction
+```bash
+./venv/Scripts/python.exe - <<'PY'
+import sys, json, numpy as np
+sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs, load_stages, same_section
+from pathlib import Path
+from qdrant_client import QdrantClient
+qc=QdrantClient(url='http://127.0.0.1:6333')
+pts,_=qc.scroll('legal_mvp',limit=5000,with_payload=True,with_vectors=False)
+ft={}
+for p in pts:
+    pl=p.payload
+    ft[(pl.get('doc_name'),str(pl.get('page')),pl.get('section_number') or '',(pl.get('text') or '')[:160])]=pl.get('text') or ''
+print('ft keys',len(ft))
+srv={}
+for f in Path('runs').rglob('queries.jsonl'):
+    for 
+… [truncated, 1001 more chars]
+```
+
+`2026-09-01 15:46:46` · **cmd** — Find entity_coverage mismatch source
+```bash
+./venv/Scripts/python.exe - <<'PY'
+import sys, json, numpy as np
+sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs
+from pathlib import Path
+srv={}
+for f in Path('runs').rglob('queries.jsonl'):
+    for l in f.read_text(encoding='utf-8').splitlines():
+        if l.strip():
+            try:
+                r=json.loads(l); srv[r['req_id']]=r
+            except: pass
+df=load_logs(); df=df[df.expected_sections.map(len)>0].reset_index(drop=True)
+n=0
+for rid,logged,dflt,qs in zip(df.req_id, df.entity_coverage, df.entity_default_used, df.query_set):
+    ents=((srv[rid].get('router')
+… [truncated, 487 more chars]
+```
+
+`2026-09-01 15:47:13` · **cmd** — Run check07
+```bash
+./venv/Scripts/python.exe experiments/check07_hybrid_check.py 2>&1 | tail -40
+```
+
+`2026-09-01 15:47:14` · **cmd** — Inspect smoke AUROC rows
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv(r'C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/smoke.csv')
+pd.set_option('display.width',250); pd.set_option('display.max_colwidth',60)
+m=d[d.metric.str.startswith('auroc_statute_consistency')]
+print(m[(m.query_set=='ALL')][['metric','definition','stage','value','n','ci_lo','ci_hi','cluster_ci_lo','cluster_ci_hi']].to_string())
+"
+```
+
+`2026-09-01 15:47:30` · **cmd** — Inspect headline rows with CIs
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/hybrid_comparison.csv')
+print(len(d),'rows'); print(list(d.columns))
+h=d[d.metric.isin(['corpus_dominant_accuracy','corpus_top1_accuracy'])]
+pd.set_option('display.width',200)
+print(h[['metric','query_set','stage','k','value','n','ci_lo','ci_hi','cluster_ci_lo','cluster_ci_hi']].to_string(index=False))
+"
+```
+
+`2026-09-01 15:47:52` · **cmd** — Run test suite
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -5
+```
+
+`2026-09-01 15:48:15` · **cmd** — IDF values for key tokens
+```bash
+./venv/Scripts/python.exe -c "
+import sys,collections; sys.path.insert(0,'.')
+import experiments.exp07_hybrid as E
+docs=E.load_corpus(); bm25,tok=E.build_bm25(docs)
+print('avgdl %.1f  vocab %d' % (bm25.avgdl, len(bm25.idf)))
+for t in ['penal','indian','code','sanhita','bharatiya','nyaya','190','149','section','the','unlawful','assembly']:
+    n=sum(1 for d in tok if t in d)
+    print('%-10s df=%4d  idf=%6.3f' % (t,n,bm25.idf.get(t,float('nan'))))
+"
+```
+
+`2026-09-01 15:48:23` · **cmd** — Recall@15 with cluster CIs
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/hybrid_comparison.csv')
+r=d[(d.metric=='recall_at_k')&(d.k==15)]
+pd.set_option('display.width',220)
+print(r[['query_set','stage','value','n','ci_lo','ci_hi','cluster_ci_lo','cluster_ci_hi']].to_string(index=False))
+print()
+print(d[d.metric.isin(['recall_at_k_recorded_raw15','embedding_tokens_used','bm25_index_documents','bm25_vocabulary_size','bm25_mean_tokens_per_chunk','chunks_without_section_number','rrf_k_constant','gold_multi_section','rows_analysed'])][['metric','query_set','stage','value','n']].to_string(index=Fal
+… [truncated, 6 more chars]
+```
+
+`2026-09-01 15:48:53` · **cmd** — IPC-named BM25 failure example
+```bash
+./venv/Scripts/python.exe -c "
+import sys,collections; sys.path.insert(0,'.')
+import experiments.exp07_hybrid as E
+from experiments.metrics_lib import load_queryset
+docs=E.load_corpus(); bm25,_=E.build_bm25(docs)
+r=[x for x in load_queryset('eval/paired_queryset.jsonl').to_dict('records') if x['query_id']=='P0001'][0]
+print(r['text'], '| gold', r['expected_sections'])
+ix=E.bm25_topn(bm25,r['text'],15)
+for k,j in enumerate(ix[:6],1):
+    d=docs[j]; print(' %d. %-4s sec %-5s %s' % (k,d.get('corpus'),d.get('section_number'),(d.get('text') or '')[:64].replace(chr(10),' ')))
+print(collections.Count
+… [truncated, 80 more chars]
+```
+
+`2026-09-01 15:48:58` · **cmd** — Re-run smoke after fixes
+```bash
+./venv/Scripts/python.exe - <<'PY'
+from pathlib import Path
+sp = Path("C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad")
+R = "C:/Users/uniya/legal-mvp"
+src = Path("experiments/exp06_statute_consistency.py").read_text(encoding="utf-8")
+src = src.replace('sys.path.insert(0, str(Path(__file__).resolve().parents[1]))','sys.path.insert(0, "%s")' % R, 1)
+src = src.replace('ROOT = Path(__file__).resolve().parents[1]','ROOT = Path("%s")' % R, 1)
+marker = 'OUT = ROOT / "results" / "statute_consistency.csv"'
+patch = 'auroc_bootstrap_ci.__
+… [truncated, 450 more chars]
+```
+
+`2026-09-01 15:49:08` · **cmd** — Run exp06 full (background)
+```bash
+./venv/Scripts/python.exe experiments/exp06_statute_consistency.py > "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp06.log" 2>&1
+```
+
+`2026-09-01 15:49:25` · **cmd** — Per-variant recall@15 on paired set
+```bash
+./venv/Scripts/python.exe -c "
+import sys,collections; sys.path.insert(0,'.')
+import experiments.exp07_hybrid as E
+from experiments.metrics_lib import load_queryset, recall_at_k, ranked_sections, wilson
+from clients.qdrant_client import qdrant, COLLECTION
+docs=E.load_corpus(); bm25,_=E.build_bm25(docs); cl=qdrant(); id2={d['_point_id']:i for i,d in enumerate(docs)}
+rows=load_queryset('eval/paired_queryset.jsonl').to_dict('records')
+vecs,_=E.embed_queries([r['text'] for r in rows])
+res=collections.defaultdict(lambda: collections.Counter())
+for r,v in zip(rows,vecs):
+    d=E.dense_topn(cl,COLLEC
+… [truncated, 578 more chars]
+```
+
+`2026-09-01 15:49:52` · **cmd** — Check gold section availability in index
+```bash
+./venv/Scripts/python.exe -c "
+import sys,collections; sys.path.insert(0,'.')
+import experiments.exp07_hybrid as E
+from experiments.metrics_lib import load_queryset, normalise_section, same_section, ranked_sections
+docs=E.load_corpus()
+avail=set()
+for d in docs:
+    if d.get('section_number'): avail.add(normalise_section('%s %s'%(d.get('corpus'),d.get('section_number'))))
+rows=[r for r in load_queryset('eval/paired_queryset.jsonl').to_dict('records')]
+miss=collections.Counter()
+for r in rows:
+    g=r['expected_sections']
+    ok=any(any(same_section(x,a) for a in avail) for x in g)
+    miss[(r[
+… [truncated, 289 more chars]
+```
+
+`2026-09-01 15:50:21` · **cmd** — Gold reachability ceiling per set
+```bash
+./venv/Scripts/python.exe -c "
+import sys,collections; sys.path.insert(0,'.')
+import experiments.exp07_hybrid as E
+from experiments.metrics_lib import load_queryset, normalise_section, same_section
+docs=E.load_corpus()
+avail=set()
+for d in docs:
+    if d.get('section_number'): avail.add(normalise_section('%s %s'%(d.get('corpus'),d.get('section_number'))))
+for qs,p in E.QUERYSETS.items():
+    rows=load_queryset(p).to_dict('records')
+    ok=sum(1 for r in rows if any(any(same_section(x,a) for a in avail) for x in (r.get('expected_sections') or [])))
+    print('%-24s %3d/%3d reachable (%.3f)'%(qs
+… [truncated, 30 more chars]
+```
+
+`2026-09-01 15:50:25` · **cmd** — Check exp06 progress
+```bash
+tail -6 "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp06.log"
+```
+
+`2026-09-01 15:50:34` · **cmd** — Locate background output
+```bash
+ls -la "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/"; tail -20 "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bnr3qcpcy.output" 2>/dev/null
+```
+
+`2026-09-01 15:50:59` · **cmd** — Pull worked examples
+```bash
+./venv/Scripts/python.exe - <<'PY'
+import sys, json, collections
+sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs, load_stages, load_queryset
+from pathlib import Path
+srv={}
+for f in Path('runs').rglob('queries.jsonl'):
+    for l in f.read_text(encoding='utf-8').splitlines():
+        if l.strip():
+            try:
+                r=json.loads(l); srv[r['req_id']]=r
+            except: pass
+qs={}
+for f in sorted(Path('eval').glob('*queryset.jsonl')):
+    for r in load_queryset(f).to_dict('records'): qs[r['query_id']]=r
+df=load_logs(); df=df[df.expected_sections.map(len)>0].r
+… [truncated, 1900 more chars]
+```
+
+`2026-09-01 15:51:16` · **cmd** — Check exp06 progress
+```bash
+tail -12 "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bnr3qcpcy.output"
+```
+
+`2026-09-01 15:51:26` · **cmd** — Inspect log files
+```bash
+P="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bnr3qcpcy.output"; ls -la "$P" 2>&1; wc -c "$P" 2>&1; ls -la "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp06.log"
+```
+
+`2026-09-01 15:51:47` · **cmd** — Read smoke diagnostics
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv(r'C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/smoke.csv')
+pd.set_option('display.width',400); pd.set_option('display.max_colwidth',150)
+for m in ['entity_coverage_logged_mean','entity_coverage_payload_mean','entity_coverage_mean_signed_diff','entity_coverage_mean_abs_diff','entity_coverage_rows_changed','entity_coverage_distinct_values_logged','entity_coverage_distinct_values_payload','entity_coverage_max_logged','entity_coverage_neutral_default_fraction','enti
+… [truncated, 385 more chars]
+```
+
+`2026-09-01 15:52:28` · **cmd** — Inspect entity_coverage false matches
+```bash
+./venv/Scripts/python.exe - <<'PY'
+import sys, json, re
+sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs, load_stages, same_section
+from pathlib import Path
+from qdrant_client import QdrantClient
+qc=QdrantClient(url='http://127.0.0.1:6333')
+pts,_=qc.scroll('legal_mvp',limit=5000,with_payload=True,with_vectors=False)
+ft={}
+for p in pts:
+    pl=p.payload
+    ft[(pl.get('doc_name'),str(pl.get('page')),pl.get('section_number') or '',(pl.get('text') or '')[:160])]=pl.get('text') or ''
+srv={}
+for f in Path('runs').rglob('queries.jsonl'):
+    for l in f.read_text(encoding='utf-8')
+… [truncated, 1372 more chars]
+```
+
+`2026-09-01 15:52:42` · **cmd** — Check exp06 progress again
+```bash
+P="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bnr3qcpcy.output"; wc -c "$P"; tail -8 "$P"
+```
+
+`2026-09-01 15:52:59` · **cmd** — Per-set AUROC and paired diffs from smoke
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv(r'C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/smoke.csv')
+pd.set_option('display.width',300)
+m=d[(d.metric=='auroc_statute_consistency')&(d.definition=='retrieved@k')]
+print(m[['query_set','stage','value','n','notes']].to_string(index=False,max_colwidth=40))
+print()
+p=d[d.metric.str.startswith('auroc_diff_statute_consistency')&(d.definition=='retrieved@k')&(d.stage=='raw_15')]
+print(p[['metric','query_set','value','n','notes']].to_string(index=False,max_colwidt
+… [truncated, 8 more chars]
+```
+
+`2026-09-01 15:53:16` · **cmd** — Read GAPS.md entity_coverage claims
+```bash
+grep -n -A12 'entity_coverage' docs/GAPS.md | head -60
+```
+
+`2026-09-01 15:53:31` · **cmd** — Poll exp06
+```bash
+P="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bnr3qcpcy.output"; wc -c "$P"; ls -la results/statute_consistency.csv 2>&1 | tail -1
+```
+
+`2026-09-01 15:53:52` · **cmd** — ECE + ablation rows from smoke
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv(r'C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/smoke.csv')
+pd.set_option('display.width',250)
+e=d[(d.metric.isin(['ece_statute_consistency','ece_reference']))&(d.definition=='retrieved@k')&(d.stage=='raw_15')]
+print(e[['metric','query_set','value','n','notes']].to_string(index=False,max_colwidth=45))
+print()
+a=d[(d.metric=='ablation_auroc')&(d.definition=='retrieved@k')&(d.stage=='raw_15')]
+print(a[['value','n','ci_lo','ci_hi','notes']].to_string(index=False,max
+… [truncated, 201 more chars]
+```
+
+`2026-09-01 15:54:11` · **cmd** — Poll exp06 output size
+```bash
+sleep 1; P="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bnr3qcpcy.output"; wc -c "$P"
+```
+
+`2026-09-01 15:54:32` · **cmd** — entity_coverage AUROC both ways from smoke
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv(r'C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/smoke.csv')
+pd.set_option('display.width',250)
+e=d[d.metric.str.startswith('auroc_entity_coverage')|d.metric.str.startswith('auroc_diff_entity')]
+print(e[['metric','query_set','definition','value','n','notes']].to_string(index=False,max_colwidth=52))
+"
+```
+
+`2026-09-01 15:54:45` · **cmd** — Poll exp06
+```bash
+P="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bnr3qcpcy.output"; wc -c "$P"; tail -c 600 "$P"
+```
+
+`2026-09-01 15:55:37` · **cmd** — Re-run exp07 with ceiling
+```bash
+./venv/Scripts/python.exe experiments/exp07_hybrid.py 2>&1 | tail -25 && echo "===" && ./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/hybrid_comparison.csv'); pd.set_option('display.width',200)
+print(len(d),'rows')
+print(d[d.metric=='gold_reachable_ceiling'][['query_set','value','n','ci_lo','ci_hi']].to_string(index=False))
+print()
+print(d[(d.metric=='recall_at_k')&(d.query_set.str.startswith('paired_numbered'))][['query_set','stage','value','n','ci_lo','ci_hi']].to_string(index=False))
+"
+```
+
+`2026-09-01 15:56:14` · **cmd** — Re-run check07
+```bash
+./venv/Scripts/python.exe experiments/check07_hybrid_check.py 2>&1 | tail -25
+```
+
+`2026-09-01 15:59:33` · **cmd** — Verify CSV schema
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd,csv
+d=pd.read_csv('results/hybrid_comparison.csv')
+exp=['metric','query_set','definition','stage','k','value','n','ci_lo','ci_hi','cluster_ci_lo','cluster_ci_hi','notes']
+print('schema OK:', list(d.columns)==exp)
+print('rows',len(d))
+print('stages:',sorted(d.stage.dropna().unique()))
+print('query_sets:',sorted(d.query_set.dropna().unique()))
+print('metrics:',sorted(d.metric.unique()))
+print()
+b=d[(d.metric=='corpus_dominant_accuracy')&(d.query_set=='paired_numbered_both')]
+print(b[['stage','value','n','ci_lo','ci_hi','cluster_ci_lo','cluster_c
+… [truncated, 33 more chars]
+```
+
+`2026-09-01 16:04:23` · **cmd** — Determinism check and final tests
+```bash
+cp results/hybrid_comparison.csv /tmp/h1.csv 2>/dev/null || cp results/hybrid_comparison.csv "$TEMP/h1.csv"; ./venv/Scripts/python.exe experiments/exp07_hybrid.py > /dev/null 2>&1; ./venv/Scripts/python.exe -c "
+import hashlib,os,tempfile
+a=hashlib.sha256(open('results/hybrid_comparison.csv','rb').read()).hexdigest()
+p=os.path.join(tempfile.gettempdir(),'h1.csv')
+b=hashlib.sha256(open(p,'rb').read()).hexdigest() if os.path.exists(p) else 'missing'
+print('rerun identical:', a==b, a[:16], b[:16])
+"; ./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -2
+```
+
+### 2026-09-01 16:05:09 · prompt
+
+<task-notification>
+<task-id>a7c9476efb185957c</task-id>
+<tool-use-id>toolu_01Cq7RyPYKvAhbiQYgpwJA29</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\a7c9476efb185957c.output</output-file>
+<status>completed</status>
+<summary>Agent "Wave 3 S2: BM25 and hybrid retrieval" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Complete. Deterministic (byte-identical rerun), 237 tests pass, 4 owned files written, no git, Qdrant read-only.
+
+## HEADLINE â€” 66 numbered paired queries, corpus filter DISABLED, top 15
+
+**Dominant corpus among top 15** (naive Wilson / clustered on `pair_id`):
+
+| Query names | Arm | IPC | BNS | CrPC | CPA | Correct | 95% Wilson | Cluster CI | Chance |
+|---|---|--:|--:|--:|--:|--:|---|---|--:|
+| IPC | dense | 32 | 1 | 0 | 0 | **97.0%** | [84.7, 99.5] | [90.9, 100.0] | 31.3% |
+| IPC | bm25 | 0 | 0 | 33 | 0 | **0.0%** | [0.0, 10.4] | [0.0, 0.0] | 31.3% |
+| IPC | hybrid_rrf | 15 | 1 | 17 | 0 | **45.5%** | [29.8, 62.0] | [27.3, 63.6] | 31.3% |
+| BNS | dense | 16 | 17 | 0 | 0 | **51.5%** | [35.2, 67.5] | [33.3, 69.7] | 22.3% |
+| BNS | bm25 | 1 | 32 | 0 | 0 | **97.0%** | [84.7, 99.5] | [90.9, 100.0] | 22.3% |
+| BNS | hybrid_rrf | 7 | 26 | 0 | 0 | **78.8%** | [62.2, 89.3] | [63.6, 90.9] | 22.3% |
+
+**Top-1 corpus:** IPC dense 90.9% [76.4, 96.9] Â· bm25 45.5% [29.8, 62.0] Â· hybrid 87.9% [72.7, 95.2]. BNS dense 42.4% [27.2, 59.2] Â· bm25 **84.8%** [69.1, 93.3] Â· hybrid 66.7% [49.6, 80.2].
+
+**BNS-named accuracy moves off 51.5% â€” UP, by +45.5 points to 97.0%, intervals non-overlapping.** But IPC-named collapses 97.0% â†’ 0.0%, below chance, all 33 landing in the CrPC. Pooled over all 66: dense 74.2%, bm25 48.5%, hybrid 62.1%.
+
+**Mechanism (measured, not inferred):** `sanhita` occurs in 30 chunks, all BNS (idf 4.12) â€” the 2023 BNS names itself in its operative text. `penal` occurs in 82 CrPC chunks vs 23 IPC (idf 2.79) â€” the 1860 IPC never names itself, so "Indian Penal Code" is lexically a *CrPC* phrase, appearing there as cross-references. The asymmetry is a property of statutory drafting plus statute age, not of any retriever. Also: BM25's IPC 0.0% is a *tail* effect â€” P0001 puts IPC 149 at rank 1 but ranks 6â€“15 flood with CrPC cross-references (top-15 = CrPC 8 / BNS 4 / IPC 3). Dominant-corpus is a coarse instrument; quote it with top-1.
+
+## Recall@15 per set (binary, compressed convention)
+
+| Query set | n | dense | bm25 | hybrid_rrf |
+|---|--:|---|---|---|
+| generated_retrieval | 200 | 0.645 [0.577, 0.708] | 0.635 [0.566, 0.699] | 0.650 [0.582, 0.713] |
+| paired_recodification | 99 | **0.737** [0.643, 0.814] | 0.576 [0.477, 0.668] | 0.717 [0.622, 0.796] |
+| paired_dated_conflict | 99 | **0.697** [0.600, 0.779] | 0.434 [0.341, 0.533] | 0.616 [0.518, 0.706] |
+| layman_situation | 120 | **0.150** [0.097, 0.225] | 0.025 [0.009, 0.071] | 0.108 [0.064, 0.177] |
+| ALL (518 unique queries) | 518 | **0.558** [0.515, 0.600] | 0.444 [0.402, 0.487] | 0.531 [0.488, 0.573] |
+
+MRR@15 pooled: dense 0.4245 Â· bm25 0.2967 Â· hybrid 0.4059. nDCG@15: 0.4564 / 0.3319 / 0.4362. Full kâˆˆ{1,3,5,10,15}, `*_positional`, and `*_fraction_of_gold` in the CSV (648 rows, schema exact).
+
+`paired_dated_conflict` is 99 queries here, not 197 rows: per `app.py` the date/mapper intervention acts *only* by rewriting `plan.target_corpora`, so with the filter disabled it is a no-op for retrieval.
+
+## NEW FINDING â€” gold-reachability ceiling
+
+**22 of 33 BNS-named gold labels name subsections (`BNS 318(4)`) that the index records only as bare sections (`318`).** Under strict `same_section` they are unreachable by *any* retriever. Ceiling: BNS-named 11/33 = **0.333**; paired_recodification 75/99; paired_dated 73/99; layman 96/120; **pooled 444/518 = 0.857**.
+
+Gold-section recal
+… [truncated, 3571 more chars]
+
+`2026-09-01 16:05:15` · **cmd** — Wait for exp06 to finish
+```bash
+P="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bnr3qcpcy.output"; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do if [ -s results/statute_consistency.csv ]; then echo DONE; break; fi; ./venv/Scripts/python.exe -c "import time; time.sleep(60)"; done; wc -c "$P"; ls -la results/statute_consistency.csv 2>&1|tail -1
+```
+
+`2026-09-01 16:05:25` · **cmd** — Check for output file
+```bash
+ls -la results/statute_consistency.csv 2>&1|tail -1; wc -c "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bnr3qcpcy.output"
+```
+
+`2026-09-01 16:05:49` · **cmd** — Verify layman date/corpus structure
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import load_queryset
+import pandas as pd
+d=load_queryset('eval/layman_queryset.jsonl')
+print(pd.crosstab([d.date_stated,d.applicable_regime], d.expected_corpus))
+print()
+print(pd.crosstab(d.variant,[d.date_stated,d.applicable_regime]))
+"
+```
+
+`2026-09-01 16:13:20` · **cmd** — Wait more for exp06
+```bash
+for i in 1 2 3 4 5 6 7 8; do if [ -s results/statute_consistency.csv ]; then echo DONE; break; fi; ./venv/Scripts/python.exe -c "import time; time.sleep(60)"; done; ls -la results/statute_consistency.csv 2>&1|tail -1
+```
+
+`2026-09-01 16:13:30` · **cmd** — Read exp06 tail
+```bash
+tail -25 "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bnr3qcpcy.output" | grep -v '^     '
+```
+
+`2026-09-01 16:13:39` · **cmd** — Run the paired check
+```bash
+./venv/Scripts/python.exe experiments/check06_statute_check.py 2>&1 | tail -50
+```
+
+`2026-09-01 16:13:58` · **cmd** — Inspect ablation.csv auroc_signal rows
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/ablation.csv')
+pd.set_option('display.width',300)
+x=d[(d.metric=='auroc_signal')&(d.definition=='retrieved@k')&(d.stage=='raw_15')]
+print(x[['metric','query_set','value','n','notes']].to_string(index=False,max_colwidth=70))
+print()
+print(d.metric.value_counts())
+"
+```
+
+`2026-09-01 16:14:50` · **cmd** — Re-run the paired check
+```bash
+./venv/Scripts/python.exe experiments/check06_statute_check.py 2>&1 | tail -45
+```
+
+`2026-09-01 16:15:13` · **cmd** — Extract primary AUROC table
+```bash
+./venv/Scripts/python.exe - <<'PY'
+import pandas as pd, numpy as np
+d=pd.read_csv('results/statute_consistency.csv')
+print('rows',len(d),'metrics',d.metric.nunique())
+def fmt(r):
+    v=r['value']; 
+    if pd.isna(v) or v=='': return 'NOT MEASURED'
+    ci = f"[{float(r['ci_lo']):.3f}, {float(r['ci_hi']):.3f}]" if not pd.isna(r['ci_lo']) else ''
+    cl = f"[{float(r['cluster_ci_lo']):.3f}, {float(r['cluster_ci_hi']):.3f}]" if not pd.isna(r['cluster_ci_lo']) else '--'
+    return f"{float(v):.3f} {ci} clustered {cl}"
+print("\n### PRIMARY AUROC, retrieved@k")
+for st in ['raw_15','reranked_15','filt
+… [truncated, 773 more chars]
+```
+
+`2026-09-01 16:15:35` · **cmd** — Extract paired diffs, ablation, ECE, variants
+```bash
+./venv/Scripts/python.exe - <<'PY'
+import pandas as pd, numpy as np
+d=pd.read_csv('results/statute_consistency.csv')
+print("### PAIRED DIFFS (retrieved@k, raw_15)")
+for mt in ['auroc_diff_statute_consistency_vs_composite','auroc_diff_statute_consistency_vs_max_score']:
+    for qs in ['ALL','generated_retrieval','paired_recodification','paired_dated_conflict','layman_situation']:
+        r=d[(d.metric==mt)&(d.definition=='retrieved@k')&(d.stage=='raw_15')&(d.query_set==qs)]
+        if len(r):
+            r=r.iloc[0]
+            p=str(r['notes']).split('p_two_sided=')[1].split(';')[0]
+          
+… [truncated, 1478 more chars]
+```
+
+`2026-09-01 16:15:58` · **cmd** — Extract remaining context rows
+```bash
+./venv/Scripts/python.exe - <<'PY'
+import pandas as pd
+d=pd.read_csv('results/statute_consistency.csv')
+pd.set_option('display.width',300)
+for m in ['rows_analysed','qdrant_corpus_statute_code_mismatches','positives','admissible_fallback_fired','statute_consistency_forced_to_1_by_filter','normaliser_rewrites_total','normaliser_artefact_rate','normaliser_artefact_rate_number_not_a_section','normaliser_contents_rate','normaliser_genuine_rate','normaliser_artefact_survival_to_index','entity_coverage_substring_reconstruction_max_abs_dev']:
+    for _,r in d[d.metric==m].iterrows():
+        print(f"
+… [truncated, 347 more chars]
+```
+
+`2026-09-01 16:16:14` · **cmd** — Read full notes
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/statute_consistency.csv')
+print(d[d.metric=='normaliser_artefact_survival_to_index'].iloc[0]['notes'])
+print()
+print(d[d.metric=='entity_coverage_substring_reconstruction_max_abs_dev'].iloc[0]['notes'])
+print()
+print(d[(d.metric=='admissible_set_sizes')&(d.notes.str.contains('A2_'))].iloc[0]['notes'])
+"
+```
+
+`2026-09-01 16:19:32` · **cmd** — Remove dead path variable
+```bash
+sed -i '/ex_path = ROOT \/ "results" \/ "_explain_w3_s1_examples.json"/d' experiments/exp06_statute_consistency.py && grep -n 'ex_path\|examples =' experiments/exp06_statute_consistency.py; ls results/
+```
+
+`2026-09-01 16:19:49` · **cmd** — Verify CSV schema
+```bash
+head -1 results/statute_consistency.csv; echo "---"; ./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/statute_consistency.csv')
+print(list(d.columns))
+print('rows',len(d))
+exp=['metric','query_set','definition','stage','k','value','n','ci_lo','ci_hi','cluster_ci_lo','cluster_ci_hi','notes']
+print('SCHEMA OK' if list(d.columns)==exp else 'SCHEMA MISMATCH')
+print('metrics:',sorted(d.metric.unique()))
+"
+```
+
+`2026-09-01 16:20:11` · **cmd** — Run test suite
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -8
+```
+
+`2026-09-01 16:20:31` · **cmd** — Compile check and re-verify
+```bash
+./venv/Scripts/python.exe -m py_compile experiments/exp06_statute_consistency.py experiments/check06_statute_check.py && echo "COMPILE OK"; ./venv/Scripts/python.exe experiments/check06_statute_check.py 2>&1 | tail -3
+```
+
+### 2026-09-01 16:21:07 · prompt
+
+<task-notification>
+<task-id>afd97b1a411ac5eac</task-id>
+<tool-use-id>toolu_01N3RAvu9hCdhira69duZciq</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\afd97b1a411ac5eac.output</output-file>
+<status>completed</status>
+<summary>Agent "Wave 3 S1: statute_consistency signal" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Done. All four deliverables are in place; `pytest tests/ -q` still reports **237 passed**; `check06` passes.
+
+## AUROC of `statute_consistency` â€” primary variant A2, `retrieved@k`
+
+| stage | query set | n | AUROC | naive 95% CI | clustered CI | vs `composite` (paired) | vs `max_score` (paired) |
+|---|---|---|---|---|---|---|---|
+| raw_15 | **ALL** | 617 | **0.685** | [0.656, 0.714] | [0.659, 0.709] | +0.021 [âˆ’0.041,+0.084] p=0.50 | **âˆ’0.099** [âˆ’0.149,âˆ’0.048] p=0.0002 |
+| raw_15 | **paired_dated_conflict** | 197 | **0.830** | [0.782, 0.875] | [0.797, 0.867] | **+0.359** [+0.252,+0.470] p&lt;1e-4 | **+0.174** [+0.074,+0.276] p=0.0008 |
+| raw_15 | layman_situation | 120 | 0.566 | [0.442, 0.680] | [0.474, 0.675] | âˆ’0.005 p=0.98 | +0.014 p=0.87 |
+| raw_15 | generated_retrieval | 198 | 0.500 | constant | â€” | âˆ’0.373 p&lt;1e-4 | âˆ’0.380 p&lt;1e-4 |
+| raw_15 | paired_recodification | 99 | 0.500 | constant | â€” | +0.147 [+0.009,+0.281] p=0.038 | âˆ’0.235 p=0.0002 |
+| filtered_n | ALL | 617 | 0.658 | [0.631, 0.684] | [0.634, 0.682] | | |
+| filtered_n | paired_dated_conflict | 197 | 0.806 | [0.759, 0.851] | [0.768, 0.851] | | |
+
+`reranked_15` â‰¡ `raw_15` exactly (a fraction over a set ignores order). `cited`: 0.668 [0.613,0.723] pooled. `grounded`: 0.599 [0.583,0.615] pooled; NOT MEASURED per set (27 positives). ECE 0.319 pooled vs composite 0.241, max_score 0.127 â€” flagged in-file as a category reading, since this is a consistency fraction, not a probability.
+
+**Ablation, four rows** (raw_15, retrieved@k, n=617): max_score 0.784 Â· top_k_mean 0.757 Â· **statute_consistency 0.685** Â· composite 0.663 Â· entity_coverage 0.581 Â· gap_term 0.270. The five existing rows reproduce `ablation.csv` to 0.00e+00.
+
+**Variants:** A2 â‰¡ A1 on all 617 rows. A3 (family only) and A5 (deployed date only) are **constant at 1.0 â†’ AUROC 0.5, no information**. A4 oracle = 0.704, only +0.019 over deployable.
+
+## Headline finding
+
+Pooled it does **not** beat the generic signals. Conditionally it is the only one that works: on the 197 dated-conflict queries the deployed composite is below chance (0.471) and this is 0.830. The mechanism: **on 343 of 617 rows the Qdrant corpus filter was derived from the same query+date, so the signal cannot fail by construction** â€” which is why the no-oracle A5 is constant. It earns its keep only where the filter follows the *named* code while the date disagrees. Worked example D0001: composite 0.7895 (HIGH), entity_coverage 1.0, all 15 chunks IPC, gold BNS 190 never retrieved, statute_consistency **0.000**.
+
+## entity_coverage, both ways (n=617)
+
+| | logged substring | payload `section_number` |
+|---|---|---|
+| mean | 0.5778 | 0.5494 (âˆ’0.0284) |
+| AUROC pooled | 0.5806 | **0.6050** (paired +0.0245) |
+| AUROC generated_retrieval | 0.8799 | **0.9854** (paired **+0.1055**) |
+
+18 of 617 rows change, **all downward**. Wave 2's correction fully confirmed: values only {0, 0.5, 1.0}, max 1.0, no free 0.30 (constant is 0.5Ã—0.30=0.15), 0.580565 pooled, 43.27% at the constant (flag says 43.44%, agrees on 616/617), 120/120 layman at 0.500, 0.385669 on recodification. `GAPS.md` #1/#2 describe pre-fix code.
+
+## Normaliser artefact rate
+
+3,302 rewrites; 100 sampled without replacement, `default_rng(20260901)`, labels in `NORMALISER_LABELS`.
+
+| class | k/100 | 95% Wilson |
+|---|---|---|
+| GENUINE | 36 | [0.273, 0.458] |
+| CONTENTS (
+… [truncated, 1983 more chars]
+
+`2026-09-01 16:21:54` · **cmd** — Verify Wave 3 outputs and environment
+```bash
+cd /c/Users/uniya/legal-mvp
+EXPECT="metric,query_set,definition,stage,k,value,n,ci_lo,ci_hi,cluster_ci_lo,cluster_ci_hi,notes"
+echo "=== all eight CSVs share the schema? ==="
+for f in results/*.csv; do
+  H=$(head -1 "$f")
+  if [ "$H" = "$EXPECT" ]; then printf "  OK   %-32s %5s rows\n" "$(basename $f)" "$(($(wc -l < $f)-1))"
+  else printf "  BAD  %-32s %s\n" "$(basename $f)" "$H"; fi
+done
+echo "  TOTAL rows: $(for f in results/*.csv; do echo $(($(wc -l < $f)-1)); done | paste -sd+ | bc)"
+echo
+echo "=== blocks ==="
+for f in results/_explain_w3_s*.md; do printf "  %-28s %s headings\n" "$(basenam
+… [truncated, 294 more chars]
+```
+
+### 2026-09-01 21:09:38 · prompt
+
+ok cool, ping me when they're done
+
+### 2026-09-01 21:11:15 · prompt
+
+ok cool, ping me when they're done

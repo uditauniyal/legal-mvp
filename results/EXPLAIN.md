@@ -2848,3 +2848,1027 @@ The **`grounded` definition has 27 positives out of 617 (4.4%)**, and **zero** o
 **Clustering does not always widen, and I had it backwards in code before I had it backwards in my head.** I had internalised "clustering widens intervals" as a law. It is a law only when rows inside a cluster *agree*. Half this project's query sets are deliberately contrastive, so their clusters *disagree*, and there clustering correctly tightens the estimate. My first implementation encoded the folk version, flagged the healthy cases as bugs, and would have had me report the layman interval as suspicious when it was the most correct number in the file.
 
 **The generator hides the retriever's biggest failure.** The paired gap is +54 points at retrieval and −3 points at citation. The single most striking result in this task is not a number the system produces — it is the difference between two ways of scoring it, and it says the answer text cannot be used as evidence that retrieval worked.
+
+---
+
+# statute_consistency
+
+Output file: `results/statute_consistency.csv`
+Regenerate with: `./venv/Scripts/python.exe experiments/exp06_statute_consistency.py`
+Verify with: `./venv/Scripts/python.exe experiments/check06_statute_check.py`
+Owner: Wave 3 Subagent 1
+
+---
+
+## 1. ELI5 — what does this measure?
+
+Ask the system a question and it fetches 15 passages. The three confidence
+signals already in the system all ask the *same kind* of question about those
+passages: **how similar are they to the question?** `top_k_mean` averages the
+similarity of the best five. `score_gap` looks at how fast similarity falls
+off. `entity_coverage` checks whether the section number the user typed shows
+up in the text.
+
+None of them asks the question a lawyer would ask first:
+
+> **Did you look it up in the right book?**
+
+India replaced three colonial-era codes on **1 July 2024**. The Indian Penal
+Code became the Bharatiya Nyaya Sanhita; the Criminal Procedure Code became
+the Bharatiya Nagarik Suraksha Sanhita. The old codes still govern anything
+that happened *before* that date — that is what "savings provisions" means.
+So the *same* question has two different right answers depending on **when the
+incident happened**.
+
+The two texts are near word-for-word identical, so similarity cannot tell
+them apart. A system can be maximally confident and still be quoting a
+repealed statute.
+
+`statute_consistency` is the fourth signal. In one line:
+
+> Of the passages we retrieved, **what fraction came out of a book that is
+> actually allowed to answer this question**, given what the query says and
+> when the incident happened?
+
+1.0 means every passage came from an admissible statute. 0.0 means not one
+did. It is a fraction, so it is always between 0 and 1.
+
+### The worked example — one real query, real numbers
+
+Query `D0001`, from the `paired_dated_conflict` set, run on 23 August 2026:
+
+> *"What is the punishment for unlawful assembly – common object under
+> **Section 149 of the Indian Penal Code**? **This happened last month.**"*
+
+Two facts fight each other. The user **names the IPC**. The user also says
+the incident was **last month** — July 2026, two years *after* the BNS came
+into force. The date wins: the correct answer is **BNS 190**, not IPC 149.
+That is the gold label the query set records.
+
+Here is what each signal said:
+
+| | value | reads as |
+|---|---|---|
+| `top_k_mean` | 0.7033 | very strong similarity |
+| `score_gap` | 0.0947 | tight, consistent cluster |
+| `entity_coverage` | **1.0000** | "found Section 149!" |
+| **`composite` (deployed)** | **0.7895** | **HIGH tier** — answer confidently |
+| retrieved sections | IPC 149, 143, 141, 151, 145, … | **all 15 chunks are IPC** |
+| gold section BNS 190 retrieved? | **no** | |
+
+Every generic signal is delighted. The system found Section 149, in the IPC,
+with high similarity — and Section 149 IPC is exactly the provision the user
+asked for. It is also the *wrong law for this incident*, and the system had
+no way to notice.
+
+Now the fourth signal, step by step:
+
+| step | value |
+|---|---|
+| era implied by "last month" (July 2026) | `BNS_ERA` |
+| codes in force then (from the Qdrant `in_force_from` / `in_force_until` payload) | `{BNS, CPA}` |
+| statutes the query names | `{IPC}` |
+| subject-matter family of the IPC | PENAL → `{IPC, BNS}` |
+| **admissible set** = in-force ∩ family | **`{BNS}`** |
+| retrieved chunks whose `statute_code` is in `{BNS}` | **0 of 15** |
+| **`statute_consistency`** | **0.000** |
+
+The deployed composite says 0.79. The fourth signal says 0.00. The fourth
+signal is the one that is right.
+
+A second, softer example — layman query `L0003`, no section number named,
+incident dated to the BNS era, gold `BNS 64`:
+
+| | |
+|---|---|
+| admissible set | `{BNS, CPA}` (no statute named → no family constraint) |
+| retrieved corpora at raw_15 | CRPC 11, IPC 3, BNS 1 |
+| `statute_consistency` | **1/15 = 0.067** |
+| deployed `composite` | 0.4704 |
+
+---
+
+## 2. Technically
+
+### The definition, and why this one
+
+The specification in `docs/TARGET_ARCHITECTURE.md:348` is one line:
+
+```
+statute_consistency = fraction of retrieved chunks whose statute_code
+                      is in the set implied by the query + date
+```
+
+"The set implied by the query + date" is the entire design decision, so it was
+written down and **frozen before a single AUROC was computed**. Five variants
+were computed and **all five are reported**; `A2` was declared primary in
+advance. Nothing was added, dropped or changed after seeing a number — see
+§6.
+
+**What is in the corpus.** Read by scrolling Qdrant `legal_mvp` (1,899 points,
+read-only). `corpus == statute_code` on **all 1,899** points, so the `corpus`
+field in `experiments/stages.jsonl` *is* the `statute_code`:
+
+| code | statute | `in_force_from` | `in_force_until` | points |
+|---|---|---|---|---|
+| IPC | Indian Penal Code, 1860 | 1862-01-01 | 2024-07-01 | 595 |
+| CRPC | Code of Criminal Procedure, 1973 | 1974-04-01 | 2024-07-01 | 742 |
+| BNS | Bharatiya Nyaya Sanhita, 2023 | 2024-07-01 | — | 424 |
+| CPA | Consumer Protection Act, 2019 | 2020-07-20 | — | 138 |
+
+The in-force windows are **read from the payload**, not written by me. The
+BNSS, the BSA and the Evidence Act are **not in this corpus at all**.
+
+**D(era) — the date-admissible set.** `{c : in_force_from(c) ≤ t < in_force_until(c)}`
+evaluated at a representative date per era:
+
+| era | representative date | D |
+|---|---|---|
+| `IPC_ERA` | 2024-06-30 | `{IPC, CRPC, CPA}` |
+| `BNS_ERA` | 2024-07-01 | `{BNS, CPA}` |
+| `UNKNOWN` | — | all four |
+
+**The UNKNOWN branch is the important one.** 60 of the 120 layman queries
+state no date, and 56 of those have gold that is correct under *either*
+regime. Those are treated as **unconstrained by date** — never as errors.
+Scoring a no-date query against one regime would manufacture a result out of
+an annotation choice.
+
+**F(named) — the query-admissible set.** From `retrieval.named_statutes`,
+which the deployed system logged on every row. A named code implies its
+**subject-matter family**, because the recodification renamed books without
+moving subject matter: PENAL `{IPC, BNS}`, PROCEDURE `{CRPC, BNSS}`,
+EVIDENCE `{IEA, BSA}`, CONSUMER `{CPA}`. Names nothing → all four.
+
+**The five variants:**
+
+| variant | admissible set A | deployable? |
+|---|---|---|
+| `A1_date_only` | D(era) | yes, with a date parser |
+| **`A2_date_x_family` (PRIMARY)** | D(era) ∩ F(named); F(named) if empty | yes, with a date parser |
+| `A3_family_only` | F(named) | yes |
+| `A4_oracle_gold` | `expected_corpora` from the query set | **NO — reads the gold** |
+| `A5_deployed_date` | A2 with the era taken **only** from the logged `date.era` | yes, no oracle at all |
+
+The empty-intersection fallback **never fired** (0 rows, all variants).
+
+**Where the era comes from** for A1/A2/A3: the logged `date.era` where present
+(98 of 617 rows), else the query set's `applicable_regime`, else UNKNOWN.
+`applicable_regime` is a human annotation *of the query text* — it records
+what the query's stated date implies, which a working date parser would
+recover. Using it on 519 rows **assumes a perfect date parser**, and that is
+disclosed. `A5` exists precisely so the no-oracle version is on the record.
+
+Then, per row and per stage:
+
+```
+statute_consistency = |{chunks with statute_code ∈ A}| / |chunks|
+```
+
+Every chunk carries a `statute_code`, so nothing is dropped.
+
+### Everything else, briefly
+
+* **Correctness** comes from `metrics_lib.correctness_label()` under all three
+  definitions: `retrieved@k` (gold section in the top 15), `cited` (gold
+  appears in the answer's citations), `grounded` (every citation supported).
+* **AUROC** is `metrics_lib.auroc` (Mann-Whitney U with average ranks, so ties
+  count 0.5). **Nothing is reimplemented.**
+* **Bootstrap** N_BOOT = 10,000, SEED = 20260901, percentile intervals.
+  Clustered intervals resample `pair_id` clusters (177 clusters over 617 rows;
+  `pair_id` is present on all 617).
+* **ECE** = 10 quantile bins, `metrics_lib.ece`.
+* **Wilson** intervals from `metrics_lib.wilson`.
+
+---
+
+## 3. What the number came out as
+
+n = **617** gold-labelled rows (621 after `load_logs()` dedupe, 4 dropped for
+having no gold section). 177 `pair_id` clusters. Positives: **327** under
+`retrieved@15` at `raw_15` / `reranked_15`, **304** at `filtered_n`, **533**
+under `cited`, **27** under `grounded`.
+
+### 3a. The headline — AUROC of `statute_consistency` (variant A2)
+
+`retrieved@k`, k = 15. Naive 95% bootstrap CI, then the `pair_id`-clustered CI.
+
+| stage | query set | n | AUROC | naive 95% CI | clustered 95% CI |
+|---|---|---|---|---|---|
+| `raw_15` | **ALL** | 617 | **0.685** | [0.656, 0.714] | [0.659, 0.709] |
+| `raw_15` | `generated_retrieval` | 198 | 0.500 | [0.500, 0.500] | — |
+| `raw_15` | `paired_recodification` | 99 | 0.500 | [0.500, 0.500] | — |
+| `raw_15` | **`paired_dated_conflict`** | 197 | **0.830** | [0.782, 0.875] | [0.797, 0.867] |
+| `raw_15` | `layman_situation` | 120 | 0.566 | [0.442, 0.680] | [0.474, 0.675] |
+| `reranked_15` | ALL | 617 | 0.685 | [0.656, 0.714] | [0.659, 0.709] |
+| `reranked_15` | `paired_dated_conflict` | 197 | 0.830 | [0.782, 0.875] | [0.797, 0.867] |
+| `filtered_n` | **ALL** | 617 | **0.658** | [0.631, 0.684] | [0.634, 0.682] |
+| `filtered_n` | `paired_dated_conflict` | 197 | 0.806 | [0.759, 0.851] | [0.768, 0.851] |
+| `filtered_n` | `layman_situation` | 120 | 0.511 | [0.346, 0.658] | [0.397, 0.662] |
+
+The 0.500 rows are **not measurements**. On `generated_retrieval` and
+`paired_recodification` **no query states a date**, so the admissible set is
+every code and the signal is **constant at 1.0**. AUROC of a constant is 0.5
+by the tie rule. The CSV says so in the `notes` column of every such row.
+
+`reranked_15` is identical to `raw_15` throughout: reranking reorders the same
+15 chunks, and a fraction over a set does not care about order. That is a
+correctness check, not a coincidence.
+
+Under the other two correctness definitions, pooled:
+
+| definition | stage | n | AUROC | naive CI | clustered CI |
+|---|---|---|---|---|---|
+| `cited` | `raw_15` | 617 | 0.668 | [0.613, 0.723] | [0.619, 0.723] |
+| `cited` | `filtered_n` | 617 | 0.650 | [0.595, 0.705] | [0.599, 0.705] |
+| `grounded` | `raw_15` | 617 | 0.599 | [0.583, 0.615] | [0.584, 0.614] |
+| `grounded` | `filtered_n` | 617 | 0.588 | [0.573, 0.604] | [0.574, 0.602] |
+
+`grounded` per query set is **NOT MEASURED** — with only 27 positives in 617
+rows, several sets contain no positive at all.
+
+### 3b. The ablation picture, now with four rows
+
+`retrieved@k` / `raw_15` / pooled, n = 617:
+
+| signal | blend weight | AUROC | naive 95% CI | clustered 95% CI | ECE |
+|---|---|---|---|---|---|
+| `max_score` | (not in blend) | 0.784 | [0.747, 0.819] | [0.732, 0.831] | 0.127 |
+| `top_k_mean` | 0.55 | 0.757 | [0.719, 0.794] | [0.702, 0.807] | 0.111 |
+| **`statute_consistency`** | **(new)** | **0.685** | **[0.656, 0.714]** | **[0.659, 0.709]** | **0.319** |
+| `composite` (deployed) | — | 0.663 | [0.617, 0.710] | [0.605, 0.721] | 0.241 |
+| `entity_coverage` | 0.30 | 0.581 | [0.538, 0.623] | [0.544, 0.618] | 0.270 |
+| `gap_term` | 0.15 | 0.270 | [0.232, 0.311] | [0.219, 0.326] | — |
+
+The five existing rows reproduce `results/ablation.csv` **to the sixth
+decimal**; `check06` asserts it.
+
+### 3c. Paired comparisons (`retrieved@k`, `raw_15`)
+
+Paired bootstrap on the same rows, `paired_bootstrap_auroc_diff()`.
+Positive = statute_consistency wins.
+
+| query set | vs `composite` | p | vs `max_score` | p |
+|---|---|---|---|---|
+| ALL | +0.021 [−0.041, +0.084] | 0.497 | **−0.099** [−0.149, −0.048] | 0.0002 |
+| **`paired_dated_conflict`** | **+0.359** [+0.252, +0.470] | 0.0000 | **+0.174** [+0.074, +0.276] | 0.0008 |
+| `paired_recodification` | +0.147 [+0.009, +0.281] | 0.038 | −0.235 [−0.327, −0.133] | 0.0002 |
+| `generated_retrieval` | −0.373 [−0.447, −0.285] | 0.0000 | −0.380 [−0.425, −0.330] | 0.0000 |
+| `layman_situation` | −0.005 [−0.211, +0.207] | 0.980 | +0.014 [−0.169, +0.204] | 0.873 |
+
+### 3d. The variants
+
+`retrieved@k` / `raw_15` / pooled:
+
+| variant | AUROC | 95% CI | note |
+|---|---|---|---|
+| `A1_date_only` | 0.685 | [0.656, 0.714] | **identical to A2 on every one of the 617 rows** |
+| `A2_date_x_family` | 0.685 | [0.656, 0.714] | PRIMARY |
+| `A3_family_only` | 0.500 | — | **constant at 1.0** — carries no information |
+| `A4_oracle_gold` | 0.704 | [0.666, 0.740] | ORACLE — reads the gold; upper bound only |
+| `A5_deployed_date` | 0.500 | — | **constant at 1.0** — identical to A3 |
+
+### 3e. `entity_coverage`, computed both ways (n = 617)
+
+| | logged (substring in chunk text) | recomputed (from `section_number` payload) |
+|---|---|---|
+| mean | 0.5778 | **0.5494** |
+| distinct values | 0.00, 0.50, 1.00 | 0.00, 0.50, 1.00 |
+| maximum | **1.00** | 1.00 |
+| AUROC pooled, `retrieved@k`/`raw_15` | 0.5806 | **0.6050** |
+| AUROC `generated_retrieval` | 0.8799 | **0.9854** |
+| AUROC `paired_recodification` | **0.3857** (below chance) | 0.4136 |
+| AUROC `paired_dated_conflict` | 0.4743 | 0.4943 |
+| AUROC `layman_situation` | NOT MEASURED (constant 0.5) | NOT MEASURED (constant 0.5) |
+
+Difference: mean signed **−0.0284** (payload minus logged), **18 rows of 617
+change**, and **all 18 change downward**. Paired bootstrap of the AUROC
+difference, pooled: **+0.0245**. On `generated_retrieval`: **+0.1055**.
+
+The payload version is never *lower* than the substring version on any row,
+because the substring rule can only ever *over*-count.
+
+**The Wave 2 corrections, verified independently here:**
+
+| claim | verdict |
+|---|---|
+| `entity_coverage` takes only {0.0, 0.5, 1.0} | **CONFIRMED** — 3 distinct values |
+| never exceeds 1.0 | **CONFIRMED** — max is exactly 1.0 |
+| no free 0.30 neutral default | **CONFIRMED** — the constant is `ENTITY_NEUTRAL = 0.5`, weighted 0.30, so it contributes 0.15, not 0.30 |
+| AUROC is 0.581, not the 0.492 in the docs | **CONFIRMED** — 0.580565 |
+| constant for 43.4% of queries | **CONFIRMED** — 267/617 = 43.27% sit at 0.5; the `entity_coverage_default_used` flag says 268/617 = 43.44% and the flag agrees with the value on 616 of 617 rows |
+| exactly 0.500 on all 120 layman rows | **CONFIRMED** — 120/120 |
+| 0.386 (below chance) on recodification | **CONFIRMED** — 0.385669 |
+
+`docs/GAPS.md` #1 and #2 describe the **pre-fix** code (`entity_hits` over
+chunks, default 1.0). `agents/retriever.py:110-135` no longer does that and
+says so in its own comments. **`GAPS.md` is stale, the Wave 2 correction is
+right, and one single log row — `req_id=40bd347de051`, an old
+`criminal_unnumbered` run — still carries the pre-fix 1.0 default.** That one
+row is the whole of the 0.5 maximum deviation reported in
+`entity_coverage_substring_reconstruction_max_abs_dev`.
+
+### 3f. The normaliser artefact rate
+
+Population: **3,302** lines rewritten into `Section N.` form by
+`ingest.chunk.SECTION_NORMALISE` across the four source PDFs in `tests/data/`,
+extracted with PyMuPDF exactly as `ingest/extract.py` does. Sample: **100**
+drawn without replacement, `numpy.random.default_rng(SEED=20260901)`, labels
+stored in `NORMALISER_LABELS` in the experiment file. `check06` re-derives the
+population 3,302 by two other routes (whole-page `findall`, and counting the
+increase in occurrences of the literal `"Section "`).
+
+| class | k / 100 | rate | 95% Wilson CI |
+|---|---|---|---|
+| GENUINE — the heading of a substantive provision | 36 | 0.360 | [0.273, 0.458] |
+| CONTENTS — a row of the front ARRANGEMENT OF SECTIONS index | 47 | 0.470 | [0.375, 0.567] |
+| FOOTNOTE — an amendment-footnote marker; the digits are not a section number at all | 17 | 0.170 | [0.109, 0.255] |
+| **ARTEFACT (primary, strict) = CONTENTS + FOOTNOTE** | **64** | **0.640** | **[0.542, 0.727]** |
+| ARTEFACT (lenient) = FOOTNOTE only | 17 | 0.170 | [0.109, 0.255] |
+
+**Downstream survival.** Of the 64 sampled artefacts, **1** still appears in
+Qdrant as a `(corpus, page, section_number)` triple. All 17 FOOTNOTE lines and
+46 of the 47 CONTENTS lines were dropped by `is_contents_entry()` and
+`footnote_verdict()` before indexing. **Artefact rate at rewrite time 64%;
+artefact survival into the index 1/64 = 1.6%.** Both numbers are real and they
+answer different questions.
+
+#### Eight-plus real examples of each class
+
+GENUINE — number, title, em-dash, then the provision (or, in the BNS, number
+then provision directly):
+
+| doc | page | n | line |
+|---|---|---|---|
+| a2019-35 | 12 | 5 | `5. Objects of Central Council.—The objects of the Central Council shall be to render advice on…` |
+| a2019-35 | 27 | 60 | `60. Review by National Commission in certain cases.—The National Commission shall have the power to review…` |
+| a2019-35 | 35 | 97 | `97. Manner of crediting penalty.—The penalty collected under section 21…` |
+| BNS | 12 | 26 | `26. Nothing, which is not intended to cause death, is an offence by reason of any harm…` |
+| BNS | 51 | 172 | `172. Whoever at an election applies for a voting paper on votes in the name of any other person…` |
+| BNS | 58 | 201 | `201. Whoever, being a public servant, and being, as such public servant, charged with the preparation…` |
+| IPC | 102 | 415 | `415. Cheating.—Whoever, by deceiving any person, fraudulently or dishonestly induces the person…` |
+| IPC | 103 | 420 | `420. Cheating and dishonestly inducing delivery of property.—Whoever cheats and thereby…` |
+| CrPC | 115 | 235 | `235. Judgment of acquittal or conviction.—(1) After hearing arguments and points of law…` |
+| CrPC | 138 | 313 | `313. Power to examine the accused.—(1) In every inquiry or trial…` |
+
+CONTENTS — right number, no body, immediately followed by the next numbered
+title or a CHAPTER heading:
+
+| doc | page | n | line |
+|---|---|---|---|
+| a2019-35 | 1 | 18 | `18. Powers and functions of Central Authority.` → `19. Power of Central Authority to refer matter…` |
+| a2019-35 | 2 | 37 | `37. Reference to mediation.` → `38. Procedure on admission of complaint.` |
+| IPC | 2 | 64 | `64. Sentence of imprisonment for non-payment of fine.` → `65. Limit to imprisonment…` |
+| IPC | 4 | 140 | `140. Wearing garb or carrying token used by soldier, sailor or airman.` → `CHAPTER VIII` |
+| IPC | 10 | 376 | `376. Punishment for rape.` → `376A. Punishment for causing death…` |
+| IPC | 13 | 506 | `506. Punishment for criminal intimidation.` → `507. Criminal intimidation by an anonymous communication.` |
+| CrPC | 1 | 18 | `18. Special Metropolitan Magistrates.` → `19. Subordination of Metropolitan Magistrates.` |
+| CrPC | 5 | 128 | `128. Enforcement of order of maintenance.` |
+| CrPC | 15 | 405 | `405. High Court's order to be certified to lower Court.` → `CHAPTER XXXI` |
+| CrPC | 18 | 470 | `470. Exclusion of time in certain cases.` → `471. Exclusion of date on which Court is closed.` |
+
+FOOTNOTE — the digits are a footnote marker, not a section number:
+
+| doc | page | n | line |
+|---|---|---|---|
+| IPC | 15 | 5 | `5. The words "British India" have been successively amended by the A.O. 1948, the A.O. 1950…` |
+| IPC | 20 | 8 | `8. The words "the territories comprised in" omitted by Act 48 of 1952, s. 3 and the Second Sch.` |
+| IPC | 36 | 6 | `6. The words "or a Lieutenant-Governor" omitted by the A. O. 1937.` |
+| IPC | 38 | 10 | `10. Subs. by the A. O. 1950, for "Queen".` |
+| IPC | 41 | 2 | `2. Ins. by Act 25 of 2005, s. 44 (w.e.f. 23-6-2005).` |
+| IPC | 69 | 1 | `1. Subs. by Act 8 of 1925, s. 2, for s. 292.` |
+| IPC | 100 | 2 | `2. Explanation numbered as Explanation 1 by Act 38 of 1975, s. 9 (w.e.f. 1-9-1975).` |
+| CrPC | 30 | 2 | `2. Ins. by s. 7, ibid, (w.e.f. 18-12-1978).` |
+| CrPC | 130 | 1 | `1. Ins. by Act 25 of 2005, s. 24 (w.e.f. 23-6-2006).` |
+| CrPC | 203 | 2 | `2. Subs. by s. 7, ibid. for the word "Ditto", occurring in column 4 relating to s.196…` |
+
+### 3g. The paired check
+
+`experiments/check06_statute_check.py` — **PASSED**, every assertion.
+
+| check | result |
+|---|---|
+| row count after an independently-written dedupe | 617, matches |
+| mean `statute_consistency` at `filtered_n`, server log vs replay | agrees to **0.000000** on every query set |
+| chunk-level comparison of the two sources | 6 differing chunks in **5,879** slots = **0.102%**, 5 rows affected — all reported by `req_id` |
+| exp06's ablation rows vs published `ablation.csv` | agree to **0.00e+00** on all five signals, pooled and per query set |
+| normaliser population by two other regex routes | 3,302 = 3,302 = 3,302 |
+| Wilson interval | reproduced |
+
+---
+
+## 4. How to read it
+
+**AUROC** is "pick one query the system got right and one it got wrong at
+random; how often does the signal score the right one higher?" 0.5 = a coin
+flip. 1.0 = perfect separation. Below 0.5 = the signal is *anti*-informative.
+
+**A 0.500 with a [0.500, 0.500] interval is not a measurement.** It means the
+signal was **constant** on those rows. Read the `notes` column: it says so.
+Constant-at-1.0 happens whenever the query states no date, because then both
+regimes are admissible and nothing can be inconsistent.
+
+**Naive vs clustered intervals.** The naive bootstrap resamples rows. But
+three phrasings of one situation share a `pair_id` and are not independent
+observations, so the clustered bootstrap resamples *situations*. Usually that
+**widens** the interval. Here, on `paired_dated_conflict`, it **narrows** it:
+naive [0.782, 0.875] is 0.093 wide, clustered [0.797, 0.867] is 0.070 wide, a
+design effect of about **0.75**. That is expected, not a bug — Wave 2 measured
+0.79 on this same set. Contrastive variants are *built* to disagree with each
+other, which gives negative within-cluster correlation, which shrinks the
+variance of a cluster mean. Wave 2 also flagged that clustered AUROC
+intervals on restricted `cited`/`grounded` subsets narrowed unexplainably;
+treat those rows with caution.
+
+**ECE** (Expected Calibration Error) asks "when the signal says 0.8, is the
+system right about 80% of the time?" `statute_consistency` scores 0.319, worse
+than `composite` at 0.241 and `max_score` at 0.127. **This is not a defect and
+should not be read as one.** `statute_consistency` is a *consistency fraction*,
+not a *probability of being right*. It says "everything I fetched is from the
+right book", which is necessary but nowhere near sufficient for a correct
+answer. Reading it as a probability is a category error; the ECE is reported
+because the brief asks for it, with this caveat attached in the CSV `notes`.
+
+**Which stage.** `raw_15` and `reranked_15` are the same 15 chunks in
+different orders, so this signal is identical on both. `filtered_n` is the
+subset that survived the adaptive threshold and actually reached the model,
+and the signal is consistently **weaker** there (0.685 → 0.658 pooled). The
+filter throws away low-scoring chunks; when the retrieval went to the wrong
+book, the wrong-book chunks are often the *high*-scoring ones, so filtering
+concentrates the error rather than removing it.
+
+---
+
+## 5. What this means for the paper
+
+### State it plainly
+
+**Pooled, `statute_consistency` does not beat the generic signals.** It scores
+0.685, statistically indistinguishable from the deployed `composite` (+0.021,
+p = 0.50) and clearly *worse* than `max_score` (−0.099, p = 0.0002) and
+`top_k_mean` (0.757). A headline of "the fourth signal wins" would be false
+and must not be written.
+
+**Conditionally, it is the only signal that works at all.** On
+`paired_dated_conflict` — the 197 queries where the code the user names and
+the date they give point at different statutes — it scores **0.830**, against
+`composite` 0.471 and `max_score` 0.656. Paired: **+0.359 over the composite**
+(p < 0.0001) and **+0.174 over max_score** (p = 0.0008). Both intervals
+exclude zero comfortably. On that set the deployed composite is *below chance*
+and the fourth signal is strong.
+
+That is the honest claim, and it is a better claim than "wins on average",
+because it comes with a **mechanism**: similarity signals cannot separate two
+near-identical texts, and the fourth signal does not use similarity.
+
+### Three structural findings that matter more than the AUROC
+
+**(1) The signal is redundant with the retrieval filter that produced it.**
+On **343 of 617 rows** the Qdrant corpus filter the query itself generated is
+already inside the admissible set, so every retrieved chunk is admissible *by
+construction* and the signal cannot fail. This is why `A5_deployed_date` —
+the version using only the era the deployed date module actually output — is
+**constant at 1.0 on all 617 rows** and carries zero information. When the
+date module ran, it set the retrieval filter; the filter then guaranteed the
+consistency the signal was supposed to check.
+
+A confidence signal computed downstream of a filter derived from the same
+inputs is a tautology. **The signal earns its keep only where the filter is
+derived from something else than the date** — which is exactly the
+`paired_dated_conflict` baseline arm, where the filter follows the *named*
+code and the date says otherwise. That is the whole of its 0.830.
+
+For the paper this is a design lesson worth stating: *a confidence signal must
+be independent of the mechanism it is auditing.*
+
+**(2) The date is the whole signal; the query contributes nothing.**
+`A2_date_x_family` is **numerically identical to `A1_date_only` on every one
+of the 617 rows**, and `A3_family_only` is constant. The subject-matter family
+term does no work here, because the corpus filter already confines retrieval
+to one book. If BNSS and BSA were in the corpus this would change. As it
+stands, **`statute_consistency` on this corpus is a date-consistency signal
+wearing a more general name.**
+
+**(3) It is silent on more than half the evaluation.** On
+`generated_retrieval` (198) and `paired_recodification` (99) no query states a
+date, so the signal is constant. On `layman_situation` only 60 of 120 state
+one, and the pooled layman AUROC is 0.566 with an interval crossing 0.5. The
+signal covers **317 of 617 rows** in any informative sense. A deployment would
+need a date parser running on every query — which the system has, but only
+enabled in one intervention arm.
+
+### The oracle ceiling
+
+`A4_oracle_gold`, which reads the gold `expected_corpora` outright, scores
+**0.704** — only 0.019 above the deployable A2's 0.685. **Perfect knowledge of
+which statute should answer the question buys almost nothing over what a date
+parser already provides.** That is a useful bound: there is no large headroom
+being left on the table by an imperfect definition of "implied set".
+
+### The two secondary results
+
+**`entity_coverage` should be computed from the payload, not from chunk
+text.** The payload version is better everywhere it differs: +0.0245 AUROC
+pooled, **+0.1055** on `generated_retrieval` (0.880 → **0.985**). It changes 18
+of 617 rows and every change is downward, because the substring rule can only
+over-count. This is a one-line fix to `agents/retriever.py` with a measured
+benefit — a clean, small, defensible contribution.
+
+**The normaliser rewrites a table-of-contents row or a footnote marker into
+`Section N.` form 64% of the time** [95% CI 54.2%–72.7%], but the downstream
+`is_contents_entry()` / `footnote_verdict()` filters catch **63 of those 64**.
+The chunking pipeline's front-matter defences are working. Report the 64% as
+the rewrite-time rate *with* the 1.6% survival rate; the first number alone
+would overstate the harm badly.
+
+---
+
+## 6. What broke while computing this
+
+**Three things broke. All three are recorded, none was worked around.**
+
+**(a) The primary variant turned out to be identical to a simpler one, and
+the fully-deployable variant turned out to be constant.** `A2 ≡ A1` on all
+617 rows; `A5 ≡ A3` and both constant at 1.0. I had pre-registered five
+variants expecting them to separate. They did not. **Nothing was changed in
+response.** The pre-registered definition stands, all five are reported, and
+`variant_rows_differing` in the CSV records every pairwise identity so a
+reader can see it rather than take my word.
+
+**Nothing in this experiment was re-tuned after seeing an AUROC.** No train /
+test split was needed, because no definition was adjusted post-hoc. If a
+future wave changes the admissible-set rule after reading §3, it must refit on
+a train split and report test-split performance only.
+
+**(b) `check06` failed twice before passing, and both failures were mine, not
+the data's.**
+
+1. *Dedupe order.* I filtered goldless rows **before** deduplicating;
+   `load_logs()` deduplicates first. That gave 620 rows instead of 617 —
+   a query whose *last* occurrence has no gold survives one order and not the
+   other. Fixed by matching `load_logs()`'s order, with a comment explaining
+   why the order is load-bearing.
+2. *Signal-name parsing.* `exp04` writes `signal=gap_term = 1-min(...)` in its
+   notes; my parser split on `;` and produced the whole expression as a key,
+   and separately I forgot to filter `query_set == "ALL"`, so per-query-set
+   rows silently overwrote the pooled ones. The first symptom was
+   `top_k_mean exp04 0.569172` — the *layman* value masquerading as the
+   pooled one. Fixed; the check now also asserts the per-query-set values.
+
+**(c) The `entity_coverage` reconstruction did not match on one row.** Max
+absolute deviation 0.5 — traced to `req_id=40bd347de051`, an old
+`criminal_unnumbered` run logged **before** `ENTITY_NEUTRAL` replaced the 1.0
+default. **Reported, not absorbed:** the CSV names the `req_id`. The other 616
+rows reconstruct to 0.0 deviation, which is what makes the payload comparison
+trustworthy.
+
+**A documented difference that is not a break.** The server log and the Qdrant
+replay disagree on **6 chunks out of 5,879** slots (0.102%, 5 rows). Wave 2
+documented one such disagreement in 608 and attributed it to a 5th-decimal
+cosine difference flipping two near-tied hits at the adaptive threshold. Five
+of the six are one chunk more or fewer *within the same corpus*; one
+(`44cd74a7f90e`) swaps a CRPC chunk for a CPA chunk. **The mean
+`statute_consistency` is unchanged to six decimals** on every query set,
+because the differing chunks fall inside the same admissible set. Every
+affected `req_id` is printed by `check06`.
+
+---
+
+## 7. What I could not compute, and why
+
+| wanted | why not |
+|---|---|
+| `grounded` AUROC per query set | 27 positives in 617 rows. Several sets contain no positive at all, so AUROC is undefined. Emitted as **NOT MEASURED** with the positive/negative counts in `notes`. |
+| A truly no-oracle `statute_consistency` on more than 98 rows | The deployed date module ran only in the `both` intervention arm — 98 of 617 rows after dedupe. Everywhere else `date.era` is null and `A5` falls back to UNKNOWN. Recovering the era from `applicable_regime` assumes a **perfect date parser** on 519 rows, which is disclosed rather than hidden. Measuring a real parser would need a re-run, which is out of scope here. |
+| Whether the signal helps *in combination* with the other three | Different question from "does it discriminate alone", and it belongs to an ablation over the blend, not here. Nothing in this file changes the deployed 0.55/0.15/0.30 weights, and no reweighting was fitted. |
+| A BNSS/BSA-aware admissible set | Neither statute is in the corpus. The PROCEDURE family after 1 July 2024 has **no** admissible member available, which is why the empty-set fallback exists. It never fired on this data, but a corpus that includes the BNSS would exercise it. |
+| The 3 rows dropped by the dedupe rule | Disclosed limitation carried forward from Wave 2. 620 gold-labelled rows exist; `load_logs()`'s `(query_id, intervention)` rule keeps 617. Not fixed here, by instruction. |
+| Per-chunk attribution of *why* a chunk was inadmissible | The signal is a fraction; it does not record which chunk failed and for which reason (wrong era vs wrong family). Worth adding if this becomes a deployed signal. |
+| A clean split of "normaliser artefact" from "cross-reference" as the cause of `entity_coverage` false matches | Measured, and it is the *opposite* of the hypothesis — see §8. |
+
+---
+
+## 8. What surprised me
+
+**1. The false `entity_coverage` matches are not normaliser artefacts at all.
+They are cross-references inside genuine provisions.** The task brief
+hypothesised that "page numbers and list items produce false matches" through
+the `Section N.` rewriting. I inspected all 17 disagreeing rows with extracted
+entities. **Every single one is a real section citing another real section.**
+
+| query | asks for | matched chunk | the text that matched |
+|---|---|---|---|
+| `G0127` | Section 452, 453 | CrPC **454** | `Section 454. Appeal against orders under section 452 or section 453.—` |
+| `G0061` | Section 72 | CPA **73** | `Section 73. Appeal against order passed under section 72.—` |
+| `G0081` | Section 139 | CrPC **140** | `…where the Magistrate directs a local investigation by any person under section 139…` |
+| `G0016` | Section 64 | BNS **199** | `…cognizable offence punishable under section 64, section 65, section 66, section 67…` |
+| `P0031` | Section 354A | IPC **354E** | `…an offence under section 354, section 354A, section 354B, section 354C or section 354D…` |
+
+The appeal provision names the provision appealed from. That is how statutes
+are written. The substring rule cannot tell "this **is** section 452" from
+"this **mentions** section 452", and a genuine 160-year-old drafting
+convention, not a PDF-parsing bug, is what breaks it. The payload fix works
+for exactly this reason: `section_number` says what a chunk **is**.
+
+**2. The signal is structurally redundant with the mechanism it audits.** I
+expected to measure how *well* the fourth signal discriminates. What I found
+first is that on 343 of 617 rows it **cannot fail**, because the retrieval
+filter was derived from the same query+date. The interesting number
+(paired_dated 0.830) comes entirely from rows where the filter followed the
+named code while the date said otherwise. This reframes the signal: it is not
+a general-purpose consistency check, it is a **disagreement detector between
+two things the query says**.
+
+**3. The oracle buys almost nothing.** `A4_oracle_gold` reads the answer key
+and scores 0.704 against the deployable 0.685. I expected a much larger gap
+and was ready to report "the definition is the bottleneck". It is not — the
+bottleneck is coverage (no date on half the queries), not precision of the
+admissible set.
+
+**4. The clustered interval is narrower, and that is correct.** On
+`paired_dated_conflict` the design effect is ~0.75. My instinct was that
+clustering always widens. It does not when variants within a cluster are
+*constructed to disagree*: the conflict-IPC-named, conflict-BNS-named and
+agree-control variants of one situation deliberately pull opposite ways, which
+is negative within-cluster correlation, which shrinks a cluster mean's
+variance. Wave 2 saw the same thing at 0.79 on this set.
+
+**5. `entity_coverage` recomputed from the payload reaches 0.985 AUROC on
+`generated_retrieval`.** That set is built by generating a query *from* a
+section, so "did we retrieve the section the user named" is nearly the whole
+of correctness there — and the payload version answers that question almost
+perfectly, while the substring version leaks 0.105 of AUROC to cross-reference
+false matches. It is the largest single improvement I found, and it is a
+three-line change.
+
+**6. The normaliser rewrites far more junk than I expected (64%) and the
+pipeline catches almost all of it (63 of 64).** I went in expecting to report
+a defect. The defensive filters in `ingest/chunk.py` — `is_contents_entry()`
+and `footnote_verdict()`, both of which carry long comments explaining exactly
+this problem — are doing their job. The honest report is that the normaliser
+is noisy and the chunker is not.
+
+---
+
+## BM25 and hybrid retrieval
+Output file: results/hybrid_comparison.csv
+Regenerate with: `./venv/Scripts/python.exe experiments/exp07_hybrid.py` (then `./venv/Scripts/python.exe experiments/check07_hybrid_check.py`)
+Owner: Wave 3 Subagent 2
+
+---
+
+### 1. ELI5 — what does this measure?
+
+There are two completely different ways to find a paragraph in a pile of documents.
+
+**Dense retrieval** is the one this project already uses. Every chunk of law is turned into a list of 1,536 numbers — a *vector* — that encodes what the chunk *means*. Your question is turned into a vector the same way, and the system returns the chunks whose vectors point in the most similar direction. It is a *meaning* search. It never looks at the literal words. "Punishment for cheating" and "penalty for fraud" land near each other even though they share no word.
+
+**BM25** is the opposite. It is a *word* search — the ranking function behind classic search engines. It only asks: which of the words you typed literally appear in this chunk, how often, and how rare is each word overall? Two ideas do all the work:
+
+| Term | Plain English | Why it matters here |
+|---|---|---|
+| **term frequency (tf)** | how many times your word appears in this chunk | a chunk that says "assembly" five times is probably about assemblies |
+| **inverse document frequency (idf)** | how *rare* the word is across all 1,899 chunks | "the" appears in 1,720 of them and tells you nothing; "sanhita" appears in 30 and tells you almost everything |
+
+BM25 multiplies the two and adds up over your query words, with a correction so that long chunks do not win just by being long.
+
+**Why the paper needs this.** The project's headline finding is that when you ask about **BNS** — the *Bharatiya Nyaya Sanhita*, the new criminal code in force since 1 July 2024 — the system hands you text from the **IPC**, the *Indian Penal Code* it replaced. A reviewer will fire back:
+
+> *"That is not a finding about Indian law. That is a finding about your choice of retriever. A plain word search would tell IPC 420 from BNS 318 instantly. You built the wrong system and called it a discovery."*
+
+The only way to answer that is to **build the word search and run it on the same 1,899 chunks and the same 66 queries** — which is what this experiment does. And because the reviewer's next move is "then just combine the two", it also builds the combination.
+
+**Reciprocal Rank Fusion (RRF)** is that combination. *Rank* means position in a result list: the best result is rank 1, the next is rank 2. RRF ignores the two systems' scores entirely — they are on incomparable scales — and looks only at ranks:
+
+```
+score(chunk) = SUM over each list of   1 / (60 + its rank in that list)
+```
+
+A chunk at rank 1 in both lists scores 1/61 + 1/61. A chunk at rank 1 in one list and missing from the other scores just 1/61. The constant 60 is not invented here; it is the value from **Cormack, Clarke & Buttcher, SIGIR 2009**, *"Reciprocal Rank Fusion outperforms Condorcet and individual rank learning methods"*. It deliberately flattens the top of each list so one system cannot dictate the answer alone.
+
+Finally, a **confidence interval (CI)** is the honest range around a measured number. "97.0% [84.7, 99.5]" means: we saw 32 successes out of 33, and if we could repeat this with fresh queries of the same kind, the true rate is plausibly anywhere from 84.7% to 99.5%. Thirty-three queries cannot pin down a percentage to one decimal place, and the interval says so out loud.
+
+---
+
+### 2. Technically
+
+**The setup, identical for all three arms.**
+
+| Element | Value |
+|---|---|
+| Index | Qdrant collection `legal_mvp`, 1,899 chunks, scrolled READ-ONLY |
+| Corpus shares | CrPC 39.1% · IPC 31.3% · BNS 22.3% · CPA 7.3% |
+| Corpus filter | **DISABLED** in every arm (see below) |
+| Query text | **raw** query, not the Router's `rewritten_query` |
+| Retrieval depth | top 50 per arm — fusion input only |
+| Evaluation window | top **15 chunks**, so every number here is comparable with the existing top-15 tables |
+| Dense | `text-embedding-3-small`, 1536-d, cosine |
+| BM25 | `rank_bm25.BM25Okapi`, k1=1.5, b=0.75, epsilon=0.25 (library defaults) |
+| Fusion | RRF, k=60, Cormack et al. SIGIR 2009 |
+| Seed / resamples | SEED=20260901, N_BOOT=10,000, imported from `metrics_lib` |
+
+**Why the filter is off.** The Router reads the Act name out of the query and applies a hard Qdrant filter. With it on, an IPC-named query *cannot* return a BNS chunk, so the confusion matrix is guaranteed clean before any retrieval happens — the reason `scripts/ablate_filter.py` exists. BM25 has no filter concept at all. "Filter off" is therefore the only condition under which the three arms are the same experiment.
+
+**Tokenisation — the crux.** BM25 sees only tokens. A tokeniser that strips numerals turns `Section 318(4)` into `section` and deletes the only signal that distinguishes one provision from another. The rule used here:
+
+1. Lowercase; normalise the corpus's stray unicode dashes and quotes to ASCII (the PDFs contain `—` and a replacement character `�` that would otherwise fuse two words).
+2. Scan for two token shapes, numerics preferred:
+   - **numeric** — `\d+[a-z]{0,2}(?:\([0-9a-z]+\))*` — digits, then up to two letters, then any number of parenthesised groups.
+   - **alphabetic** — `[a-z]+`.
+   Everything else is a separator.
+3. **Expand** each numeric token into its statutory ancestors. The subsection digit *alone* is not emitted.
+
+| Input | Tokens produced |
+|---|---|
+| `Section 318(4).` | `section`, `318(4)`, `318` |
+| `What is BNS 304B?` | `what`, `is`, `bns`, `304b`, `304` |
+| `Section 41A CrPC` | `section`, `41a`, `41`, `crpc` |
+| `s. 498A(1)(b)` | `s`, `498a(1)(b)`, `498a(1)`, `498a`, `498` |
+| `Punishment for murder under Section 302 IPC` | `punishment`, `for`, `murder`, `under`, `section`, `302`, `ipc` |
+| `Section 373. Appeal from orders requiring security—Any person,—` | `section`, `373`, `appeal`, `from`, `orders`, `requiring`, `security`, `any`, `person` |
+
+**Why expand.** Section headings in the corpus are written bare — `Section 318.` — while queries and cross-references write `Section 318(4)`. Without expansion those two share no token and BM25 scores the correct chunk at exactly zero on the one term that identifies it. Expansion is applied identically to documents and to queries, so the match stays symmetric.
+
+**Why not emit the bare subsection digit.** `4` appears in a large fraction of the 1,899 chunks. Its idf is near zero, so it can contribute almost nothing to the score while adding noise to the length normalisation. Dropping it costs no recall — the parent number `318` already localises the section — and keeps the query terms readable when debugging.
+
+The resulting index: 1,899 documents, 6,355 distinct tokens, mean 156.3 tokens per chunk.
+
+**Provenance, stated because a mixed table that hides it is worse than a slow honest one.** No recorded dense result matched the required conditions: the runs in `runs/` embedded the Router's `rewritten_query` (the query with LLM-extracted legal issues prefixed) and applied a corpus filter. Both are unavailable to BM25 and neither is what `ablate_filter.py` did. **The dense arm was therefore re-run fresh**, on raw query text with no filter. Every dense row in the CSV says so in `notes`, and the recorded numbers are emitted alongside under the separate metric name `recall_at_k_recorded_raw15` so the size of the difference is visible rather than buried.
+
+One consequence worth stating: `paired_dated_conflict` is **99 queries here, not 197 rows**. Reading `app.py`, the date/mapper intervention acts *only* by rewriting `plan.target_corpora` — i.e. only through the corpus filter. With the filter disabled the two conditions are literally the same retrieval, so the 0.293 / 0.694 split has no counterpart in this table. Pooled `n` is 518 unique queries, not 617 logged rows.
+
+---
+
+### 3. What the number came out as
+
+#### 3a. THE HEADLINE — does naming an Act get you that Act's text?
+
+66 numbered paired queries, corpus filter disabled, top 15. *Dominant corpus* = which statute supplied most of the 15 chunks. Chance = that statute's share of the index.
+
+| Query names | Arm | IPC | BNS | CrPC | CPA | **Correct** | 95% Wilson | Cluster CI | Chance |
+|---|---|--:|--:|--:|--:|--:|---|---|--:|
+| **IPC** | dense | **32** | 1 | 0 | 0 | **97.0%** | [84.7, 99.5] | [90.9, 100.0] | 31.3% |
+| **IPC** | bm25 | 0 | 0 | **33** | 0 | **0.0%** | [0.0, 10.4] | [0.0, 0.0] | 31.3% |
+| **IPC** | hybrid_rrf | 15 | 1 | 17 | 0 | **45.5%** | [29.8, 62.0] | [27.3, 63.6] | 31.3% |
+| **BNS** | dense | 16 | **17** | 0 | 0 | **51.5%** | [35.2, 67.5] | [33.3, 69.7] | 22.3% |
+| **BNS** | bm25 | 1 | **32** | 0 | 0 | **97.0%** | [84.7, 99.5] | [90.9, 100.0] | 22.3% |
+| **BNS** | hybrid_rrf | 7 | **26** | 0 | 0 | **78.8%** | [62.2, 89.3] | [63.6, 90.9] | 22.3% |
+
+Same 66 queries, single top-scoring chunk only:
+
+| Query names | Arm | IPC | BNS | CrPC | CPA | **Top-1 correct** | 95% Wilson | Cluster CI | Chance |
+|---|---|--:|--:|--:|--:|--:|---|---|--:|
+| **IPC** | dense | **30** | 3 | 0 | 0 | **90.9%** | [76.4, 96.9] | [78.8, 100.0] | 31.3% |
+| **IPC** | bm25 | 15 | 0 | 18 | 0 | **45.5%** | [29.8, 62.0] | [30.3, 63.6] | 31.3% |
+| **IPC** | hybrid_rrf | **29** | 1 | 3 | 0 | **87.9%** | [72.7, 95.2] | [75.8, 97.0] | 31.3% |
+| **BNS** | dense | 19 | 14 | 0 | 0 | **42.4%** | [27.2, 59.2] | [24.2, 60.6] | 22.3% |
+| **BNS** | bm25 | 5 | **28** | 0 | 0 | **84.8%** | [69.1, 93.3] | [72.7, 97.0] | 22.3% |
+| **BNS** | hybrid_rrf | 11 | **22** | 0 | 0 | **66.7%** | [49.6, 80.2] | [48.5, 81.8] | 22.3% |
+
+**The number that matters: BNS-named accuracy moves off 51.5%, and it moves UP.**
+
+| Arm | BNS-named dominant | Change vs dense | BNS-named top-1 | Change vs dense |
+|---|--:|--:|--:|--:|
+| dense | 51.5% [35.2, 67.5] | — | 42.4% [27.2, 59.2] | — |
+| bm25 | **97.0%** [84.7, 99.5] | **+45.5 pts** | **84.8%** [69.1, 93.3] | **+42.4 pts** |
+| hybrid_rrf | 78.8% [62.2, 89.3] | +27.3 pts | 66.7% [49.6, 80.2] | +24.2 pts |
+
+And the cost, on the same 66 queries:
+
+| Arm | IPC-named dominant | Change vs dense |
+|---|--:|--:|
+| dense | 97.0% [84.7, 99.5] | — |
+| bm25 | **0.0%** [0.0, 10.4] | **−97.0 pts** |
+| hybrid_rrf | 45.5% [29.8, 62.0] | −51.5 pts |
+
+#### 3b. Gold-section Recall@15, MRR@15, nDCG@15, per query set
+
+*Recall@k* = share of queries where at least one gold section appeared in the top k. *MRR* (mean reciprocal rank) = average of 1/(position of the first correct hit). *nDCG@k* = the same idea with a gentler log discount. All under the `retrieved@k` correctness definition, `metrics_lib` rank convention (chunks with no `section_number` are dropped — 406 of the 1,899 have none).
+
+| Query set | n | Arm | **Recall@15** | 95% Wilson | Cluster CI | MRR@15 | nDCG@15 |
+|---|--:|---|--:|---|---|--:|--:|
+| generated_retrieval | 200 | dense | 0.645 | [0.577, 0.708] | [0.601, 0.687] | 0.5773 | 0.5943 |
+| generated_retrieval | 200 | bm25 | 0.635 | [0.566, 0.699] | [0.573, 0.695] | 0.4572 | 0.4995 |
+| generated_retrieval | 200 | hybrid_rrf | **0.650** | [0.582, 0.713] | [0.605, 0.693] | 0.5238 | 0.5539 |
+| paired_recodification | 99 | dense | **0.737** | [0.643, 0.814] | [0.687, 0.798] | 0.5495 | 0.5945 |
+| paired_recodification | 99 | bm25 | 0.576 | [0.477, 0.668] | [0.455, 0.687] | 0.3965 | 0.4399 |
+| paired_recodification | 99 | hybrid_rrf | 0.717 | [0.622, 0.796] | [0.657, 0.778] | **0.5804** | **0.6138** |
+| paired_dated_conflict | 99 | dense | **0.697** | [0.600, 0.779] | [0.616, 0.768] | 0.4429 | 0.5034 |
+| paired_dated_conflict | 99 | bm25 | 0.434 | [0.341, 0.533] | [0.323, 0.556] | 0.2190 | 0.2695 |
+| paired_dated_conflict | 99 | hybrid_rrf | 0.616 | [0.518, 0.706] | [0.505, 0.717] | 0.4114 | 0.4618 |
+| layman_situation | 120 | dense | **0.150** | [0.097, 0.225] | [0.033, 0.275] | 0.0514 | 0.0740 |
+| layman_situation | 120 | bm25 | 0.025 | [0.009, 0.071] | [0.000, 0.075] | 0.0111 | 0.0147 |
+| layman_situation | 120 | hybrid_rrf | 0.108 | [0.064, 0.177] | [0.025, 0.208] | **0.0610** | 0.0725 |
+| **ALL (pooled)** | 518 | dense | **0.558** | [0.515, 0.600] | [0.503, 0.610] | 0.4245 | 0.4564 |
+| **ALL (pooled)** | 518 | bm25 | 0.444 | [0.402, 0.487] | [0.387, 0.501] | 0.2967 | 0.3319 |
+| **ALL (pooled)** | 518 | hybrid_rrf | 0.531 | [0.488, 0.573] | [0.476, 0.583] | 0.4059 | 0.4362 |
+
+Recall@k across k, compressed convention:
+
+| Query set | Arm | k=1 | k=3 | k=5 | k=10 | k=15 |
+|---|---|--:|--:|--:|--:|--:|
+| generated_retrieval | dense | 0.525 | 0.625 | 0.630 | 0.645 | 0.645 |
+| generated_retrieval | bm25 | 0.375 | 0.515 | 0.545 | 0.625 | 0.635 |
+| generated_retrieval | hybrid_rrf | 0.470 | 0.570 | 0.600 | 0.645 | 0.650 |
+| paired_recodification | dense | 0.465 | 0.636 | 0.667 | 0.727 | 0.737 |
+| paired_recodification | bm25 | 0.303 | 0.485 | 0.505 | 0.566 | 0.576 |
+| paired_recodification | hybrid_rrf | **0.505** | 0.626 | **0.687** | 0.717 | 0.717 |
+| paired_dated_conflict | dense | 0.313 | 0.545 | 0.596 | 0.657 | 0.697 |
+| paired_dated_conflict | bm25 | 0.131 | 0.263 | 0.313 | 0.414 | 0.434 |
+| paired_dated_conflict | hybrid_rrf | 0.293 | 0.515 | 0.566 | 0.616 | 0.616 |
+| layman_situation | dense | 0.025 | 0.058 | 0.100 | 0.133 | 0.150 |
+| layman_situation | bm25 | 0.000 | 0.025 | 0.025 | 0.025 | 0.025 |
+| layman_situation | hybrid_rrf | **0.042** | **0.075** | 0.100 | 0.108 | 0.108 |
+| ALL | dense | 0.357 | 0.481 | 0.508 | 0.544 | 0.558 |
+| ALL | bm25 | 0.228 | 0.347 | 0.373 | 0.434 | 0.444 |
+| ALL | hybrid_rrf | 0.344 | 0.456 | 0.494 | 0.529 | 0.531 |
+
+`recall_at_k_fraction_of_gold` (mean fraction of a query's gold sections found, for the 91 queries carrying 2–3 gold sections) and the `*_positional` rank convention are in the CSV as separate metric rows.
+
+#### 3c. THE CEILING — found while running this, and it bounds everything above
+
+| Query set | Gold reachable in the index | 95% Wilson |
+|---|--:|---|
+| generated_retrieval | 200/200 = 1.000 | [0.981, 1.000] |
+| paired_recodification | 75/99 = 0.758 | [0.665, 0.831] |
+| — IPC-named | 31/33 = 0.939 | [0.804, 0.983] |
+| — **BNS-named** | **11/33 = 0.333** | [0.198, 0.504] |
+| — neutral-topic | 33/33 = 1.000 | [0.896, 1.000] |
+| paired_dated_conflict | 73/99 = 0.737 | [0.643, 0.814] |
+| layman_situation | 96/120 = 0.800 | [0.720, 0.862] |
+| **ALL pooled** | **444/518 = 0.857** | [0.824, 0.885] |
+
+22 of the 33 BNS-named gold labels are **subsection** references — `BNS 103(1)`, `BNS 318(4)`, `BNS 356(2)` — while the index records only the bare section number, `103`, `318`, `356`. `metrics_lib.same_section()` is strict by default (its own docstring warns that lenient matching over-counts: `498A` would collapse onto `498`, a different offence), so those 22 queries **cannot be scored correct by any retriever**.
+
+Gold-**section** recall on the paired set, split by variant, read against that ceiling:
+
+| Variant | Ceiling | dense | bm25 | hybrid_rrf |
+|---|--:|--:|--:|--:|
+| IPC-named | 31/33 = 0.939 | 29/33 = 0.879 | 24/33 = 0.727 | 27/33 = 0.818 |
+| **BNS-named** | **11/33 = 0.333** | **11/33 = 0.333** | 10/33 = 0.303 | **11/33 = 0.333** |
+| neutral-topic | 33/33 = 1.000 | 33/33 = 1.000 | 23/33 = 0.697 | 33/33 = 1.000 |
+
+On BNS-named queries, dense and hybrid retrieve **100% of what is retrievable**. The 0.333 is the gold labels' ceiling, not the retriever's failure.
+
+#### 3d. Provenance contrast — recorded vs fresh dense
+
+| Query set | Recorded dense `raw_15` (filter ON, rewritten query) | Fresh dense here (filter OFF, raw query) |
+|---|--:|--:|
+| generated_retrieval | 0.692 (n=198) | 0.645 (n=200) |
+| paired_recodification | 0.737 (n=99) | **0.737** (n=99) |
+| paired_dated_conflict | 0.492 (n=197 rows, both conditions pooled) | 0.697 (n=99 queries) |
+| layman_situation | 0.150 (n=120) | **0.150** (n=120) |
+
+#### 3e. Cost
+
+| Item | Value |
+|---|--:|
+| Queries embedded | 518 unique (4 reported sets) |
+| Tokens charged by the endpoint | **13,375** |
+| Price | $0.02 / 1M (`text-embedding-3-small`) |
+| Cost | **$0.000268 ≈ ₹0.024** |
+| Generation (LLM answer) calls | **0** |
+
+---
+
+### 4. How to read it
+
+**A worked example, before any abstraction.** Query **P0002**, a real BNS-named query where dense retrieval fails and BM25 does not:
+
+> *"What is the punishment for unlawful assembly - common object under Section 190 of the Bharatiya Nyaya Sanhita?"*  — gold: `BNS 190`
+
+| Rank | **Dense** (meaning) | **BM25** (words) | **Hybrid RRF** |
+|--:|---|---|---|
+| 1 | IPC 143 — Punishment.—Whoever is a member of an unlawful assembly… | **BNS 190** — If an offence is committed by any member of an unlawful assembly… | **BNS 190** |
+| 2 | IPC 149 — Every member of unlawful assembly guilty of offence… | IPC 149 | IPC 149 |
+| 3 | **BNS 190** | IPC 146 — Rioting… | IPC 141 |
+| 4 | IPC 141 — Unlawful assembly.—An assembly of five or more persons… | IPC 141 | BNS 189 |
+| 5 | BNS 189 | BNS 189 | IPC 146 |
+
+Dense understands the *situation* perfectly — every one of its five results is about unlawful assembly — and then hands back the **repealed** IPC version at ranks 1, 2 and 4. It has no idea that "Bharatiya Nyaya Sanhita" is a *name* rather than a topic. BM25 does: `sanhita` has idf 4.12 and occurs in exactly 30 chunks, all of them BNS.
+
+The fusion arithmetic, term by term, k=60:
+
+| Chunk | Dense rank | BM25 rank | RRF score | Fused rank |
+|---|--:|--:|--:|--:|
+| **BNS 190** | 3 | 1 | 1/63 + 1/61 = **0.032266458** | **1** |
+| IPC 149 | 2 | 2 | 1/62 + 1/62 = 0.032258065 | 2 |
+| IPC 141 | 4 | 4 | 1/64 + 1/64 = 0.031250000 | 3 |
+| BNS 189 | 5 | 5 | 1/65 + 1/65 = 0.030769231 | 4 |
+| IPC 146 | 17 | 3 | 1/77 + 1/63 = 0.028860029 | 5 |
+
+The correct chunk wins by **0.0000084**. That is how narrow the hybrid's victory is on this query, and it is a fair warning about how much weight the hybrid column can carry.
+
+**Now the mechanism, and it is not what you would guess.** BM25's asymmetry is a fact about **drafting style**, measurable directly in the index:
+
+| Token | Total chunks | IPC | BNS | CrPC | CPA | idf |
+|---|--:|--:|--:|--:|--:|--:|
+| `sanhita` | 30 | 0 | **30** | 0 | 0 | 4.12 |
+| `bharatiya` | 8 | 0 | **8** | 0 | 0 | 5.41 |
+| `nyaya` | 2 | 0 | **2** | 0 | 0 | 6.63 |
+| `penal` | 110 | 23 | 2 | **82** | 3 | 2.79 |
+| `indian` | 129 | 29 | 2 | **95** | 3 | 2.62 |
+| `code` | 303 | 60 | 1 | **231** | 11 | 1.66 |
+
+- The BNS **names itself** in its own operative text — "any section of this **Sanhita**". Those three tokens occur nowhere else in the corpus. Type "Bharatiya Nyaya Sanhita" and BM25 goes straight to the BNS.
+- The IPC (1860) **never names itself**. The phrase "Indian Penal Code" appears in this corpus overwhelmingly inside the *Code of Criminal Procedure*, as cross-references — "an offence under the Indian Penal Code". So typing the Act's own name is, to a word search, a **CrPC-identifying phrase**. All 33 IPC-named queries have CrPC supply the plurality of their top 15. That is the 0.0%.
+
+**But read the 0.0% carefully — it is a tail effect, not a head effect.** Query **P0001** (`Section 149 of the Indian Penal Code`, gold `IPC 149`):
+
+| Rank | BM25 result |
+|--:|---|
+| 1 | **IPC 149** ✓ |
+| 2 | BNS 190 |
+| 3 | IPC 146 |
+| 4 | IPC 141 |
+| 5 | BNS 189 |
+| … | ranks 6–15 fill with CrPC cross-reference chunks |
+
+Top-15 composition: CrPC 8, BNS 4, IPC 3 → **dominant = CrPC = wrong**, even though rank 1 was right. This is exactly why BM25's IPC-named score is 0.0% on *dominant* but 45.5% on *top-1*, and why gold-section Recall@15 for the same queries is 24/33 = 0.727. **The dominant-corpus measure is a coarse instrument.** Report the two together or not at all.
+
+**Reading the clustered intervals.** The 33 situations each appear as several phrasings, so the phrasings are not independent observations; `cluster_bootstrap()` resamples *situations*, not rows. As Wave 2 found, this does **not** always widen the interval here, because contrastive variants are built to disagree:
+
+| Row | Naive width | Clustered width | Design effect |
+|---|--:|--:|--:|
+| IPC-named, dense, dominant | 0.148 | 0.091 | 0.62 |
+| BNS-named, bm25, dominant | 0.148 | 0.091 | 0.62 |
+| BNS-named, dense, dominant | 0.323 | 0.364 | 1.13 |
+| BNS-named, hybrid, dominant | 0.271 | 0.273 | 1.01 |
+| **All 66, bm25, dominant** | **0.234** | **0.045** | **0.19** |
+
+That last row is the extreme case and it is not a bug. BM25 gets *exactly one* of each pair right — the BNS half always, the IPC half never — so every single one of the 33 situations contributes exactly 1/2. Resampling situations therefore produces almost no variance: the clustered interval is [0.455, 0.500] against a naive [0.368, 0.603]. Perfect negative within-cluster correlation, by construction.
+
+**Two ordinary cautions.** Within the IPC-named and BNS-named subgroups each `pair_id` occurs exactly once, so the cluster bootstrap degenerates to an ordinary row bootstrap there — read the two intervals as one. And 33 is a small n: an interval like [62.2, 89.3] is genuinely 27 points wide.
+
+---
+
+### 5. What this means for the paper
+
+**The objection, stated fairly:** *"An exact-word search would separate IPC 420 from BNS 318 trivially. Your cross-statute failure is an artefact of choosing a dense retriever, not a property of the recodification."*
+
+**The answer is: partly right, and the part it gets right makes the paper better, not worse.**
+
+**(i) On BNS-named queries the reviewer is correct, and it should be conceded in plain terms.** BM25 takes BNS-named dominant-corpus accuracy from **51.5% [35.2, 67.5] to 97.0% [84.7, 99.5]**, +45.5 points, intervals not remotely overlapping. Top-1 goes 42.4% → 84.8%. Naming the new code *does* carry a usable literal signal, and the dense retriever throws it away. Stated at its strongest: **the dense retriever is a bad choice for this task, and the paper should say so.**
+
+**(ii) But the failure does not vanish — it moves.** BM25 destroys the other half. IPC-named dominant accuracy collapses from **97.0% to 0.0% [0.0, 10.4]**, below the 31.3% chance rate, 33 out of 33 queries landing in the *Code of Criminal Procedure*. On the full 66, BM25 scores 32/66 = 48.5% against dense's 49/66 = 74.2%. Neither retriever handles both statutes. That is a stronger claim than "dense retrieval is bad", and it is the claim to lead with.
+
+**(iii) The hybrid does not rescue it either.** RRF lands between the two on the measure each arm dominates — BNS-named 78.8%, IPC-named 45.5% — and 62.1% overall, *below* dense's 74.2%. Fusion averages the two failure modes; it does not cancel them. On pooled gold-section Recall@15 the hybrid is 0.531 [0.488, 0.573] against dense 0.558 [0.515, 0.600]: no gain, and a loss on the layman set (0.108 vs 0.150).
+
+**(iv) The mechanism is the actual contribution, and it is about legal drafting, not about retrievers.** The reason no lexical method can fix this is measurable in six numbers:
+
+> The **BNS names itself** in its own operative text (`sanhita`: 30 chunks, all BNS). The **IPC does not** — the phrase "Indian Penal Code" appears in this corpus mostly inside the *CrPC*, as cross-references (`penal`: 82 CrPC chunks vs 23 IPC). So a word search follows "Bharatiya Nyaya Sanhita" to the BNS and follows "Indian Penal Code" to the Code of Criminal Procedure.
+
+This generalises past this corpus and past this system. During a recodification, the **new** statute is lexically self-identifying and the **old** one is identifiable only through the cross-references that other statutes make to it — and those cross-references live in the *wrong* document. Retrieval over a mixed-vintage statute book is asymmetrically hard *by construction*, and the asymmetry flips depending on whether your retriever reads meaning or words. That is a finding about Indian legal recodification that no choice of retriever removes.
+
+**(v) The honest framing for the paper.** Not *"dense retrieval confuses the IPC and the BNS"*. Instead:
+
+> *Neither dense nor lexical retrieval can reliably route a query to the correct code across a recodification boundary, and fusing them does not help. Dense retrieval fails on the new code (51.5% [35.2, 67.5]); lexical retrieval fails catastrophically on the repealed code (0.0% [0.0, 10.4]); RRF fusion lands between the two and is worse overall than dense alone (62.1% vs 74.2%). The failures have different causes — semantic near-identity of recodified provisions on one side, asymmetric self-naming in statutory drafting on the other — so no reweighting of the same two signals fixes both. What the task needs is an explicit statute-and-date resolution layer, which is exactly what the Phase H mapper is.*
+
+**(vi) An independent argument for that layer.** The corpus filter, when it is *correct*, already gives near-perfect corpus routing. Everything measured here is what happens when it is off. The experiment therefore says: **the routing decision must be made deliberately, not inferred from similarity or from word overlap.** That is a design conclusion the paper can defend with these numbers.
+
+**(vii) A caveat that must travel with every recall number.** Only 444 of 518 gold labels (85.7%) are reachable at all under strict section identity, and on BNS-named queries only 11 of 33 (33.3%) are, because 22 gold labels name subsections (`BNS 318(4)`) that the index records only as bare sections (`318`). Dense and hybrid both achieve **11/33 — the entire ceiling**. Any recall figure on that subset must be quoted against 0.333 and not against 1.0, or it will read as a 67-point failure that is entirely an artefact of label granularity. This is a gold-label / ingestion issue, not a retrieval one, and it is reported rather than repaired — patching the gold would be exactly the thing this project's conventions forbid.
+
+---
+
+### 6. What broke while computing this
+
+| # | What | Resolution |
+|---|---|---|
+| 1 | **The gold-reachability ceiling was not known before this run.** BNS-named gold-section recall looked like a 0.333 catastrophe across all three arms. It is not: 22 of 33 gold labels name a subsection the index does not record, so 0.333 *is* the ceiling and dense/hybrid saturate it. | Not a code fault. Added `gold_reachable_ceiling` rows to the CSV and check C6 in `check07_hybrid_check.py` asserting no arm exceeds its set's ceiling. Nothing was patched. |
+| 2 | **BM25's IPC-named 0.0% initially looked like a tokenisation bug.** Zero out of thirty-three is the kind of number that usually means a broken index. | It is real, and the cause was confirmed by direct token counts (`penal` in 82 CrPC chunks vs 23 IPC). The independent re-implementation in C4 reproduces 0/33 exactly. |
+| 3 | **The dense arm could not reuse recorded results.** `runs/` embedded `rewritten_query` with a corpus filter applied; neither condition is available to BM25 nor matches `ablate_filter.py`. | Re-ran dense fresh on raw text with no filter, disclosed in `notes` on every dense row, and emitted the recorded values separately as `recall_at_k_recorded_raw15`. |
+| 4 | Qdrant point ids are UUIDs, not integers, so BM25 document indices and Qdrant ids needed an explicit map. | Documents sorted on `chunk_id` before indexing, giving a stable index that reproduces without being stored. |
+
+Nothing failed silently, nothing was worked around, and `pytest tests/ -q` is **237 passed** — unchanged from baseline.
+
+**All 17 paired checks pass**, including: BM25 index = exactly 1,899 documents; corpus shares matching `ablate_filter.py`'s chance baseline to 3 decimals; a hand-computed 4-document RRF toy (`[d1,d2,d3]` ⊕ `[d3,d1,d4]` → `d1,d3,d2,d4`) matching the code; RRF of a single list being the identity on toys *and* on all 66 real dense result lists; a second tokeniser written as a character scan rather than a regex agreeing with the first on 52 real chunks and all six documented examples; a second BM25 written out from the Okapi formula in plain Python reproducing 32/33 and 0/33 exactly; and the dense arm reproducing `ablate_filter.py`'s published 32/33, 17/33, 30/33, 14/33 to the query.
+
+### 7. What I could not compute, and why
+
+| Not computed | Why |
+|---|---|
+| **Whether BM25 fixes the gold-SECTION failure on BNS-named queries** — **NOT MEASURED** | Capped at 11/33 by the label-granularity ceiling in §3c. The corpus-level headline is measurable; the section-level one is not, on this subset, with these labels. |
+| **Lenient (subsection→parent) recall** | `metrics_lib.recall_at_k` calls `same_section` strictly and exposes no `lenient` flag. Reimplementing it locally is forbidden by the standing rules. Reported the ceiling instead, which conveys the same information without a second identity rule. |
+| **BM25 parameter sensitivity (k1, b)** | Library defaults only. Tuning them on this data would be fitting the retriever to the result. |
+| **RRF k sensitivity** | Fixed at 60 per Cormack et al. Same reason. |
+| **Weighted RRF** | Weighting the arms needs a held-out set to fit the weight on; with 33 queries per cell there is no room to split one. |
+| **A BM25 arm with the corpus filter ON** | BM25 has no filter concept and the whole point was to remove it. |
+| **paired_dated_conflict split by intervention** | Correctly absent: with the filter disabled the intervention is a no-op for retrieval (it acts only via `plan.target_corpora`). 99 queries, one result each. |
+| **The 58-query legacy `eval/queryset.jsonl`** | Excluded to stay comparable with exp01's four reported sets. |
+| **Answer-level metrics (`cited`, `grounded`)** | Zero generation calls by instruction. This is a retrieval experiment. |
+
+### 8. What surprised me
+
+1. **BM25 does not fix the failure — it inverts it.** The expected outcome was a modest improvement or none. Instead the two retrievers fail on *opposite* halves of the same 66 queries: dense 97.0/51.5 (IPC/BNS), BM25 0.0/97.0. The reviewer's objection turns out to be half right, and taking it seriously produced a better paper than defending against it would have.
+
+2. **The IPC cannot be found by its own name.** `penal` appears in 82 CrPC chunks and 23 IPC chunks; `indian` in 95 and 29. A statute does not name itself in its operative text, so the phrase "Indian Penal Code" is, lexically, a *Code of Criminal Procedure* phrase. Meanwhile the 2023 BNS *does* name itself — "this Sanhita" — and nothing else in the corpus cites it yet, because it is new. The whole asymmetry falls out of drafting convention plus the age of the statute.
+
+3. **Fusion made things worse overall.** RRF is usually a free win in the IR literature. Here it is 62.1% against dense's 74.2% on the headline and 0.531 vs 0.558 on pooled Recall@15. Averaging two systems that fail on complementary halves gives you a system that fails on both halves a bit.
+
+4. **The RRF margins are tiny.** On P0002 the correct chunk beat the wrong one by 0.0000084. RRF scores live in a band about 0.016 wide with differences four orders of magnitude smaller; a single rank change anywhere reorders the top of the list.
+
+5. **Two fresh dense numbers landed exactly on the recorded ones.** `paired_recodification` 0.737 and `layman_situation` 0.150, identical to the recorded `raw_15` values despite a different query text (raw vs rewritten) and a different filter setting. Coincidence at the aggregate level, not identity at the query level — but it is a reassuring sign that the fresh dense arm is the same retriever the project has been measuring all along.
+
+6. **The clustered interval collapsed to almost nothing** on the pooled 66 BM25 row — [0.455, 0.500] against a naive [0.368, 0.603], design effect 0.19. It looks broken and is exactly right: BM25 scores precisely one of every pair correct, so every situation contributes the identical 1/2 and there is nothing left to resample.
+
+7. **A third of the paired gold is unreachable by construction** and the project appears not to have known. That number bounds every recall figure on that set and needed finding before any of them are quoted in a paper.
