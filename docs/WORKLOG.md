@@ -1438,3 +1438,67 @@ The plan is finished. What remains is judgement, and it is Udita's:
 3. **Decide whether to fix the gold subsection labels.** The ceiling is a real
    constraint on every recall figure. Fixing it means re-deriving gold, which is
    data work and must be done deliberately, not quietly.
+
+---
+
+## 2026-09-01 — The confidence finding is not a bug artefact
+
+Udita asked the right question before writing anything about confidence: the
+composite loses to `max_score`, but one of its three terms has a sign error, so
+is the finding real or is it measuring the bug?
+
+`experiments/exp09_corrected_composite.py` -> `results/corrected_composite.csv`.
+Zero API calls. NOTHING DEPLOYED CHANGED — the formula, the weights 55/15/30 and
+the tiers 0.55/0.38 all stand. This is analysis.
+
+A reconstruction gate runs first: the DEPLOYED formula, reproduced from
+`agents/retriever.py:137-142` including its `min(confidence, 1.0)` clamp and
+4-decimal rounding, must reproduce the logged `composite`. Max deviation
+**1.0e-04**, zero rows off by more than 1e-3 — the rounding floor. PASS.
+
+**Q1, deployed weights, `retrieved@15`, n=617, 327 positives:**
+
+| Score | AUROC | clustered 95% |
+|---|---|---|
+| deployed | 0.6631 | [0.6047, 0.7212] |
+| **sign-corrected** | **0.7207** | [0.6666, 0.7717] |
+| max_score | **0.7837** | [0.7316, 0.8312] |
+
+corrected − max_score = **−0.0630** [−0.0946, −0.0325], **p=0.0002** — still
+worse. corrected − deployed = +0.0576 [+0.0376, +0.0780], p<0.0001 — the fix is
+real. deployed − max_score = −0.1207.
+
+**The sign fix closes 0.0576 of the 0.1207 deficit, about 48%. The other half is
+the blend itself.**
+
+Under `cited`: corrected 0.6365 vs max_score 0.6895, −0.0529 [−0.0884, −0.0181],
+p=0.0046 — still worse. Under `grounded` (27 positives) nothing is established.
+
+Sharper: the corrected composite scores 0.7207 while `top_k_mean` ALONE scores
+0.757. **Even with the sign fixed, the blend is worse than one of its own three
+ingredients.**
+
+**Q2 — best weighting of the corrected signals, 60/40 stratified, test n=247:**
+
+| Definition | train argmax tkm/gap/ec | test corrected | test max_score | diff | p |
+|---|---|---|---|---|---|
+| retrieved@15 | **0.80/0.20/0.00** | 0.7631 | 0.7624 | +0.0007 | 0.87 |
+| cited | 0.40/0.60/0.00 | 0.7128 | 0.7177 | −0.0049 | 0.83 |
+| grounded | 0.95/0.05/0.00 | 0.5235 | 0.5243 | −0.0008 | 0.99 |
+
+Optimally reweighted, the corrected signals **tie** max_score and never beat it.
+`entity_coverage` gets weight exactly **0.00 under all three definitions** —
+agreeing with Wave 2's leave-one-out (−0.005, p=0.82) by a completely different
+route.
+
+### The claim this changes
+
+FROM "the composite is worse than max_score", which invites *you had a bug*,
+TO: **no weighting of these three signals beats a single raw cosine similarity,
+and correcting the known sign error does not change that.**
+
+**Do NOT write "the composite is worse because of the sign error."** The error
+explains about half. Attributing all of it would be false.
+
+Appendix entry A5 in `results/RESULTS.md` is extended by this result rather than
+replaced: the word "worse" stands, and its cause is now correctly apportioned.

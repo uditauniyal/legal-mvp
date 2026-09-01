@@ -1,0 +1,22 @@
+metric,query_set,definition,stage,k,value,n,ci_lo,ci_hi,cluster_ci_lo,cluster_ci_hi,notes
+auroc,ALL,retrieved@15 (raw_15),raw_15,15,0.6630549404196984,617,0.6172107081694854,0.7096408702631242,0.604673534927856,0.7211530337558042,score=composite_deployed; positives=327
+auroc,ALL,retrieved@15 (raw_15),raw_15,15,0.7206949277654751,617,0.6765453363625278,0.7640034054032578,0.6665941187183593,0.7717043370397023,score=composite_corrected; positives=327
+auroc,ALL,retrieved@15 (raw_15),raw_15,15,0.7837340504059896,617,0.7469873616268701,0.8194520650847232,0.7316228525111754,0.8312154702057828,score=max_score; positives=327
+auroc_paired_diff,ALL,retrieved@15 (raw_15),raw_15,15,-0.06303912264051459,617,-0.09464290487898801,-0.032457788936659,,,composite_corrected minus max_score; p=0.0002; A WORSE
+auroc_paired_diff,ALL,retrieved@15 (raw_15),raw_15,15,0.05763998734577669,617,0.03757922015429068,0.0780495738936607,,,composite_corrected minus composite_deployed; p=0.0000; A BETTER
+auroc_paired_diff,ALL,retrieved@15 (raw_15),raw_15,15,-0.12067910998629128,617,-0.1623113108378009,-0.07976870879419806,,,composite_deployed minus max_score; p=0.0000; A WORSE
+auroc,ALL,cited (logged),raw_15,15,0.5911060484231216,617,0.5206936535914058,0.660222636358811,0.5111779746543174,0.6690683261608072,score=composite_deployed; positives=533
+auroc,ALL,cited (logged),raw_15,15,0.6365473956937372,617,0.5641857992015044,0.7074262090096738,0.5502834832950391,0.7156244746740985,score=composite_corrected; positives=533
+auroc,ALL,cited (logged),raw_15,15,0.6894934333958724,617,0.6194569119750758,0.7551068042389177,0.6046417609576933,0.7665528724747475,score=max_score; positives=533
+auroc_paired_diff,ALL,cited (logged),raw_15,15,-0.05294603770213524,617,-0.08835132894807202,-0.018064862260763034,,,composite_corrected minus max_score; p=0.0046; A WORSE
+auroc_paired_diff,ALL,cited (logged),raw_15,15,0.04544134727061555,617,0.016180965156497768,0.0740537102640972,,,composite_corrected minus composite_deployed; p=0.0032; A BETTER
+auroc_paired_diff,ALL,cited (logged),raw_15,15,-0.09838738497275079,617,-0.15232083321199288,-0.04408479082665332,,,composite_deployed minus max_score; p=0.0006; A WORSE
+auroc,ALL,grounded,raw_15,15,0.5308223477715003,617,0.4485837964417171,0.607513322527581,0.4447619875840429,0.6082771988018912,score=composite_deployed; positives=27
+auroc,ALL,grounded,raw_15,15,0.5169805398618958,617,0.4417751113646241,0.588168788172245,0.4308332312136437,0.5964609399746594,score=composite_corrected; positives=27
+auroc,ALL,grounded,raw_15,15,0.5887633396107972,617,0.4886026660424843,0.6863585762277815,0.4810958820827366,0.687571203184293,score=max_score; positives=27
+auroc_paired_diff,ALL,grounded,raw_15,15,-0.07178279974890134,617,-0.15030446552321558,0.00965386239674746,,,composite_corrected minus max_score; p=0.0866; NO DIFFERENCE ESTABLISHED (interval contains 0)
+auroc_paired_diff,ALL,grounded,raw_15,15,-0.013841807909604431,617,-0.05983818240709999,0.03218620939837023,,,composite_corrected minus composite_deployed; p=0.5438; NO DIFFERENCE ESTABLISHED (interval contains 0)
+auroc_paired_diff,ALL,grounded,raw_15,15,-0.05794099183929691,617,-0.16875142945109073,0.05601231061377493,,,composite_deployed minus max_score; p=0.3148; NO DIFFERENCE ESTABLISHED (interval contains 0)
+auroc_corrected_bestweights_test,ALL,retrieved@15 (raw_15),raw_15,15,0.7630955514609108,247,,,,,"train argmax 0.80/0.20/-0.00; train AUROC 0.7994; max_score on same test 0.7624; paired diff +0.0007 [-0.0065,+0.0081] p=0.8666"
+auroc_corrected_bestweights_test,ALL,cited (logged),raw_15,15,0.7127865230599282,247,,,,,"train argmax 0.40/0.60/0.00; train AUROC 0.6824; max_score on same test 0.7177; paired diff -0.0049 [-0.0476,+0.0358] p=0.8250"
+auroc_corrected_bestweights_test,ALL,grounded,raw_15,15,0.523497688751926,247,,,,,"train argmax 0.95/0.05/0.00; train AUROC 0.6398; max_score on same test 0.5243; paired diff -0.0008 [-0.0803,+0.0753] p=0.9950"

@@ -3872,3 +3872,166 @@ Nothing failed silently, nothing was worked around, and `pytest tests/ -q` is **
 6. **The clustered interval collapsed to almost nothing** on the pooled 66 BM25 row — [0.455, 0.500] against a naive [0.368, 0.603], design effect 0.19. It looks broken and is exactly right: BM25 scores precisely one of every pair correct, so every situation contributes the identical 1/2 and there is nothing left to resample.
 
 7. **A third of the paired gold is unreachable by construction** and the project appears not to have known. That number bounds every recall figure on that set and needed finding before any of them are quoted in a paper.
+
+---
+
+## Corrected composite — is the confidence finding a bug artefact?
+Output file: results/corrected_composite.csv
+Regenerate with: `./venv/Scripts/python.exe experiments/exp09_corrected_composite.py`
+Owner: main agent, 1 September 2026, after Wave 4
+
+### 1. ELI5 — what does this measure?
+
+Your system produces a *confidence score* — one number meant to say how much to
+trust an answer. It blends three ingredients. Wave 2 found the blend is beaten
+by simply reading the single highest similarity the search returned.
+
+Then Wave 2 also found that one of the three ingredients is **wired backwards**.
+A large gap between the best and second-best retrieved passage means "there is a
+clear winner" — good news. The deployed code treats it as bad news.
+
+So the obvious objection is: *maybe the blend is fine and you just measured a
+bug.* This script settles that by building the blend a second time with the sign
+fixed, and comparing.
+
+Worked example. Take a query where `top_k_mean` is 0.50, `score_gap` is 0.30 and
+`entity_coverage` is 0.5. The gap is normalised to `min(0.30/0.3, 1.0) = 1.0`.
+
+    deployed   0.55(0.50) + 0.15(1 - 1.0) + 0.30(0.5) = 0.425
+    corrected  0.55(0.50) + 0.15(   1.0 ) + 0.30(0.5) = 0.575
+
+A query with the CLEAREST possible winner gets the LOWEST possible gap
+contribution under the deployed formula. That is the bug, in one row.
+
+### 2. Technically
+
+Deployed, `agents/retriever.py:137-142`, reproduced here including its
+`min(confidence, 1.0)` clamp and 4-decimal rounding:
+
+    gap_penalty = min(score_gap / 0.3, 1.0)
+    deployed    = 0.55*top_k_mean + 0.15*(1.0 - gap_penalty) + 0.30*entity_coverage
+    corrected   = 0.55*top_k_mean + 0.15*(      gap_penalty) + 0.30*entity_coverage
+
+AUROC via Mann-Whitney U with average ranks. Intervals are 10,000-sample
+percentile bootstrap, SEED=20260901, reported naive and clustered on `pair_id`.
+Comparisons use `paired_bootstrap_auroc_diff` because all three scores are
+measured on the same 617 queries; comparing two independent intervals by eye is
+not a test.
+
+Q2 sweeps weights in 0.05 steps summing to 1.0 on a 60/40 stratified split
+(stratified = the split preserves the positive rate in both halves), choosing
+weights on train and reporting AUROC on test only. A maximum selected over 231
+candidates on the same data it is scored on is optimistically biased; only the
+held-out value is quotable.
+
+**A gate runs first.** The reconstruction of the DEPLOYED formula must reproduce
+the logged `composite` column, or nothing downstream means anything.
+
+### 3. What the number came out as
+
+Reconstruction gate: n=617, max |reconstructed − logged| = **1.0e-04**, rows off
+by more than 1e-3 = **0**. That 1e-04 is exactly the 4-decimal rounding floor.
+PASS. The corrected score differs from the deployed one on all 617 rows.
+
+**Q1 — deployed weights 55/15/30. Definition `retrieved@15`, stage `raw_15`,
+n=617, 327 positives.**
+
+| Score | AUROC | naive 95% | clustered 95% |
+|---|---|---|---|
+| composite deployed | 0.6631 | [0.6172, 0.7096] | [0.6047, 0.7212] |
+| **composite corrected** | **0.7207** | [0.6765, 0.7640] | [0.6666, 0.7717] |
+| max_score | **0.7837** | [0.7470, 0.8195] | [0.7316, 0.8312] |
+
+| Paired comparison | diff | 95% | p |
+|---|---|---|---|
+| corrected − max_score | **−0.0630** | [−0.0946, −0.0325] | **0.0002** |
+| corrected − deployed | +0.0576 | [+0.0376, +0.0780] | <0.0001 |
+| deployed − max_score | −0.1207 | [−0.1623, −0.0798] | <0.0001 |
+
+`cited`, n=617, 533 positives: deployed 0.5911, corrected 0.6365,
+max_score 0.6895. corrected − max_score = **−0.0529** [−0.0884, −0.0181],
+**p=0.0046**.
+
+`grounded`, n=617, 27 positives: deployed 0.5308, corrected 0.5170,
+max_score 0.5888. corrected − max_score = −0.0718 [−0.1503, +0.0097], p=0.0866 —
+**no difference established**, as with every `grounded` comparison in this
+project.
+
+**Q2 — best weighting of the corrected signals, held out, test n=247.**
+
+| Definition | train argmax (tkm/gap/ec) | test corrected | test max_score | diff | p |
+|---|---|---|---|---|---|
+| retrieved@15 | **0.80 / 0.20 / 0.00** | 0.7631 | 0.7624 | +0.0007 | 0.87 |
+| cited | 0.40 / 0.60 / 0.00 | 0.7128 | 0.7177 | −0.0049 | 0.83 |
+| grounded | 0.95 / 0.05 / 0.00 | 0.5235 | 0.5243 | −0.0008 | 0.99 |
+
+### 4. How to read it
+
+Higher AUROC is better; 0.5 is a coin flip. The column that decides each claim
+is the paired difference and its interval. If the interval contains 0, the data
+cannot separate the two scores.
+
+A good result for the paper would have been either clean outcome. A suspicious
+result would have been the corrected composite leaping past max_score by a large
+margin — that would suggest the reconstruction was wrong, which is why the gate
+runs first.
+
+### 5. What this means for the paper
+
+**The confidence finding is NOT a bug artefact. It survives the repair.**
+
+The sign fix is real and helps — +0.0576, p<0.0001 — but it closes only
+**0.0576 of the 0.1207 deficit, about 48%**. The other half is the blend itself.
+
+Sharper still: the corrected composite scores 0.7207 while `top_k_mean` alone
+scores 0.757. **Even with the sign fixed, the blend is worse than one of its own
+three ingredients.**
+
+And optimally reweighted on held-out data, the corrected signals **tie**
+max_score and never beat it, with `entity_coverage` receiving a weight of
+exactly **zero under all three correctness definitions**.
+
+So the supported claim moves from "the composite is worse" — which invites the
+reply *you had a bug* — to:
+
+> **No weighting of these three signals beats a single raw cosine similarity, and
+> correcting the known sign error does not change that.**
+
+That is stronger, and it closes the objection before it is raised.
+
+**Do NOT write "the composite is worse because of the sign error."** The error
+explains about half of the gap. Attributing all of it would be wrong.
+
+### 6. What broke while computing this
+
+Nothing broke. The reconstruction gate passed on the first run, at the rounding
+floor.
+
+One thing worth recording: the first draft of this analysis nearly omitted the
+`min(confidence, 1.0)` clamp and the `round(..., 4)` that `agents/retriever.py`
+applies. Without both, the reconstruction would not have matched, and the
+temptation would have been to blame the logs. The deployed code was read line by
+line rather than reproduced from the note in CLAUDE.md — which is itself wrong,
+per correction A2.
+
+### 7. What I could not compute, and why
+
+Anything under `grounded` at useful power. 27 positives out of 617 produce
+intervals roughly three times wider than the same statistic under
+`retrieved@15`, and every `grounded` comparison here contains zero.
+
+Per-query-set breakdowns were not computed; this analysis is pooled, because the
+question asked was about the score itself rather than about where it fails.
+
+### 8. What surprised me
+
+`entity_coverage` receives a weight of **exactly 0.00** in the best weighting
+under all three definitions — not a small weight, zero. Wave 2's leave-one-out
+already showed that removing it changes nothing (−0.005, p=0.82). This is the
+same conclusion reached by a completely different route, and the agreement of
+two independent methods on a third signal being worthless is more convincing
+than either alone.
+
+Also: the deployed and corrected scores differ on **all 617 rows**, with none
+coinciding. They would coincide only where `gap_penalty` is exactly 0.5, i.e.
+`score_gap` exactly 0.15, and not one query in 617 lands there.
