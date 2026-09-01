@@ -1,224 +1,597 @@
-<!-- MIRRORED FILE — do not edit here.
-     Source: C:\Users\uniya\.claude\plans\streamed-cuddling-milner.md
-     Synced: 2026-08-22 21:01 by scripts/sync_context.py -->
+# PARALLEL PLAN + PROMPTS FOR CLAUDE CODE (technical)
 
-> **This is a mirror.** The live plan lives in Claude Code's plan
-> directory and is copied here so the repository is self-contained
-> for anyone reading it outside Claude Code.
+1 September 2026. One file. Read section 1, then paste the waves in order.
+
+**What changed from the last version:** concrete function signatures so five subagents cannot each invent their own AUROC; a discovery step because I do not know your log schema and neither should the prompt pretend to; the word "retrieved" disambiguated, because in your pipeline it has three possible meanings; a fixed CSV schema; fixed random seeds; and a mandatory explanation block that every subagent must fill for every output.
 
 ---
 
-# Plan — From broken prototype to a submittable paper
+# 1. WHAT RUNS TOGETHER, WHAT CANNOT
 
-## Context
+You can wash five dishes at once. You cannot dry a dish before it is washed.
 
-Udita has a working-but-broken 5-agent RAG system for Indian legal Q&A, now fully documented (`docs/`). She has read most of that documentation and reports ~50% understanding — the docs were written far denser than she asked for, which is a failure on my part and is corrected in Phase 0 below.
+```
+WAVE 0   DISCOVER SCHEMA + BUILD SHARED LIBRARY     SERIAL, alone
+   |     ends by SHOWING YOU the schema it found
+   v
+WAVE 1   THREE BUG FIXES                            PARALLEL, 3 subagents
+   v
+GATE     SMOKE TEST — you read three numbers        SERIAL
+   v
+WAVE 2   FIVE METRIC FAMILIES                       PARALLEL, 5 subagents
+   v                                                (the wave that pays)
+WAVE 3   TWO EXPERIMENTS                            PARALLEL, 2 subagents
+   v
+WAVE 4   ASSEMBLE                                   SERIAL
+```
 
-Three things changed on 2026-08-18:
+**Why Wave 0 is serial and first.** Five subagents each writing their own AUROC gives five slightly different answers and tables that silently contradict each other. One tested implementation, imported by everyone. This is the most important rule here.
 
-1. **Her OpenAI key is dead.** She has an OpenRouter key. Research confirms OpenRouter added an embeddings endpoint in July 2026 and serves `openai/text-embedding-3-small` at the same price — so **the existing Qdrant collection stays valid and nothing needs re-embedding.** But OpenRouter load-balances across providers by default, which is a documented reproducibility hazard (a NeurIPS 2025 paper's claims were invalidated by exactly this). Everything must be pinned.
-
-2. **The venue landscape is now known.** NLLP 2026's extended deadline expires ~17:30 IST on 19 Aug — unreachable with n=11 queries. The Insights workshop closed 8 June. FIRE 2026 (31 Aug, ISI Kolkata, 9pp, ACM, in India) is the near target; ARR (12 Oct) is the realistic anchor. ICON 2026's deadline is unpublished and must be retrieved.
-
-3. **The contribution has to move.** Research shows three of her assumed contributions are already published, at larger scale, in 2026:
-   - "Retrieval failure causes legal RAG hallucination" — Legal RAG Bench (Mar 2026) and Das et al. (14 Aug 2026, four days ago)
-   - Wrong-document retrieval — named **DRM** by Reuter et al. at NLLP 2025
-   - Confidence/calibration for RAG — saturated (6+ papers in 2026)
-
-**What is genuinely unclaimed, and what this plan is built around:** on 1 July 2024 India replaced the IPC (511 sections) with the BNS (358 sections) overnight. Both remain operative depending on offence date. 164 years of case law, and *every* Indian legal NLP resource (ILDC, InLegalBERT, LeSICiN, NyayaAnumana), use the old numbering. Existing temporal-legal-RAG work (French tax, German statutes) assumes a **versioned single instrument with linear amendment history**. India is a **cross-instrument, many-to-many, non-monotonic remapping** — version-aware retrieval architecturally cannot solve it.
-
-Her corpus already contains **both IPC 1860 and BNS 2023**. The routing bug she found is not a bug to be embarrassed about — it is the phenomenon, and she has already observed it. **Her biggest defect is her paper.**
-
-Working title: *When the Code Changes: Cross-Statute Retrieval Failure and Phantom Citation in Indian Legal RAG after the IPC→BNS Recodification*
-
-**Framing rule for everything below:** the 5-agent system is the *measurement instrument*, described in one paragraph. Never the contribution.
+**Why Wave 0 now starts with discovery.** I have read your README but not your log files. I do not know their column names. A prompt that invents a schema produces code that silently reads the wrong field, which is defect E2 all over again. So the agent reads the real files, prints what it found, and shows you before building anything.
 
 ---
 
-## Phase 0 — Fix my documentation failure (half a day)
+# 2. RULES THAT MAKE CONCURRENCY SAFE
 
-**`docs/START_HERE.md`** — ~1,000 words, genuinely plain English, one diagram, zero jargon. What the system does, the five steps, the three things that are broken, what we do next. This becomes the entry point; the dense docs become reference material rather than required reading.
-
-Add a **"in one sentence"** box at the top of each existing doc.
-
-Going forward: plain English by default, short sentences, worked examples before abstractions. Recorded as a memory update to `mentor-not-autopilot`.
-
----
-
-## Phase 1 — Unblock (2–3 days)
-
-Nothing here changes findings; all of it is prerequisite.
-
-**1.1 · OpenRouter migration** (`clients/openai_client.py`, `core/config.py`, `.env`)
-- Base URL + key swap. **Embeddings stay `openai/text-embedding-3-small`, pinned:** `provider: {only: ["openai"], allow_fallbacks: false}`. Existing collection untouched.
-- Generation pinned to `google/gemini-2.5-flash` (supports `temperature`, `seed`, and structured JSON — GPT-5-class models silently *drop* temperature, which would make the methods section false). Set `require_parameters: true` so unsupported settings error instead of vanishing.
-- **Banned:** `openrouter/auto`, `~model-latest`, `:nitro`, `:floor`, `:exacto`.
-- Log `provider_name`, `model`, `total_cost` from `/api/v1/generation` on every call.
-- Resolves `OPEN_QUESTIONS.md` Q1 (the `gpt-5.2`/`temperature=0` question) — record as an ADR.
-
-**1.2 · Structured logging** — `core/logging.py` exists unused. One JSONL record per query with the schema in `EVALUATION_PLAN.md` §P2, plus the four silent-failure flags (`intake.fallback_used`, `router.decision_path`, `retrieval.filter_fallback_fired`, `confidence.entity_coverage_default_used`) and now `provider_name`. **This is Prof. Joshi's item 2 and the true unblocker.**
-
-**1.3 · `requirements.txt`** — regenerate from venv. Drop the unused CV stack *and* the five unused LangChain packages (installed, zero imports).
-
-**1.4 · Real tests** (`tests/test_router.py` currently raises on line 1) — pytest over `route()`, `compute_confidence()` (including the pathological entity cases), `guess_corpus()`.
-
-**1.5 · Fix routing + confidence clusters**, then **re-ingest cleanly** and delete `fix_corpus_tags.py`. Per `GAPS.md` #1–7. Keep the old confidence implementation behind a flag — the ablation needs it.
+1. **One owner per file.** Each subagent owns one script and one output path, named in advance. Two agents writing `results/metrics.csv` means one silently wins.
+2. **Subagents never run git.** Concurrent git corrupts the repo. The main agent commits once per wave.
+3. **Everyone imports `experiments/metrics_lib.py`.** Nobody reimplements. If a function is missing, stop and report.
+4. **`runs/`, `eval/`, `data/`, Qdrant collection: read-only.** That data cost ₹1,728.
+   `runs/` is gitignored and exists ONLY on this machine, with one backup at
+   `backup/pre-metrics/`. Never write to either.
+5. **Fixed seeds everywhere.** `SEED = 20260901`, `N_BOOT = 10000`. Reproducibility is a reviewer checkbox.
 
 ---
 
-## Phase 2 — The evaluation set (3–4 days) — *the single highest-leverage work*
+# 3. THE MANDATORY EXPLANATION BLOCK
 
-**≥100 queries.** n=11 is fatal at any venue; the credible floor in 2026 legal-RAG work is ~100 (Legal RAG Bench), with 142–312 typical.
+This is the part that was missing. **Every subagent, for every output file it produces, appends one of these to `results/EXPLAIN.md`.** Not a paragraph. This exact shape, every heading present, every time.
 
-**The design *is* the experiment.** Build **paired queries**: the same legal question phrased once with IPC numbering and once with BNS numbering.
+```markdown
+## <metric or experiment name>
+Output file: <path>
+Regenerate with: <exact command>
+Owner: <subagent name>
 
-> *"What is the punishment for cheating under Section 420 IPC?"*
-> *"What is the punishment for cheating under Section 318 BNS?"*
+### 1. ELI5 — what does this measure?
+Two or three sentences for someone who has never met this term. Use an
+analogy or a tiny worked example with real numbers. Do not use a term
+without defining it in the same sentence.
 
-Same offence, different statute, different section number. A dense retriever has almost no signal to separate them. That pairing is what no existing paper has run.
+### 2. Technically
+The same thing stated precisely: the formula, the method name, the
+reference if there is one.
 
-Schema per query: `query_id`, `text`, `pair_id`, `numbering_scheme` (IPC/BNS/neutral), `category`, `expected_corpus`, `expected_sections`, `answerable_from_corpus`, `phrasing_register` (layman/technical), `notes`.
+### 3. What the number came out as
+The value. Its sample size n. Its 95% confidence interval. Which
+correctness definition was used. Which retrieval stage was used.
+Never a number without all four.
 
-Composition: ~40 IPC↔BNS paired (20 pairs) · 20 procedural (CrPC) · 15 consumer · 15 unanswerable (tests refusal) · 10 multi-corpus comparison.
+### 4. How to read it
+Is higher good or bad? What would a good result look like here? What
+would a suspicious result look like — what should make me distrust it?
 
-**Ground truth annotated before seeing any output.** Deliverables: `eval/queryset.jsonl` + `eval/ANNOTATION_GUIDE.md`.
+### 5. What this means for the paper
+One paragraph. Which claim does this support, weaken, or kill?
 
-**Ask Prof. Joshi to source a law student or faculty member to validate ~30 queries and the gold labels.** Every credible paper in this field has expert validation; almost no Indian system paper does. Cheapest available differentiator.
+### 6. What broke while computing this
+Every error, including ones fixed in thirty seconds. If nothing broke,
+write "nothing broke". Never omit this heading.
+
+### 7. What I could not compute, and why
+Or "nothing". Never omit this heading.
+
+### 8. What surprised me
+Anything that looked off, or that you should check by hand.
+```
+
+**A wave is not finished until every output has its block.** If a subagent reports back without one, send it back.
 
 ---
 
-## Phase 3 — Experiments (3–4 days)
+# 4. TERMS THIS PROJECT USES AMBIGUOUSLY — resolve them before computing
 
-Comparison axes are **mandatory** — a single-system study with no comparison reads as a system report.
+### 4.1 "Retrieved" has three meanings in your pipeline
 
-| # | Experiment | Produces |
+Your retriever runs: Qdrant search `limit=15` → fallback → entity rerank (reorders) → adaptive filter (drops some) → chunks to the LLM.
+
+So "the gold section was retrieved" could mean any of:
+
+```
+  STAGE A   raw_15         the 15 Qdrant returned, in score order
+  STAGE B   reranked_15    same 15, reordered by entity match
+  STAGE C   filtered_n     what survived the adaptive filter and
+                           actually reached the language model
+```
+
+Your README's 68.0% / 71.7% / 15.0% figures were computed at one of these and it is not recorded which. **Every retrieval metric must be computed at all three stages and labelled**, and the run must report which stage reproduces the README figure. Rank-order metrics (MRR, nDCG) use Stage A unless stated, because Stage B has deliberately destroyed score order.
+
+### 4.2 "Correct" has three definitions
+
+Already specified, but they must be one function, not three implementations:
+`retrieved@k` (gold section appears in the top k) · `cited` (gold section appears in the answer's citations) · `grounded` (the strict one, ~27 positives).
+
+### 4.3 Section identity
+
+Comparing `"IPC Section 302"` against `"Section 302"` and calling them different was defect E2, and it made a headline metric return zero for its entire existence. **One canonical `normalise_section()` in the library, used by everything.** It must handle: bare numbers, letter suffixes (`304B`), subsection forms (`318(4)`), and statute prefixes present or absent.
+
+---
+
+# 5. THE PROMPTS
+
+---
+
+## WAVE 0 — discovery, then the shared library (serial, ~1 h, free)
+
+```
+I am doing supervised research work on this repo toward a paper
+submission. I am here and will answer questions, so ask me rather than
+guessing or deciding for me.
+
+This is my first research paper and I do not know most of these
+statistical terms. Explaining things to me is a deliverable, not a
+courtesy — see the EXPLANATION BLOCK rule below.
+
+=== STANDING RULES, whole project ===
+  - runs/, eval/, data/ and the Qdrant collection are READ-ONLY. New
+    output goes to results/ and experiments/ only. That data cost 1,728
+    rupees and cannot be cheaply regenerated.
+  - runs/ is gitignored and exists ONLY on this machine. There is one
+    backup at backup/pre-metrics/. It is the only copy of 1,728 rupees
+    of measurements. Never write to either.
+  - Experiments IMPORT the system. They never edit it.
+  - Fixed seeds everywhere: SEED = 20260901, N_BOOT = 10000.
+  - Every number carries: its value, its sample size n, its 95%
+    confidence interval, the correctness definition used, the retrieval
+    stage used, and the command that regenerates it.
+  - Never write a number you expect. NOT MEASURED is a valid value.
+  - Two attempts at any error, then stop and tell me what you tried.
+    Never a third, never a refactor to work around it.
+  - Do not tune anything to make a result look better.
+  - Never invent a citation, arXiv ID or deadline.
+
+=== EXPLANATION BLOCK RULE ===
+For every output file produced anywhere in this project, append one
+block to results/EXPLAIN.md with these exact eight headings, all of
+them present every time:
+  1. ELI5 — what does this measure?  (analogy or worked example with
+     real numbers; no term used without defining it in the same sentence)
+  2. Technically  (formula, method name, reference)
+  3. What the number came out as  (value, n, 95% CI, correctness
+     definition, retrieval stage)
+  4. How to read it  (is high good or bad; what would a good result look
+     like; what would a suspicious result look like)
+  5. What this means for the paper  (which claim it supports, weakens or
+     kills — one paragraph)
+  6. What broke while computing this  (every error; "nothing broke" if
+     none; never omit this heading)
+  7. What I could not compute, and why  ("nothing" if none; never omit)
+  8. What surprised me
+A task is not complete until its explanation block exists.
+
+=== DO NOT DO, ever, in this project ===
+  - do NOT ingest the BNSS, BSA, Constitution or case law. It rebuilds
+    the index and makes my 859 existing logged queries incomparable with
+    new ones, destroying the base-rate control my main finding rests on.
+    My README lists these as gaps, so this will look like an obvious
+    improvement. It is not.
+  - do NOT "fix" the router's consumer-protection bug or the corpus
+    auto-tagging. They are the measured baseline and are described in
+    the paper.
+  - do NOT change the confidence weights (55/15/30) or the tier
+    thresholds (55/38). They were fixed in February 2026 before any
+    score was ever logged, which proves they were not tuned on the
+    evaluation data. That is a methodological strength; changing them
+    destroys it.
+  - do NOT re-run ingestion, swap the embedding model, or refactor.
+  - do NOT create new .md files beyond results/RESULTS.md and
+    results/EXPLAIN.md.
+  - do NOT write the paper or draft anything for my supervisor.
+
+=== TASK A — discovery. Do this FIRST and STOP when done. ===
+Do not write any metric code yet.
+
+  1. Confirm branch metrics/sept-01, clean tree. Create results/ and
+     experiments/. Run the test suite; log the pass count as baseline.
+  2. Read the ACTUAL run-log files under runs/ and the ACTUAL eval/*.jsonl files. Do not
+     assume anything from documentation. Write experiments/SCHEMA.md
+     recording, for each file: its real path, its row count, every
+     column or key name, the data type, and one real example value.
+  3. Answer these specific questions in SCHEMA.md, from the data:
+     a) Which fields record the retrieval signals (top_k_mean,
+        score_gap, entity_coverage, max_score, composite confidence)?
+     b) Are the retrieved chunks stored per query? At which pipeline
+        stage — the raw 15 from Qdrant, after entity reranking, or after
+        the adaptive filter? If more than one stage is stored, say which
+        fields hold which.
+     c) How is a retrieved passage's section identified — is the Qdrant
+        payload section_number present in the logs, or only chunk text?
+     d) What field links a query row to its gold section?
+     e) Is there anything resembling a situation_id that groups the 3
+        phrasings of a paired query, or the 4 date variants? If not, how
+        can grouping be reconstructed — a shared pair id, an index
+        pattern, something else?
+     f) How many rows have a gold label, per query set?
+  4. Then STOP and show me SCHEMA.md. Do not proceed to Task B until I
+     confirm.
+
+If any of my assumptions above turn out to be wrong about your data,
+say so plainly rather than working around it.
+
+=== TASK B — build experiments/metrics_lib.py (after I confirm) ===
+ONE implementation of each metric. Later waves run several subagents
+concurrently; if each writes its own AUROC they will disagree slightly
+and my tables will silently contradict each other.
+
+Implement exactly these signatures. Use numpy/pandas/scikit-learn;
+do not add heavy dependencies.
+
+  # --- loading, using the real schema from Task A ---
+  load_logs(path) -> pd.DataFrame
+  load_queryset(path) -> pd.DataFrame
+  normalise_section(s: str) -> str
+      # canonical form. Must handle bare numbers, letter suffixes
+      # (304B), subsections (318(4)), and statute prefixes present or
+      # absent. Comparing "IPC Section 302" to "Section 302" and calling
+      # them different was a real defect here that made a headline
+      # metric return zero for its whole existence.
+
+  # --- correctness, ONE switch, not three implementations ---
+  correctness_label(row, definition: str, k: int = 10) -> int
+      # definition in {"retrieved@k", "cited", "grounded"}
+      # raises ValueError on anything else
+
+  # --- retrieval. ranked = section ids best-first; gold = one id ---
+  recall_at_k(ranked, gold, k) -> float
+  precision_at_k(ranked, gold, k) -> float
+  reciprocal_rank(ranked, gold) -> float        # 0.0 if gold absent
+  ndcg_at_k(ranked, gold, k) -> float           # binary gold, IDCG = 1.0
+
+  # --- discrimination ---
+  auroc(scores, labels) -> float
+  auroc_bootstrap_ci(scores, labels, n_boot=N_BOOT, seed=SEED,
+                     cluster_ids=None) -> (point, lo, hi)
+      # if cluster_ids given, resample CLUSTERS not rows
+  paired_bootstrap_auroc_diff(scores_a, scores_b, labels,
+                              n_boot=N_BOOT, seed=SEED,
+                              cluster_ids=None) -> dict
+      # {"diff", "ci_lo", "ci_hi", "p_two_sided"}
+      # PAIRED because both scores are measured on the same queries.
+      # Use this rather than comparing two independent CIs by eye.
+      # DeLong is optional; paired bootstrap is sufficient and simpler.
+
+  # --- calibration ---
+  reliability_bins(scores, labels, n_bins=10, strategy="quantile")
+      -> pd.DataFrame[bin, n, mean_score, accuracy, gap]
+      # QUANTILE (equal-mass) bins are the default deliberately: my
+      # confidence values cluster in roughly 0.35-0.75, so equal-width
+      # bins would leave most bins empty and one bin holding everything.
+  ece(scores, labels, n_bins=10, strategy="quantile") -> float
+  brier(scores, labels) -> float
+  platt_scale(train_scores, train_labels, test_scores) -> np.ndarray
+      # logistic regression on the single score feature
+
+  # --- selective prediction ---
+  risk_coverage_curve(scores, labels) -> pd.DataFrame[coverage, risk, threshold]
+  aurc(scores, labels) -> float
+  coverage_at_risk(scores, labels, max_risk=0.10) -> float
+
+  # --- clustering ---
+  cluster_bootstrap(df, stat_fn, cluster_col, n_boot=N_BOOT, seed=SEED)
+      -> (point, lo, hi)
+
+=== TASK C — known-answer tests, BEFORE any real data ===
+Write tests/test_metrics_known_answers.py and make it pass. Feed each
+function data whose correct answer is known in advance:
+    AUROC, perfectly separable labels        must equal 1.0
+    AUROC, shuffled random labels            must be 0.5 +/- 0.05
+    MRR, gold always at rank 2               must equal 0.5
+    Recall@1, gold always first              must equal 1.0
+    Recall@k must be monotone non-decreasing in k
+    ECE on perfectly calibrated synthetic data must be near 0.0
+    precision_at_k == recall_at_k / k        for single-gold input
+    normalise_section("IPC Section 302") == normalise_section("Section 302")
+    paired_bootstrap on identical inputs     diff = 0, p near 1.0
+
+If any fails, that implementation is wrong and every number it would
+ever produce is worthless. Stop and tell me; do not work around it.
+
+Then write the explanation block for metrics_lib to results/EXPLAIN.md,
+explaining each function in plain English. Then commit.
+```
+
+**You check before Wave 1:** did the known-answer tests pass, and does SCHEMA.md match what you believe about your own data?
+
+---
+
+## WAVE 1 — three bug fixes in parallel (3 subagents, ~1 h, free)
+
+```
+Spawn THREE subagents concurrently. Give each the standing rules, the
+do-not-do list, and the explanation block rule.
+
+Concurrency rules for all three:
+  - each owns ONLY the files listed in its task, and touches nothing else
+  - no subagent runs git; you commit once after all three report
+  - each writes its own test file; they do not share test files
+  - each appends its explanation block to results/EXPLAIN.md, and its
+    ELI5 must say what was silently going wrong and what changes now
+
+SUBAGENT 1 — tier bug
+  Owns: agents/answer.py, tests/test_tier_bug.py
+  agents/answer.py sets prompt_variant to "HIGH" and never updates it,
+  so 369 of 859 records (43%) log the wrong tier. The disclaimer was
+  applied correctly; only the log is wrong. Derive the logged tier from
+  the actual confidence value at the moment of logging.
+  Tests: 0.30 -> LOW, 0.45 -> MEDIUM, 0.60 -> HIGH, and a boundary test
+  at exactly 0.55 and exactly 0.38.
+
+SUBAGENT 2 — counting bug
+  Owns: the analysis/scoring code doing the 160-character match,
+        tests/test_counting_bug.py
+  Analysis identifies a retrieved passage by reading its first 160
+  characters looking for "Section N.". Passages beginning mid-provision
+  carry no number there and were counted as failures. The authoritative
+  section_number field is in the Qdrant payload and was never read.
+  Replace every 160-character match with a payload read, via
+  normalise_section() from metrics_lib.
+  Tests: a passage beginning "Explanation.—A threat to injure..." is
+  identified correctly; a passage whose text begins with a page number
+  is NOT falsely identified.
+
+SUBAGENT 3 — citations binding bug
+  Owns: core/citations.py, tests/test_citations_bug.py
+  core/citations.py binds a statute to a section number by proximity in
+  the answer text, so an answer citing BNS 190 is recorded as "IPC
+  Section 190" when "Indian Penal Code" appeared earlier in the
+  paragraph. My answers legitimately mention both codes, which is
+  exactly when this breaks. Two metrics were already retired over it.
+  Bind statute to section only when both appear in the same citation
+  unit; where no statute is attributable, return an explicit UNKNOWN
+  rather than guessing.
+  Tests: an answer mentioning both codes parses correctly; a bare
+  "Section 190" with no statute nearby returns UNKNOWN, not a guess.
+
+core/verifier.py contains two functions, provisions_from_chunks and
+reattribute, that are complete but called by nothing. Leave them. Do not
+revert this file — its last committed state is broken and was fixed on
+this branch.
+
+Then run the full suite, compare to the Wave 0 baseline, commit, and
+give me all three explanation blocks together.
+```
+
+---
+
+## GATE — smoke test (serial, 20 min, free). Stop here.
+
+```
+Before any large analysis, compute exactly three numbers using
+metrics_lib, write results/smoke_test.md with a full explanation block
+for each, and STOP.
+
+1. Do my headline figures survive the fixes? Re-derive IPC vs BNS
+   retrieval accuracy — previously 97.0% and 51.5% — with 95% CIs.
+   Report it at all three retrieval stages (raw_15, reranked_15,
+   filtered_n) and say which stage reproduces the README figure.
+
+2. Under correctness definition "retrieved@k" instead of "grounded",
+   how many positives are there across all 518 labelled rows? It was 27
+   under the strict definition. I expect 200 or more under this one.
+   Report the count under all three definitions.
+
+3. Compare composite confidence against raw max_score by AUROC using
+   paired_bootstrap_auroc_diff. Report the difference, its CI, and the
+   p-value. My README says the composite is "worse" (0.610 vs 0.663).
+   With 27 positives that word may not survive. Tell me whether the
+   supported claim is "worse" or "no better than".
+
+Then STOP. Do not start the metrics suite. I want to look first.
+```
+
+| What you see | Meaning | Do |
 |---|---|---|
-| **E1** | **Cross-statute confusion.** On paired queries: does an IPC-numbered query retrieve BNS text and vice versa? Confusion matrix over predicted×expected corpus. | The headline table |
-| **E2** | **Phantom citation.** Extract every provision cited in each answer; check whether it appears in the chunks sent to the LLM. Report citation precision, unsupported rate, out-of-corpus rate, and a fourth India-specific class: **wrong-numbering-scheme citations** (right law, wrong code). | The headline finding |
-| **E3** | **Does confidence detect any of this?** AUROC of the composite score vs. citation-groundedness. If ≈0.5, the weakest part of the system becomes a genuine negative result. | Turns a liability into a contribution |
-| **E4** | **Routing comparison** — routed vs. flat-index (free, isolates the failure) vs. BM25 vs. hybrid (RRF). Report the base-rate confound: unfiltered search over a 48.1%-CrPC index. | Prof. Joshi's item 4 |
-| **E5** | **Ablations that rule out "bad config"** — embedding model, chunk size, top-k, reranking on/off. If the failure survives all of them it is architectural; if not, that is a better finding. | Pre-empts the obvious reviewer objection |
-| **E6** | **Confidence ablation** — drop each signal, plus old buggy version, plus naive mean-of-15 baseline. | Prof. Joshi's item 5 |
-**Report confidence intervals, not bare fractions.** With n=11, a 91% failure rate has a 95% CI of roughly [59%, 100%] — that is why the current numbers are anecdote.
+| 97/51 survive, positives 200+ | Spine holds | Run Wave 2 |
+| Headline moved | Claim needs restating | Tell me the new numbers first |
+| Positives still 27 | Correctness label wired wrong | Stop; Wave 2 would inherit it |
 
 ---
 
-## Phase 3B — Architectural intervention (3–4 days) — *yes, we change the code*
+## WAVE 2 — five metric families in parallel (5 subagents, ~1 h, free)
 
-A paper that only says "here is what breaks" is weaker than one that says "here is what breaks, here is a fix, here is the measured gain." Three new components, each justified by a specific finding from Phase 3 and each measured as its own comparison axis. **Nothing is added that is not measured.**
+```
+Smoke test looks right. Spawn FIVE subagents concurrently.
 
-**3B.1 · Statute-Mapping Agent — the novel one, and the paper's proposed solution**
+Rules for all five:
+  - every one IMPORTS experiments/metrics_lib.py. Nobody reimplements a
+    metric. If something is missing from the library, STOP and tell me
+    rather than writing your own version.
+  - each owns ONE script and ONE output file, named below. No two write
+    the same path.
+  - no subagent runs git.
+  - ZERO generation calls. All of this computes from existing logs.
+  - each writes a paired check script experiments/check_NN_*.py that
+    re-derives at least one of its own values by an independent route
+    and asserts agreement.
+  - each appends a full explanation block to results/EXPLAIN.md.
 
-Given an extracted entity like `Section 420 IPC`, resolve it across the recodification (`→ Section 318 BNS`) using a curated IPC↔BNS mapping table, and search **both** corpora. This is the direct answer to the cross-statute failure that is the paper's core finding. No existing system does it, because no one has framed the Indian recodification as a retrieval problem.
+EVERY output CSV uses this exact long-format schema, so Wave 4 can
+simply concatenate them:
+  metric, query_set, definition, stage, k, value, n,
+  ci_lo, ci_hi, cluster_ci_lo, cluster_ci_hi, notes
+Leave a column empty rather than renaming it or inventing a new one.
 
-Requires building an **IPC↔BNS section mapping table** as a data artifact (derivable from the BPRD/UP Police comparison tables). That table is itself a citable resource contribution.
+SUBAGENT 1 — retrieval metrics
+  experiments/exp01_retrieval.py -> results/retrieval_metrics.csv
+  Recall@k, Precision@k, MRR, nDCG@k for k in 1,3,5,10,15, per query
+  set, AT ALL THREE STAGES (raw_15, reranked_15, filtered_n), under all
+  three correctness definitions. Rank-order metrics (MRR, nDCG) use
+  raw_15 as primary since reranking deliberately destroys score order —
+  report the others but say this in notes.
+  In the explanation block, state that with a single binary gold per
+  query, Precision@k equals Recall@k/k exactly and nDCG@k is a monotone
+  function of reciprocal rank, so both are reported for completeness
+  rather than for information.
 
-**3B.2 · Corrective retrieval loop — the first real agentic behaviour**
+SUBAGENT 2 — routing analysis
+  experiments/exp02_routing.py -> results/routing_confusion.csv
+  4x4 routing confusion matrix across IPC, BNS, CrPC, CPA on the layman
+  set. Re-derive the 2x2 IPC/BNS matrix with CIs. Also recompute the
+  base-rate control: each corpus's share of the index against its share
+  of layman retrieval, with the over-representation ratio. That control
+  is what makes the CrPC claim falsifiable, so it must survive the fixes.
 
-After retrieval, judge whether what came back is actually on-topic. If not, act: widen or change the corpus filter and search again, up to N attempts. This is Corrective-RAG (Yan et al.) applied to the routing failure, and it is the first point in the system where a component *observes a result and decides what to do next* — the thing the current pipeline cannot do.
+SUBAGENT 3 — calibration
+  experiments/exp03_calibration.py -> results/calibration.csv
+                                      results/reliability_diagram.png
+  Reliability diagram with QUANTILE bins, binning stated in the caption.
+  ECE, Brier, risk-coverage curve, coverage at 10% risk, AURC.
+  Then Platt scaling on a 60/40 stratified split, ECE before and after
+  on the test split only.
+  In the explanation block, make clear that my composite score was never
+  a probability — it is a weighted sum of cosine similarities — so
+  explain what ECE on it does and does not tell me, and whether Platt
+  scaling makes it usable as one.
 
-**3B.3 · Verifier Agent — does double duty**
+SUBAGENT 4 — ablation
+  experiments/exp04_ablation.py -> results/ablation.csv
+  AUROC per signal with bootstrap CIs.
+  Leave-one-out: recompute the composite three times, each with one
+  signal removed and THE REMAINING WEIGHTS RENORMALISED TO SUM TO 1.
+  State in the explanation that this is a DIFFERENT question from the
+  per-signal-alone AUROCs already in my README: "does this signal carry
+  information alone" versus "does removing it hurt the combination".
+  Weight sweep over the three weights in 0.05 steps summing to 1; report
+  the argmax and whether it puts any signal at or near zero.
 
-Check that each provision cited in the answer actually appears in the retrieved chunks; flag or strip those that don't. This is simultaneously a system improvement *and* the measurement instrument for E2. Same code produces the paper's headline number and the fix for it.
+SUBAGENT 5 — robustness and clustering
+  experiments/exp05_robustness.py -> results/robustness.csv
+  Re-run the core analyses under all three correctness definitions, and
+  log the positive count under each. If conclusions differ across
+  definitions, that is a finding — report all three, never pick one.
+  Clustering: paired set is 33 situations x 3 phrasings; dated set is
+  30 x 4. Phrasings of one situation are NOT independent observations.
+  Use cluster_bootstrap on situation_id (reconstructed per SCHEMA.md if
+  the field does not exist) and report naive and clustered intervals
+  side by side so the difference is visible.
 
-**Framework decision: hand-roll it, do not adopt LangGraph.**
-The loop is ~150 lines of plain Python. LangGraph is genuinely designed for cyclic agent graphs and would be a reasonable choice — but the entire value of this project is the bespoke logging schema, and LangGraph's tracing is opinionated in ways that would fight it. Reviewers do not care which framework was used; they care that every decision is inspectable. Hand-rolled stays inspectable. (Revisit only if the loop grows beyond ~3 states.) Record as an ADR.
-
-**Measured as:**
-
-| | Comparison |
-|---|---|
-| **E7** | Baseline pipeline vs. + statute mapping |
-| **E8** | Baseline vs. + corrective loop (and both together) |
-| **E9** | Unsupported-citation rate before vs. after the verifier |
-
-Keep the original pipeline runnable behind a flag throughout — it is the baseline every number is measured against.
-
----
-
-## Phase 4 — Write (4–5 days)
-
-Structure: Intro (access to justice + recodification) → Related work (**must cite** Reuter/DRM, Magesh, Legal RAG Bench, Das et al., Prior et al., Cymbler et al., plus the Indian system papers being critiqued) → System in one paragraph → Evaluation setup → Results → **Failure analysis (the core)** → Discussion → **Ethics + Limitations**.
-
-Non-negotiables learned from the research:
-- **Ethics section is effectively mandatory** — NLLP explicitly rejects sensitive-task papers that omit it. Laypeople acting on wrong statutory citations is a real harm.
-- **Anonymised code + data** (anonymous.4open.science for review).
-- **Never ROUGE for correctness.** If LLM-as-judge is used, validate against human labels on a subsample and report agreement.
-- **No jurisdictional overclaim** — "in this corpus, under this configuration, X% of queries exhibit Y."
-- Name the failure modes. *Cross-statute retrieval failure* and *phantom citation* are the candidate names.
-
-**Figure 1** = the arrest-query trace from `DATAFLOW.md`. It carries the whole argument.
-
----
-
-## Venue strategy
-
-**Do the work; pick the venue when results exist** — which is exactly what Prof. Joshi already advised.
-
-**The Oct–Nov window is real and it is the right target.** There are four genuine deadlines in it, which means ~8–11 weeks of runway rather than a 12-day scramble. FIRE is *not* worth panicking over.
-
-| Venue | Deadline | Conference | Verdict |
-|---|---|---|---|
-| **NLLP 2026** | ~17:30 IST, 19 Aug | Oct, Budapest | **Skip.** Unreachable with n=11; a rejection burns the venue for this cycle. |
-| **FIRE 2026** | 31 Aug | 17–20 Dec, Kolkata | **Only if Phases 1–3 fly.** 12 days. Don't force it. |
-| **JURIX 2026** | 5 Sep | 8–10 Dec, Toulouse | Mandatory in-person (~₹1.5–2.5 L). Only with funding. |
-| **ICON 2026** | **unpublished** | 20–23 Dec, Guwahati | **Retrieve the CFP today** (Drive link on icon2026.org). ACL Anthology, in India, lower bar. Likely Sep–Oct. |
-| **ECIR 2027 short** | **12 Oct** | Mar 2027, UK | ~8 weeks. 6pp. Strong IR venue. |
-| **ARR** | **12 Oct** | → NAACL/COLING 2027 | **Primary anchor.** Reviews reusable for main conferences *and* for workshops' fast-track routes. |
-| **ECIR 2027 reproducibility** | **2 Nov** | Mar 2027, UK | ~11 weeks. **Requires a pivot** — the track excludes evaluating your own system, but explicitly welcomes *failure to reproduce others'*. See below. |
-| **CODS 2027** | TBA (~late 2026) | — | Watch; poor topical fit. |
-| **Insights 2027** | ~Jun 2027 | — | Ideal conceptual home. Backup. |
-
-**Primary plan: ARR, 12 October.** ~8 weeks. Comfortable for Phases 0–4. Reviews are reusable, so it is the lowest-risk shot with the highest ceiling.
-
-**Optional second paper, ECIR reproducibility, 2 Nov:** several published Indian legal RAG systems (LegalEase in Springer 2025, Domain-Partitioned Hybrid RAG, LawPal, HyRAG) report 70–90% success on ≤40 synthetic questions using ROUGE or unvalidated LLM-as-judge. Re-evaluating them on a proper 100+ query expert-labelled IPC/BNS set — and showing the numbers don't hold — is a legitimate second paper using the *same* evaluation set. Only if Phases 1–4 finish early.
-
-Report to Prof. Joshi at the end of Phase 1 — the routing diagnosis and corpus-tagging measurement are concrete progress on his item 4 and worth sharing before full results.
-
----
-
-## Tooling (1 hour, do alongside Phase 1)
-
-**Install:**
-- **arXiv MCP** — `uv tool install "arxiv-mcp-server[pdf]"` then `claude mcp add`. Literature search, read specific LaTeX sections of papers, BibTeX export, standing alerts on the subfield. Highest research value of anything here.
-- **`pyright-lsp`** — type checking; catches the class of bug that produced the `top_score` corruption.
-- **`context7`** — hosted, version-correct docs for qdrant-client / FastAPI / OpenAI SDK.
-- **`obra/superpowers`** — **user's decision, for development work only, not research.** `/plugin install superpowers@claude-plugins-official`. Caveats to state plainly at install time and then not re-litigate: its `SessionStart` hook has an open Windows bug (#2105) where it can fail *silently*, so verify it actually loaded; it adds ~2s to session start on Windows (#2081); Windows Defender may flag it (#2143, assessed false positive); and its `subagent-driven-development` / autonomous-execution skills conflict with the "explain before implementing" rule in `CLAUDE.md` — **`CLAUDE.md` wins on this project.** Its `test-driven-development` and `systematic-debugging` skills are the genuinely useful parts and map onto Phase 1.4.
-
-**Evaluation harness as code, not as a skill** *(user's instruction)* — `scripts/run_eval.py`: reads the query set, POSTs each to `/query`, collects JSONL, captures the git SHA, refuses to run on a dirty working tree, writes results and appends a `WORKLOG.md` entry. Better as code than as a skill anyway: it ships in the repo, reviewers can read it, and it goes in the artifact release.
-
-**Add a `PreToolUse` guardrail hook** enforcing the two ⚠ rules in `CLAUDE.md` (never run `fix_corpus_tags.py`, never `pip install -r requirements.txt`).
-
-## Subagent use
-
-Delegate to subagents wherever the work is parallel or context-heavy, keeping the main thread for reasoning and teaching:
-
-| Task | Why delegate |
-|---|---|
-| Literature triage (read 30 abstracts → 5-line verdicts) | Keeps 30 papers of text out of the main context |
-| Building the IPC↔BNS mapping table from BPRD/UP Police sources | Mechanical, high-volume extraction |
-| Drafting query-set candidates per statute | Parallel across 4 statutes, then reviewed by Udita |
-| Running experiment sweeps and reporting deltas | Long-running, output is a summary not a transcript |
-| Adversarial review of results before submission | Independent perspective; catches overclaiming |
-
-Rule: subagents do **analysis, search, and drafting**. Code changes and design decisions stay in the main thread where they get explained.
-
-**Embedding insurance (~2 h):** also embed the 1,011 chunks locally with `BAAI/bge-m3` (pinned HF revision) into a second Qdrant collection. CPU-only, ~15 min, free, never expires. Gives a provider-independent path that survives any API death — her OpenAI key dying mid-project is the argument — and a free API-vs-local ablation for E5.
+When all five report, commit and give me the five explanation blocks
+together.
+```
 
 ---
 
-## Constraints
+## WAVE 3 — two experiments in parallel (2 subagents, ~1.5 h, ~₹2)
 
-- **Fix code, never data.** `fix_corpus_tags.py` is why a defect hid for six months.
-- **One variable at a time.** Every result carries its git SHA.
-- **Never mix pre-fix and post-fix numbers.** The 23 existing runs are a labelled pre-fix baseline only.
-- **Explain before implementing.** Every change gets walked through in plain English first.
-- **Documentation protocol** (`CLAUDE.md`) applies to every step.
+```
+Spawn TWO subagents concurrently. Same rules, same CSV schema, same
+explanation blocks. Both are retrieval-only. Tell me before any batch
+of more than 100 generation calls; I do not expect any.
 
-## Verification
+SUBAGENT 1 — statute_consistency
+  experiments/exp06_statute_consistency.py
+      -> results/statute_consistency.csv
+  Build the fourth confidence signal specified at
+  docs/TARGET_ARCHITECTURE.md line 352 and never built. It measures
+  whether the retrieved passages came from the book the question
+  implies. My three existing signals only inspect similarity numbers;
+  this one inspects whether the answer is in the right book at all.
+  Compute over the existing query sets, retrieval only. Add it as a
+  fourth row to the ablation table with AUROC, bootstrap CI, ECE.
 
-1. Phase 1: `/healthz` green, one query end-to-end producing a complete JSONL record with `provider_name` populated, corpus audit showing 100% correct tags and zero phantom corpora, `pytest` green.
-2. Phase 2: 100+ rows validated against the schema; ~30 expert-validated; annotation guide reproducible by a second person.
-3. Phase 3: every number regenerable from logs by a script in-repo, with git SHA.
-4. Phase 4: page limit, anonymity, ethics section, and reference completeness checked against the target venue's CFP before submission.
-5. **The real test:** Udita can explain the contribution, the method, and the limitations in her own words without reading from a doc.
+  Both outcomes are results. If it beats the generic signals, that is a
+  contribution. If it does not, that is a stronger negative result. Do
+  NOT tune it to win. If you adjust it at all after seeing its AUROC,
+  refit on a train split, report test-split performance only, and say so
+  in the explanation block.
+
+  Also: recompute entity_coverage from the section_number payload field
+  rather than substring-matching chunk text. The section normaliser
+  rewrites any line starting with a number and a full stop into
+  "Section N.", so page numbers and list items produce false matches —
+  a known confound on the signal measured at 0.492. Report both ways.
+  Then sample 100 normaliser-rewritten lines, classify each as genuine
+  section heading or artefact, and report the artefact rate with a CI.
+
+SUBAGENT 2 — BM25 and hybrid
+  experiments/exp07_hybrid.py -> results/hybrid_comparison.csv
+  BM25 index over the same 1,899 chunks using rank_bm25. No API cost.
+  Tokenisation: lowercase, but KEEP digits and subsection markers —
+  section numbers are the entire point here, so do not strip numerals
+  or punctuation inside forms like 318(4).
+  Retrieve top 50 from each of dense and BM25, then fuse with Reciprocal
+  Rank Fusion: score(d) = sum over lists of 1/(60 + rank_i(d)), k=60,
+  citing Cormack, Clarke and Buttcher, SIGIR 2009. Do not invent a
+  constant. Evaluate at k up to 15 so it is comparable with existing
+  numbers.
+  Report retrieval metrics for three configurations: dense alone, BM25
+  alone, hybrid.
+
+  The number I care about: does BNS-named query accuracy move off 51.5%?
+  This answers the sharpest objection my paper will face — that
+  exact-match search would separate IPC 420 from BNS 318 trivially, so
+  the failure might be an artefact of choosing a dense retriever. Either
+  direction publishes. Tell me which, and by how much, with CIs.
+
+Commit when both report; give me both explanation blocks.
+```
+
+---
+
+## WAVE 4 — assemble (serial, 30 min, free)
+
+```
+One agent, no subagents.
+
+Concatenate every results/*.csv into results/RESULTS.md as tables, one-
+line captions, regenerating command beside each. No prose, no plans, no
+summary of effort. Every number carries n, CI, definition and stage.
+
+Verify before writing that every file path you reference exists on disk.
+If something did not run, the field reads NOT MEASURED — never a
+plausible placeholder.
+
+Then check results/EXPLAIN.md is complete: one block per output file,
+all eight headings present in each. List any that are missing rather
+than writing them yourself from memory.
+
+Finally, list separately at the bottom of RESULTS.md:
+  - every number that CHANGED from what my README currently publishes:
+    old value, new value, which bug fix caused it
+  - every known-answer test or assertion that failed
+  - everything that could not be computed, and why
+
+Commit.
+```
+
+---
+
+# 6. TIME AND COST
+
+| Wave | Wall clock | Cost |
+|---|---|---|
+| 0 discovery + library | ~1 h | free |
+| 1 bug fixes | ~1 h | free |
+| Gate | 20 min | free |
+| 2 metrics | ~1 h | free |
+| 3 experiments | ~1.5 h | ~₹2 |
+| 4 assemble | 30 min | free |
+| **Total** | **~5 h 20 m** | **~₹2** |
+
+Serial this is roughly 8 hours. Nearly all the saving is Wave 2.
+
+Wave 0 plus Wave 1 plus the gate is a sensible first sitting, and it is where your attention matters most.
+
+---
+
+# 7. WHEN IT GOES WRONG
+
+**A subagent reports the same error twice.** By the rules it stops. Read what it tried. Usually a path differs from documentation, which is why Wave 0 inventories real paths first.
+
+**Two subagents wrote the same file.** Rule 1 broken. Check `git status`, find the missing output, re-run that subagent alone.
+
+**Tables disagree with each other.** Rule 3 broken — somebody reimplemented instead of importing. Find it, delete its version, re-run against `metrics_lib`.
+
+**Known-answer tests fail in Wave 0.** Stop everything. That is the protocol working. A broken metric produces believable wrong numbers, which is exactly how this project lost six months.
+
+**An explanation block is missing.** The task is not done. Send it back rather than accepting the numbers — the block is where you find out that a number was computed at the wrong stage.

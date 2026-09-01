@@ -1,0 +1,431 @@
+{
+  "meta": {
+    "title": "IPC to BNS and CrPC to BNSS provision map (evaluation subset)",
+    "version": "0.1.0",
+    "built": "2026-08-23",
+    "scope": "Only the provisions used as gold labels in eval/scenarios.py. Not a complete map of either code.",
+    "commencement": "2024-07-01",
+    "authority": {
+      "IPC": "repealed by BNS s.358(1)",
+      "CRPC": "repealed by BNSS s.531(1)",
+      "IEA": "repealed by BSA s.170(1)"
+    },
+    "caveats": [
+      "Recodification is NOT renumbering. Several entries carry substantive change; see the note field.",
+      "Sub-sections are load-bearing. A bare section number is often materially incomplete.",
+      "verified_in_corpus: the target section was located in this project's Qdrant index and its bare-Act text was read to confirm the subject matches. Section-level only -- sub-section attribution was NOT machine-checked.",
+      "unverified_not_in_corpus: BNSS is not ingested, so these could not be checked and are unreachable by the retriever by construction."
+    ],
+    "confidence_values": [
+      "verified_in_corpus",
+      "unverified_not_in_corpus",
+      "no_counterpart"
+    ],
+    "corpora_in_index": [
+      "IPC",
+      "BNS",
+      "CRPC",
+      "CPA"
+    ]
+  },
+  "mappings": [
+    {
+      "from": "IPC 149",
+      "to": [
+        "BNS 190"
+      ],
+      "subject": "unlawful assembly - common object",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 161",
+      "to": [],
+      "subject": "public servant taking gratification",
+      "confidence": "no_counterpart",
+      "note": "Repealed 1988 by Prevention of Corruption Act s.31, 36 years before the BNS. Live law is PC Act ss.7-12. Useful adversarial probe."
+    },
+    {
+      "from": "IPC 300",
+      "to": [
+        "BNS 101"
+      ],
+      "subject": "murder - definition",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 302",
+      "to": [
+        "BNS 103(1)"
+      ],
+      "subject": "punishment for murder",
+      "confidence": "verified_in_corpus",
+      "note": "BNS 103(2) is a NEW mob-lynching offence with no IPC counterpart."
+    },
+    {
+      "from": "IPC 304B",
+      "to": [
+        "BNS 80"
+      ],
+      "subject": "dowry death",
+      "confidence": "verified_in_corpus",
+      "note": "80(1) definition, 80(2) punishment."
+    },
+    {
+      "from": "IPC 307",
+      "to": [
+        "BNS 109"
+      ],
+      "subject": "attempt to murder",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 323",
+      "to": [
+        "BNS 115(2)"
+      ],
+      "subject": "punishment for voluntarily causing hurt",
+      "confidence": "verified_in_corpus",
+      "note": "115(1) is the definition."
+    },
+    {
+      "from": "IPC 325",
+      "to": [
+        "BNS 117(2)"
+      ],
+      "subject": "punishment for voluntarily causing grievous hurt",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 326",
+      "to": [
+        "BNS 118(2)"
+      ],
+      "subject": "grievous hurt by dangerous weapons",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 340",
+      "to": [
+        "BNS 127(1)"
+      ],
+      "subject": "wrongful confinement",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 354",
+      "to": [
+        "BNS 74"
+      ],
+      "subject": "assault on woman with intent to outrage modesty",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 354A",
+      "to": [
+        "BNS 75"
+      ],
+      "subject": "sexual harassment",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 354D",
+      "to": [
+        "BNS 78"
+      ],
+      "subject": "stalking",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 376",
+      "to": [
+        "BNS 64"
+      ],
+      "subject": "punishment for rape",
+      "confidence": "verified_in_corpus",
+      "note": "64(1) and 64(2) split by aggravating circumstance."
+    },
+    {
+      "from": "IPC 378",
+      "to": [
+        "BNS 303(1)"
+      ],
+      "subject": "theft - definition",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 379",
+      "to": [
+        "BNS 303(2)"
+      ],
+      "subject": "punishment for theft",
+      "confidence": "verified_in_corpus",
+      "note": "SUBSTANTIVE CHANGE: adds community service for first-time theft under Rs 5,000."
+    },
+    {
+      "from": "IPC 380",
+      "to": [
+        "BNS 305(a)"
+      ],
+      "subject": "theft in a dwelling house",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 383",
+      "to": [
+        "BNS 308(1)"
+      ],
+      "subject": "extortion - definition",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 384",
+      "to": [
+        "BNS 308(2)"
+      ],
+      "subject": "punishment for extortion",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 403",
+      "to": [
+        "BNS 314"
+      ],
+      "subject": "dishonest misappropriation of property",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 406",
+      "to": [
+        "BNS 316(2)"
+      ],
+      "subject": "punishment for criminal breach of trust",
+      "confidence": "verified_in_corpus",
+      "note": "316(1) is the definition."
+    },
+    {
+      "from": "IPC 415",
+      "to": [
+        "BNS 318(1)"
+      ],
+      "subject": "cheating - definition",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 419",
+      "to": [
+        "BNS 319(2)"
+      ],
+      "subject": "cheating by personation",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 420",
+      "to": [
+        "BNS 318(4)"
+      ],
+      "subject": "cheating and dishonestly inducing delivery of property",
+      "confidence": "verified_in_corpus",
+      "note": "NOT BNS 320. BNS 320 is dishonest removal of property."
+    },
+    {
+      "from": "IPC 425",
+      "to": [
+        "BNS 324(1)"
+      ],
+      "subject": "mischief - definition",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 441",
+      "to": [
+        "BNS 329(1)"
+      ],
+      "subject": "criminal trespass",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 457",
+      "to": [
+        "BNS 331(4)"
+      ],
+      "subject": "house-breaking by night to commit an offence",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 465",
+      "to": [
+        "BNS 336(2)"
+      ],
+      "subject": "punishment for forgery",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 498A",
+      "to": [
+        "BNS 85"
+      ],
+      "subject": "cruelty by husband or his relatives",
+      "confidence": "verified_in_corpus",
+      "note": "Definition split out into BNS 86."
+    },
+    {
+      "from": "IPC 499",
+      "to": [
+        "BNS 356(1)"
+      ],
+      "subject": "defamation - definition",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 500",
+      "to": [
+        "BNS 356(2)"
+      ],
+      "subject": "punishment for defamation",
+      "confidence": "verified_in_corpus",
+      "note": "SUBSTANTIVE CHANGE: adds community service."
+    },
+    {
+      "from": "IPC 503",
+      "to": [
+        "BNS 351(1)"
+      ],
+      "subject": "criminal intimidation - definition",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "IPC 506",
+      "to": [
+        "BNS 351(2)",
+        "BNS 351(3)"
+      ],
+      "subject": "punishment for criminal intimidation",
+      "confidence": "verified_in_corpus",
+      "note": "Split by severity."
+    },
+    {
+      "from": "IPC 509",
+      "to": [
+        "BNS 79"
+      ],
+      "subject": "word or gesture insulting the modesty of a woman",
+      "confidence": "verified_in_corpus",
+      "note": ""
+    },
+    {
+      "from": "CRPC 41",
+      "to": [
+        "BNSS 35"
+      ],
+      "subject": "when police may arrest without warrant",
+      "confidence": "unverified_not_in_corpus",
+      "note": "BNSS not in corpus."
+    },
+    {
+      "from": "CRPC 50",
+      "to": [
+        "BNSS 47"
+      ],
+      "subject": "arrested person to be informed of grounds",
+      "confidence": "unverified_not_in_corpus",
+      "note": "BNSS not in corpus."
+    },
+    {
+      "from": "CRPC 56",
+      "to": [
+        "BNSS 57"
+      ],
+      "subject": "arrested person to be taken before magistrate",
+      "confidence": "unverified_not_in_corpus",
+      "note": "BNSS not in corpus."
+    },
+    {
+      "from": "CRPC 57",
+      "to": [
+        "BNSS 58"
+      ],
+      "subject": "no detention beyond 24 hours",
+      "confidence": "unverified_not_in_corpus",
+      "note": "BNSS not in corpus."
+    },
+    {
+      "from": "CRPC 97",
+      "to": [
+        "BNSS 100"
+      ],
+      "subject": "search for a person wrongfully confined",
+      "confidence": "unverified_not_in_corpus",
+      "note": "BNSS not in corpus."
+    },
+    {
+      "from": "CRPC 154",
+      "to": [
+        "BNSS 173"
+      ],
+      "subject": "information in cognizable cases (FIR)",
+      "confidence": "unverified_not_in_corpus",
+      "note": "SUBSTANTIVE CHANGE: BNSS 173 permits electronic and zero FIR. BNSS not in corpus."
+    },
+    {
+      "from": "CRPC 156",
+      "to": [
+        "BNSS 175"
+      ],
+      "subject": "police power to investigate a cognizable case",
+      "confidence": "unverified_not_in_corpus",
+      "note": "BNSS not in corpus."
+    },
+    {
+      "from": "CRPC 174",
+      "to": [
+        "BNSS 194"
+      ],
+      "subject": "police inquiry into unnatural death",
+      "confidence": "unverified_not_in_corpus",
+      "note": "BNSS not in corpus."
+    },
+    {
+      "from": "CRPC 438",
+      "to": [
+        "BNSS 482"
+      ],
+      "subject": "anticipatory bail",
+      "confidence": "unverified_not_in_corpus",
+      "note": "BNSS not in corpus."
+    },
+    {
+      "from": "CRPC 468",
+      "to": [
+        "BNSS 514"
+      ],
+      "subject": "limitation on taking cognizance",
+      "confidence": "unverified_not_in_corpus",
+      "note": "BNSS not in corpus."
+    }
+  ],
+  "unchanged_statutes": {
+    "CPA": "Consumer Protection Act 2019 - unaffected by the 2024 recodification. Section numbers identical in both eras."
+  }
+}

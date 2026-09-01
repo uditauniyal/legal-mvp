@@ -5809,3 +5809,352 @@ t=open('README.md',en
 ### 2026-08-28 18:27:35 · prompt
 
 i will commit it myself and push it myself too please wait i will get back to you just tell me about what all i have to read the docs, etc you made to undertsand everyhting
+
+### 2026-09-01 09:54:42 · prompt
+
+# PARALLEL PLAN + COMPLETE PROMPTS FOR CLAUDE CODE
+
+Written 1 September 2026. One file, everything in it. Read section 1, then paste the prompts in order.
+
+---
+
+# 1. WHAT CAN RUN AT THE SAME TIME, AND WHAT CANNOT
+
+**In plain English:** you can wash five dishes at once, but you cannot dry a dish before it is washed. Some of your work is dishes, some of it is a sequence.
+
+```
+WAVE 0  -- SETUP + SHARED TOOLBOX          SERIAL. Cannot be skipped.
+   |         one agent, alone
+   |         builds the maths library everyone else will use
+   v
+WAVE 1  -- THREE BUG FIXES                 PARALLEL, 3 subagents
+   |         different files, no overlap
+   v
+GATE    -- SMOKE TEST                      SERIAL. YOU read 3 numbers.
+   |         everything downstream depends on this
+   v
+WAVE 2  -- FIVE METRIC FAMILIES            PARALLEL, 5 subagents
+   |         this is where concurrency actually pays
+   v
+WAVE 3  -- TWO NEW EXPERIMENTS             PARALLEL, 2 subagents
+   |
+   v
+WAVE 4  -- ASSEMBLE RESULTS                SERIAL, one agent
+```
+
+**Why Wave 0 must be serial and must come first.** If five subagents each write their own version of AUROC, you get five slightly different answers and your tables silently disagree with each other. That is exactly the failure your Phase E was full of â€” eight bugs, none of which crashed, every one returning a believable number. So one agent builds one tested maths library, alone, and every later subagent imports it. **This is the single most important rule in this document.**
+
+**Why the gate must be serial.** Wave 2 computes tables. If the bug fixes moved your headline numbers, some of those tables would be measuring the wrong thing. Twenty minutes of your attention here saves three hours.
+
+**Honest note on Wave 1.** Running three bug fixes in parallel saves maybe half an hour and carries more risk than the other waves, because a bad fix poisons everything downstream. Wave 2 is where concurrency genuinely pays: five independent calculations over the same read-only logs, roughly three hours compressed to about one.
+
+---
+
+# 2. THE FOUR RULES THAT MAKE CONCURRENCY SAFE
+
+Give these to every subagent. They exist because parallel agents fail in ways serial ones do not.
+
+**RULE 1 â€” One owner per file.** Every subagent owns exactly one script and one output file, named in advance. No two subagents write the same path, ever. If two agents write `results/metrics.csv`, one silently overwrites the other and you will not notice.
+
+**RULE 2 â€” Subagents never run git.** No commits, no branches, no staging. Concurrent git operations corrupt the repository. The main agent commits once per wave, after all its subagents report back.
+
+**RULE 3 â€” Everyone imports the shared library. Nobody reimplements it.** If a subagent needs a metric that is not in `experiments/metrics_lib.py`, it stops and reports that, rather than writing its own.
+
+**RULE 4 â€” `logs/`, `eval/`, `data/` and the Qdrant collection are read-only.** All subagents read them. None writes them. That data cost â‚¹1,728 and cannot be cheaply regenerated.
+
+---
+
+# 3. THE PROMPTS
+
+Paste these one wave at a time. Wait for each to finish. Read the output before the next.
+
+---
+
+## WAVE 0 â€” setup and the shared toolbox (serial, ~45 min, free)
+
+```
+I am doing supervised research work on this repo, working toward a paper
+submission. I am here and will answer questions, so ask me rather than
+guessing or deciding for me.
+
+I am building my first research paper and do not know most of these
+statistical terms. Before you write code for any metric, explain in
+plain English what it measures and why it matters, with a small worked
+example using real numbers. Do not use a term without defining it in the
+same sentence you use it.
+
+STANDING RULES for this whole project:
+  - logs/, eval/, data/ and the Qdrant collection are READ-ONLY. New
+    output goes to results/ and experiments/ only. That data cost 1,728
+    rupees and cannot be cheaply regenerated.
+  - Experiments I
+… [truncated, 15548 more chars]
+
+### 2026-09-01 10:09:32 · prompt
+
+create a file PLAN.md in /docs and add all this in that from here..# PARALLEL PLAN + PROMPTS FOR CLAUDE CODE (technical)
+
+1 September 2026. One file. Read section 1, then paste the waves in order.
+
+**What changed from the last version:** concrete function signatures so five subagents cannot each invent their own AUROC; a discovery step because I do not know your log schema and neither should the prompt pretend to; the word "retrieved" disambiguated, because in your pipeline it has three possible meanings; a fixed CSV schema; fixed random seeds; and a mandatory explanation block that every subagent must fill for every output.
+
+---
+
+# 1. WHAT RUNS TOGETHER, WHAT CANNOT
+
+You can wash five dishes at once. You cannot dry a dish before it is washed.
+
+```
+WAVE 0   DISCOVER SCHEMA + BUILD SHARED LIBRARY     SERIAL, alone
+   |     ends by SHOWING YOU the schema it found
+   v
+WAVE 1   THREE BUG FIXES                            PARALLEL, 3 subagents
+   v
+GATE     SMOKE TEST â€” you read three numbers        SERIAL
+   v
+WAVE 2   FIVE METRIC FAMILIES                       PARALLEL, 5 subagents
+   v                                                (the wave that pays)
+WAVE 3   TWO EXPERIMENTS                            PARALLEL, 2 subagents
+   v
+WAVE 4   ASSEMBLE                                   SERIAL
+```
+
+**Why Wave 0 is serial and first.** Five subagents each writing their own AUROC gives five slightly different answers and tables that silently contradict each other. One tested implementation, imported by everyone. This is the most important rule here.
+
+**Why Wave 0 now starts with discovery.** I have read your README but not your log files. I do not know their column names. A prompt that invents a schema produces code that silently reads the wrong field, which is defect E2 all over again. So the agent reads the real files, prints what it found, and shows you before building anything.
+
+---
+
+# 2. RULES THAT MAKE CONCURRENCY SAFE
+
+1. **One owner per file.** Each subagent owns one script and one output path, named in advance. Two agents writing `results/metrics.csv` means one silently wins.
+2. **Subagents never run git.** Concurrent git corrupts the repo. The main agent commits once per wave.
+3. **Everyone imports `experiments/metrics_lib.py`.** Nobody reimplements. If a function is missing, stop and report.
+4. **`logs/`, `eval/`, `data/`, Qdrant collection: read-only.** That data cost â‚¹1,728.
+5. **Fixed seeds everywhere.** `SEED = 20260901`, `N_BOOT = 10000`. Reproducibility is a reviewer checkbox.
+
+---
+
+# 3. THE MANDATORY EXPLANATION BLOCK
+
+This is the part that was missing. **Every subagent, for every output file it produces, appends one of these to `results/EXPLAIN.md`.** Not a paragraph. This exact shape, every heading present, every time.
+
+```markdown
+## <metric or experiment name>
+Output file: <path>
+Regenerate with: <exact command>
+Owner: <subagent name>
+
+### 1. ELI5 â€” what does this measure?
+Two or three sentences for someone who has never met this term. Use an
+analogy or a tiny worked example with real numbers. Do not use a term
+without defining it in the same sentence.
+
+### 2. Technically
+The same thing stated precisely: the formula, the method name, the
+reference if there is one.
+
+### 3. What the number came out as
+The value. Its sample size n. Its 95% confidence interval. Which
+correctness definition was used. Which retrieval stage was used.
+Never a number without all four.
+
+### 4. How to read it
+Is higher good or bad? What would a good result look like here? What
+would a suspicious result look like â€” what should make me distrust it?
+
+### 5. What this means for the paper
+One paragraph. Which claim does this support, weaken, or kill?
+
+### 6. What broke while computing this
+Every error, including ones fixed in thirty seconds. If nothing broke,
+write "nothing broke". Never omit this heading.
+
+### 7. What I could not compute, and why
+Or "nothing". Never omit this heading.
+
+### 8. What surprised me
+Anything that looked off, or 
+… [truncated, 24226 more chars]
+
+`2026-09-01 10:10:11` · **cmd** — Check whether a script would overwrite PLAN.md
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== does sync_context.py write docs/PLAN.md? ==="
+grep -n "PLAN.md\|plans\|def main\|write_text\|copy" scripts/sync_context.py | head -20
+echo
+echo "=== is it wired to a hook? ==="
+grep -rn "sync_context" .claude/settings.json 2>/dev/null || echo "  not in any hook â€” only runs if invoked manually"
+echo
+echo "=== current PLAN.md header ==="
+head -12 docs/PLAN.md
+```
+
+### 2026-09-01 10:10:55 · prompt
+
+what does that PLAN.md has?
+
+`2026-09-01 10:11:38` · **cmd** — Show what the existing PLAN.md contains
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "lines: $(wc -l < docs/PLAN.md)   size: $(ls -la docs/PLAN.md | awk '{print $5}') bytes"
+echo "written: $(head -3 docs/PLAN.md | grep Synced)"
+echo
+echo "=== all headings ==="
+grep -n "^#\{1,3\} \|^## " docs/PLAN.md
+echo
+echo "=== does its content exist anywhere else? ==="
+for f in docs/THE_WHOLE_PICTURE.md README.md docs/EVALUATION_PLAN.md docs/TARGET_ARCHITECTURE.md; do
+  printf "  %-38s " "$f"
+  grep -c "Statute-Mapping Agent\|anonymous.4open\|Corrective retrieval loop\|ECIR 2027" "$f" 2>/dev/null || echo 0
+done
+```
+
+### 2026-09-01 10:13:49 · prompt
+
+A
+
+`2026-09-01 10:14:21` · **cmd** — Rename the old plan
+```bash
+cd /c/Users/uniya/legal-mvp
+git mv docs/PLAN.md docs/PLAN_AUGUST.md 2>/dev/null || mv docs/PLAN.md docs/PLAN_AUGUST.md
+ls -la docs/PLAN_AUGUST.md && echo "renamed, $(wc -l < docs/PLAN_AUGUST.md) lines preserved"
+```
+
+### 2026-09-01 10:19:24 · prompt
+
+git checkout core/verifier.py
+git checkout -b metrics/sept-01
+mkdir -p backup/pre-metrics && cp -r logs eval data backup/pre-metrics/
+
+`2026-09-01 10:20:09` · **cmd** — Verify which data directories exist
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== do these exist? ==="
+for d in logs eval data runs; do
+  if [ -d "$d" ]; then printf "  %-8s EXISTS  %s files, %s\n" "$d" "$(find "$d" -type f | wc -l)" "$(du -sh "$d" 2>/dev/null | cut -f1)"; else printf "  %-8s MISSING\n" "$d"; fi
+done
+echo
+echo "=== is runs/ gitignored? ==="
+grep -n "^runs/" .gitignore
+```
+
+`2026-09-01 10:20:48` · **cmd** — Revert, branch, and back up the data
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== 1. revert the half-edited file ==="
+git checkout core/verifier.py && echo "  reverted" && git status --porcelain core/verifier.py | wc -l
+echo
+echo "=== 2. new branch ==="
+git checkout -b metrics/sept-01
+echo
+echo "=== 3. backup (runs, not logs) ==="
+mkdir -p backup/pre-metrics && cp -r runs eval data backup/pre-metrics/
+echo "  backed up: $(find backup/pre-metrics -type f | wc -l) files, $(du -sh backup/pre-metrics | cut -f1)"
+ls backup/pre-metrics/
+```
+
+`2026-09-01 10:21:24` · **cmd** — Check gitignore status and run tests
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== is backup/ gitignored? (12MB should not go into git) ==="
+git check-ignore backup/pre-metrics/runs 2>/dev/null && echo "  yes, ignored" || echo "  NO -- it would be committed"
+echo
+echo "=== branch + status ==="
+git branch --show-current
+git status --porcelain | head -12
+echo
+echo "=== verifier.py clean? ==="
+git diff --stat core/verifier.py | tail -1 || echo "  clean, matches last commit"
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -2
+```
+
+`2026-09-01 10:21:56` · **cmd** — Show the collection error
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | head -30
+```
+
+`2026-09-01 10:22:28` · **cmd** — Diagnose why the revert failed
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== does HEAD's version contain the broken code? ==="
+git show HEAD:core/verifier.py | grep -n "_SECTION_HEAD\|^import re\|provisions_from_chunks\|def reattribute" | head
+echo
+echo "=== does the working file? ==="
+grep -n "_SECTION_HEAD\|^import re\|provisions_from_chunks\|def reattribute" core/verifier.py | head
+echo
+echo "=== when was verifier.py last committed? ==="
+git log --oneline -3 -- core/verifier.py
+```
+
+`2026-09-01 10:23:08` · **cmd** — Check whether the broken commit is pushed
+```bash
+cd /c/Users/uniya/legal-mvp
+git fetch -q origin 2>/dev/null
+echo "=== is c6ef060 pushed? ==="
+git branch -r --contains c6ef060 2>/dev/null | head -3 || echo "  not on any remote branch"
+echo
+echo "=== what that commit changed ==="
+git show --stat --oneline c6ef060 | head -15
+```
+
+`2026-09-01 10:24:26` · **cmd** — Verify the suite runs again
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -3
+echo
+echo "=== the two orphan functions -- are they called anywhere? ==="
+grep -rn "provisions_from_chunks\|reattribute" --include=*.py . 2>/dev/null | grep -v venv | grep -v "core/verifier.py"  || echo "  called by nothing -- they sit unused until Wave 1/2"
+```
+
+### 2026-09-01 10:29:03 · prompt
+
+Edit 1 â€” the directory name. Find/replace logs/ â†’ runs/ throughout. It appears in the read-only rule, Wave 0 Task A, and a few places in Waves 2 and 3.
+
+Edit 2 â€” the verifier line in Wave 1. It's right that "revert to last committed state" would now restore the broken file. Replace that sentence with:
+
+core/verifier.py contains two functions, provisions_from_chunks and
+reattribute, that are complete but called by nothing. Leave them. Do not
+revert this file â€” its last committed state is broken and was fixed on
+this branch.
+
+Edit 3 â€” add one line to the read-only rule, because this is the part that matters most:
+
+  - runs/ is gitignored and exists ONLY on this machine. There is one
+    backup at backup/pre-metrics/. It is the only copy of 1,728 rupees
+    of measurements. Never write to either.
+
+Then:
+
+git add -A && git commit -m "correct paths in plan, fix verifier import"
+
+And in Claude Code:
+
+Run Wave 0 from docs/PLAN.md. Task A only. Stop and show me SCHEMA.md.
+
+`2026-09-01 10:29:32` · **cmd** — Find directory references to replace
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== where does 'logs/' appear? ==="
+grep -n "logs/" docs/PLAN.md
+```
+
+`2026-09-01 10:30:03` · **cmd** — Apply the three plan edits
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PY'
+import io,sys,pathlib
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+p=pathlib.Path("docs/PLAN.md"); t=p.read_text(encoding="utf-8"); orig=t
+
+GUARD = ("  - runs/ is gitignored and exists ONLY on this machine. There is one\n"
+         "    backup at backup/pre-metrics/. It is the only copy of 1,728 rupees\n"
+         "    of measurements. Never write to either.\n")
+
+# EDIT 1 + 3a -- section 2 rule 4
+t = t.replace(
+"4. **`logs/`, `eval/`, `data/`, Qdrant collection: read-only.** That data cost â‚¹1,728.",
+"4. **`runs
+… [truncated, 1860 more chars]
+```

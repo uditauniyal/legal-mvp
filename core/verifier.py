@@ -62,6 +62,7 @@ Fully deterministic — no LLM, no randomness. Same input, same numbers.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Iterable
 
