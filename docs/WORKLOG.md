@@ -502,3 +502,143 @@ This is a new, unreported mechanism and it is measured on data already paid for.
 ### Next
 
 Task B — build `experiments/metrics_lib.py` with known-answer tests. Wave 1 Subagent 2 repurposed to `exp08_filter.py`, the adaptive-filter investigation (analysis only; the deployed 0.35 floor is **not** to be changed).
+
+---
+
+## 2026-09-01 — Wave 1: three parallel tasks, one reframing of the paper
+
+Branch `metrics/sept-01`. Three subagents ran concurrently under the PLAN.md
+concurrency rules (one owner per file, no subagent runs git, everyone imports
+`experiments/metrics_lib.py`). Zero API calls; cost to the OpenRouter key ₹0.
+
+### S1 — tier logging bug (agents/answer.py)
+
+`prompt_variant` was initialised to "HIGH" and never reassigned in the LOW or
+MEDIUM branches. The disclaimer itself was always applied correctly; only the
+recorded field was wrong.
+
+Measured, not assumed: **369/859 = 42.96%** of records carried the wrong tier,
+95% Wilson [39.69, 46.29]. Logged {HIGH: 859}; true {HIGH: 490, MEDIUM: 354,
+LOW: 15}. The recomputation replays the branch rather than estimating it,
+because `app.py:229` writes `composite = retrieval.confidence` — the logged
+float is the same value the `if` tested.
+
+Reproduce: see `results/EXPLAIN.md`, block "Tier logging bug".
+
+Fix extracts a pure `tier_for_confidence()`; the disclaimer-selecting branch is
+byte-for-byte unchanged. +31 tests.
+
+**No published number is affected.** `prompt_variant` is written by
+`app.py:241` and read by nothing in `experiments/` or `scripts/`. What it
+blocked — the Phase G tier analysis — is now recoverable retrospectively on the
+existing 859 rows at zero API cost.
+
+**Incidental finding, not investigated:** the REFUSED path has never fired in
+859 records. Lowest tier observed is LOW at 15 rows (1.75%). A refusal
+mechanism that never refuses is a paper-relevant fact. Path left intact.
+
+### S2 — adaptive filter analysis (experiments/exp08_filter.py)
+
+Not a bug fix. Analysis of `threshold = max(top_score - 0.15, 0.35)`.
+The deployed 0.35 floor was NOT changed anywhere in the system.
+
+Paired check agreed exactly: layman `filtered_n` recall reconstructed = 0.075000,
+from Wave 0 stored Stage C chunk list = 0.075000; agreement under 1e-12 on every
+set, and 0 length mismatches in 621 rows.
+
+**Binding arm — a clean 100/0 split both ways.** All 9 layman cuts were bound by
+the 0.35 floor; 0 of the 14 non-layman cuts were. Mechanism: layman `top_score`
+mean 0.335, so the relative arm computes 0.185, the floor at 0.35 dominates, and
+cut gold chunks averaged 0.288.
+
+**Counterfactual sweep** (recall / mean chunks reaching the model):
+
+| set | n | 0.35 deployed | 0.30 | 0.25 | 0.20 | none | raw_15 ceiling |
+|---|---|---|---|---|---|---|---|
+| generated | 198 | 0.677 / 11.2 | 0.677 | 0.677 | 0.677 | 0.677 | 0.692 |
+| paired | 99 | 0.707 / 10.3 | 0.707 | 0.707 | 0.707 | 0.707 | 0.737 |
+| paired_dated | 197 | 0.452 / 10.1 | 0.452 | 0.452 | 0.452 | 0.452 | 0.492 |
+| layman | 120 | 0.075 / 5.1 | 0.117 / 9.0 | 0.117 / 13.4 | 0.150 / 15.0 | 0.150 / 15.0 | 0.150 |
+
+On three of four sets the floor is a total no-op — removing it moves recall by
+0.000. Their 1.5/3.0/4.1 pp losses come from the relative arm, which this sweep
+holds fixed.
+
+**The reframing.** The filter halves layman recall 15.0% to 7.5%. But for 102 of
+120 layman queries the gold section was never in the retrieved 15 at all.
+Abolishing the filter entirely still leaves 85% of public-style questions
+unanswerable. **The paper should anchor its primary claim at `raw_15`** — the
+stage where no filter exists and where the floor is provably irrelevant to the
+other three sets — and report the filter loss as a secondary mechanistic
+finding. This also pre-empts the reviewer objection that the failure is a
+tuning artefact: `raw_15` is measured before any tuning knob applies.
+
+Determinism: NOT demonstrated by S2 (a command timed out). Demonstrated by the
+main agent afterwards — two full runs, output byte-identical.
+
+Rule breach to record: S2 issued a command containing `git status`, against the
+no-git rule. It timed out before completing and `git status` is read-only, so no
+repository state was altered.
+
+### S3 — citation statute-binding bug (core/citations.py)
+
+`_statute_near()` bound a statute to a section number by taking the nearest
+statute name in a character window on either side. Since answers legitimately
+name both IPC and BNS, the parser broke precisely on the queries this paper
+studies.
+
+Citation unit chosen: the reference regex match extended over content-free
+tokens (whitespace, list punctuation, the words of/the/under, a 4-digit year).
+Everything else terminates it. Two refinements forced by real counterexamples: a
+trailing statute is decisive and a leading one only a fallback (Indian citation
+form puts the Act after the number); and an Act is discarded when a list
+separator divides it from the reference and another reference begins right
+after — which is what separates "Section 357C CrPC / Section 397 BNSS" from
+"CrPC Section 154(3) / BNSS Section 175(3)".
+
+UNKNOWN reuses `statute=None`. All six call sites checked; a truthy sentinel
+would have walked past four of them.
+
+**Blast radius**, 859 answers / 6,687 citation units. The old parser reproduces
+the logged `verifier.cited` 857/857 = 100.0%, so "before" is genuinely the
+parser that produced the recorded numbers.
+
+    answers naming BOTH IPC and BNS (at risk)   497/859  = 57.9% [54.5, 61.1]
+    units UNCHANGED                            5555/6687 = 83.1% [82.2, 84.0]
+    units confident statute -> UNKNOWN         1060/6687 = 15.9% [15.0, 16.7]
+    units statute A -> statute B                 72/6687 =  1.1% [0.9, 1.4]
+    units UNKNOWN -> confident statute            0/6687 =  0.0% [0.0, 0.1]
+    answers with >=1 changed unit                447/859  = 52.0% [48.7, 55.4]
+
+Concentrated on the at-risk population, intervals non-overlapping:
+to-UNKNOWN 20.8% [19.5, 22.1] at risk vs 9.7% [8.7, 10.8] not at risk.
+
+**70 of 72 flips (97.2% [90.4, 99.2]) are recodification pairs** — CrPC to BNSS 46,
+BNS to IPC 10, BNSS to CrPC 8, IEA to BSA 2, IPC to BNS 2. The parsing error
+landed on the treatment variable. That is a validity problem, not a precision
+problem.
+
++23 tests. No pre-existing test failed; nothing was pinning the old behaviour.
+
+### Suite
+
+175 (Wave 0) + 31 (S1) + 23 (S3) = **229 passing**, `pytest tests/ -q`.
+
+Note: bare `pytest -q` from the repo root has never worked. It aborts during
+collection on root-level `test_ingest.py`, a manual script that opens three PDFs
+from the Downloads folder at import time. Pre-existing and unrelated.
+**The suite must be run as `pytest tests/ -q`.** Earlier WORKLOG entries quoting
+a bare `pytest` command were describing the wrong invocation; the counts
+themselves were from `tests/` and stand.
+
+### Correction
+
+`docs/PLAN.md` repurposed Subagent 2 brief said the filter cost paired_dated 8%.
+Measured: 4.1 percentage points. That figure was introduced by me when rewriting
+the brief and was never in this WORKLOG, which said 2-4% (consistent with the
+measured 1.5-4.1 pp). Corrected in place in PLAN.md.
+
+### Next
+
+The GATE: three smoke-test numbers, per PLAN.md section 5. Do not start Wave 2
+before reading them.

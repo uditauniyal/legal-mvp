@@ -6575,3 +6575,901 @@ df=load_logs(); st=load_stages()
 print('  logs  : %d rows after dedupe (dropped %d of %d)'%(len(df), df.attrs['rows_dropped'], df.attrs['rows_before_dedupe
 … [truncated, 132 more chars]
 ```
+
+`2026-09-01 11:23:35` · **cmd** — Write the explanation block and commit Task B+C
+```bash
+cd /c/Users/uniya/legal-mvp
+mkdir -p results
+cat > results/EXPLAIN.md <<'MDEOF'
+# EXPLAIN.md
+
+One block per output file. Eight headings every time. A task is not complete until its block exists.
+
+---
+
+## metrics_lib â€” the shared metric library
+Output file: `experiments/metrics_lib.py`
+Regenerate with: `python -m pytest tests/test_metrics_known_answers.py -q`
+Owner: Wave 0, Task B
+
+### 1. ELI5 â€” what does this measure?
+It measures nothing by itself. It is the single set of measuring instruments every later experiment borrows, so that five people measuring the same thing get the same answer.
+… [truncated, 6436 more chars]
+```
+
+### 2026-09-01 11:31:52 · prompt
+
+reread docs and specially plan.md and also read this entire session log and then go run wave 1
+
+`2026-09-01 11:35:20` · **cmd** — Check branch state and the three Wave 1 target files
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== branch / tree ==="; git branch --show-current; git status --porcelain | head -20
+echo "=== files Wave 1 touches ==="
+for f in agents/answer.py core/citations.py experiments/stages.jsonl results/EXPLAIN.md experiments/metrics_lib.py; do
+  if [ -f "$f" ]; then printf "%-34s %s lines\n" "$f" "$(wc -l < "$f")"; else printf "%-34s MISSING\n" "$f"; fi
+done
+echo "=== tier bug: where prompt_variant is set ==="
+grep -n "prompt_variant\|HIGH\|MEDIUM\|LOW" agents/answer.py | head -30
+echo "=== citations: proximity binding ==="
+grep -n "def \|IPC\|BNS\|UNKNOWN" core/c
+… [truncated, 22 more chars]
+```
+
+`2026-09-01 11:35:32` · **cmd** — Read the proximity-binding function
+```bash
+cd /c/Users/uniya/legal-mvp; sed -n '155,235p' core/citations.py
+```
+
+`2026-09-01 11:36:29` · **cmd** — List run directories
+```bash
+ls -d /c/Users/uniya/legal-mvp/runs/*/ 2>/dev/null | head -50
+```
+
+`2026-09-01 11:36:40` · **cmd** — Find queries.jsonl files and line counts
+```bash
+find runs -name 'queries.jsonl' -exec sh -c 'echo -n "{} "; wc -l < "{}"' \;
+```
+
+`2026-09-01 11:36:43` · **cmd** — List results, experiments, tests dirs
+```bash
+ls results/ 2>/dev/null; echo "---experiments---"; ls experiments/ 2>/dev/null; echo "---tests---"; ls tests/
+```
+
+`2026-09-01 11:36:55` · **cmd** — Read metrics_lib for wilson
+```bash
+sed -n '1,80p' experiments/metrics_lib.py; echo "=== grep wilson ==="; grep -n "def wilson" experiments/metrics_lib.py
+```
+
+`2026-09-01 11:37:07` · **cmd** — Dump record key structure
+```bash
+./venv/Scripts/python.exe -c "
+import json
+with open('runs/2026-08-23_0353_302e1f8/queries.jsonl',encoding='utf-8') as f:
+    d=json.loads(f.readline())
+def walk(o,p=''):
+    if isinstance(o,dict):
+        for k,v in o.items(): walk(v,p+'.'+k)
+    elif isinstance(o,list):
+        print(p+'[]', 'len=%d'%len(o))
+    else:
+        print(p,'=',repr(o)[:70])
+walk(d)
+"
+```
+
+`2026-09-01 11:37:10` · **cmd** — List experiment and result files
+```bash
+ls experiments/ results/ 2>&1 | head -50 && echo "---STAGES SIZE---" && wc -l experiments/stages.jsonl
+```
+
+`2026-09-01 11:37:11` · **cmd** — Read wilson function
+```bash
+sed -n '520,560p' experiments/metrics_lib.py
+```
+
+`2026-09-01 11:37:23` · **cmd** — Inspect stages.jsonl structure
+```bash
+head -c 3000 experiments/stages.jsonl && echo && echo "=== KEYS ===" && ./venv/Scripts/python.exe -c "
+import json
+r=json.loads(open('experiments/stages.jsonl',encoding='utf-8').readline())
+print('top keys:', list(r.keys()))
+for s in ('raw_15','reranked_15','filtered_n'):
+    v=r.get(s)
+    print(s, type(v), len(v) if isinstance(v,list) else v)
+    if isinstance(v,list) and v: print('  chunk keys:', list(v[0].keys())); print('  chunk0:', json.dumps(v[0])[:600])
+"
+```
+
+`2026-09-01 11:37:26` · **cmd** — Read experiments SCHEMA.md
+```bash
+cat experiments/SCHEMA.md 2>/dev/null | head -120
+```
+
+`2026-09-01 11:37:30` · **cmd** — Per-run prompt_variant distribution
+```bash
+./venv/Scripts/python.exe -c "
+import json,glob,collections
+for f in sorted(glob.glob('runs/*/queries.jsonl')):
+    c=collections.Counter(); n=0; miss=0
+    for line in open(f,encoding='utf-8'):
+        line=line.strip()
+        if not line: continue
+        d=json.loads(line); n+=1
+        a=d.get('answer') or {}
+        if 'prompt_variant' not in a: miss+=1
+        c[a.get('prompt_variant')]+=1
+    print(f, 'n=%d'%n, 'missing_field=%d'%miss, dict(c))
+"
+```
+
+`2026-09-01 11:37:33` · **cmd** — Read rest of SCHEMA.md
+```bash
+sed -n '120,400p' experiments/SCHEMA.md
+```
+
+`2026-09-01 11:37:34` · **cmd** — Read rerun_stages.py
+```bash
+cat experiments/rerun_stages.py
+```
+
+`2026-09-01 11:37:38` · **cmd** — List core, tests, results dirs
+```bash
+ls -la /c/Users/uniya/legal-mvp/core/ /c/Users/uniya/legal-mvp/tests/ /c/Users/uniya/legal-mvp/results/ 2>&1 | head -80
+```
+
+`2026-09-01 11:37:41` · **cmd** — Trace composite and prompt_variant into the log
+```bash
+grep -rn "composite\|prompt_variant" core/run_logger.py app.py 2>/dev/null | head -30
+```
+
+`2026-09-01 11:37:45` · **cmd** — Read existing citations tests
+```bash
+cat tests/test_citations.py
+```
+
+`2026-09-01 11:37:58` · **cmd** — Explore join between logs and stages
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs, load_stages
+import pandas as pd
+df = load_logs(); st = load_stages()
+print('logs rows', len(df), 'before dedupe', df.attrs['rows_before_dedupe'])
+print('stages rows', len(st))
+print(df['query_set'].value_counts(dropna=False))
+print('---intervention---'); print(df['intervention'].value_counts(dropna=False))
+print('join: logs req_id in stages:', df['req_id'].isin(st.keys()).sum())
+print('stages req_id not in logs:', len(set(st)-set(df['req_id'])))
+sub = df[df['req_id'].isin(st.keys())
+… [truncated, 280 more chars]
+```
+
+`2026-09-01 11:38:00` · **cmd** — Count mislabelled tier rows across all runs
+```bash
+./venv/Scripts/python.exe -c "
+import json,glob,collections
+HIGH,MED=0.55,0.38
+def tier(d):
+    a=d.get('answer') or {}
+    if a.get('refused') or (d.get('confidence') or {}).get('refused'): return 'REFUSED'
+    c=(d.get('confidence') or {}).get('composite')
+    if c is None: return None
+    return 'LOW' if c<MED else ('MEDIUM' if c<HIGH else 'HIGH')
+n=0; wrong=0; true_c=collections.Counter(); log_c=collections.Counter(); nref=0
+for f in sorted(glob.glob('runs/*/queries.jsonl')):
+    for line in open(f,encoding='utf-8'):
+        line=line.strip()
+        if not line: continue
+        d=json.lo
+… [truncated, 398 more chars]
+```
+
+`2026-09-01 11:38:04` · **cmd** — Find all call sites
+```bash
+grep -rn "citations\|extract_provisions\|_statute_near\|named_statutes\|Provision(" --include=*.py . | grep -v "__pycache__" | grep -v "^./core/citations.py"
+```
+
+`2026-09-01 11:38:12` · **cmd** — Read verifier middle
+```bash
+sed -n 120,290p core/verifier.py
+```
+
+`2026-09-01 11:38:14` · **cmd** — Read other call sites
+```bash
+sed -n 150,210p core/statute_mapper.py; echo "=== analyze_eval 170-200 ==="; sed -n 170,200p scripts/analyze_eval.py; echo "=== compare_runs 40-90 ==="; sed -n 40,90p scripts/compare_runs.py
+```
+
+`2026-09-01 11:38:21` · **cmd** — List runs
+```bash
+ls runs/ | head -50; echo "---"; ls runs/ | wc -l
+```
+
+`2026-09-01 11:38:22` · **cmd** — Read wilson
+```bash
+grep -n "def wilson" -A 20 experiments/metrics_lib.py
+```
+
+`2026-09-01 11:38:30` · **cmd** — Find queries.jsonl files and line counts
+```bash
+for d in runs/*/; do if [ -f "$d/queries.jsonl" ]; then echo "$d $(wc -l < "$d/queries.jsonl")"; fi; done
+```
+
+`2026-09-01 11:38:33` · **cmd** — Apply the tier logging fix to agents/answer.py
+```bash
+./venv/Scripts/python.exe - <<'PY'
+import io
+p='agents/answer.py'
+s=io.open(p,encoding='utf-8').read()
+
+old_thresh = '''# --- Confidence thresholds ---
+HIGH_CONFIDENCE = 0.55
+MEDIUM_CONFIDENCE = 0.38
+'''
+new_thresh = '''# --- Confidence thresholds ---
+HIGH_CONFIDENCE = 0.55
+MEDIUM_CONFIDENCE = 0.38
+
+
+def tier_for_confidence(confidence: float) -> str:
+    """The prompt tier a confidence value falls in.
+
+    Mirrors the branch conditions in AnswerAgent.answer() exactly, so the
+    tier that gets logged is derived from the confidence itself rather than
+    from a variable a future edit has to rem
+… [truncated, 1183 more chars]
+```
+
+`2026-09-01 11:38:41` · **cmd** — Inspect queries.jsonl schema
+```bash
+./venv/Scripts/python.exe -c "
+import json,sys
+p='runs/2026-08-23_0206_36ec68d/queries.jsonl'
+r=json.loads(open(p,encoding='utf-8').readline())
+def walk(o,pre=''):
+    if isinstance(o,dict):
+        for k,v in o.items():
+            walk(v,pre+'.'+k)
+    elif isinstance(o,list):
+        print(pre+'[]', len(o), repr(o[:2])[:200])
+    else:
+        print(pre, repr(o)[:200])
+walk(r)
+"
+```
+
+`2026-09-01 11:38:41` · **cmd** — Show patched region
+```bash
+git diff --stat agents/answer.py 2>/dev/null; sed -n '70,120p' agents/answer.py; echo "=== log field ==="; grep -n "prompt_variant" agents/answer.py
+```
+
+`2026-09-01 11:38:49` · **cmd** — Read RetrievalResult and chat signature
+```bash
+grep -n "class RetrievalResult" -A 25 agents/retriever.py; echo "=== chat sig ==="; grep -n "def chat" -A 12 clients/openai_client.py
+```
+
+`2026-09-01 11:38:51` · **cmd** — Check pair_id and filter reproduction
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs, load_stages, ranked_sections
+df = load_logs(); st = load_stages()
+print('pair_id nulls per set:')
+print(df.groupby(df['query_set'].fillna('NONE'))['pair_id'].apply(lambda s: s.isna().sum()))
+print(df.groupby(df['query_set'].fillna('NONE'))['pair_id'].nunique())
+# reproduce filter check
+import numpy as np
+mm=0; tot=0; lenmm=0
+for rid, s in st.items():
+    b = s['reranked_15']; c = s['filtered_n']
+    sc = [x['score'] for x in b]
+    if not sc: continue
+    thr = max(max(sc)-0.15, 0.3
+… [truncated, 276 more chars]
+```
+
+`2026-09-01 11:38:56` · **cmd** — Sample existing test style
+```bash
+sed -n '1,45p' tests/test_confidence.py
+```
+
+`2026-09-01 11:39:52` · **cmd** — Run the new tier tests
+```bash
+./venv/Scripts/python.exe -m pytest tests/test_tier_bug.py -q 2>&1 | tail -20
+```
+
+`2026-09-01 11:40:13` · **cmd** — Confirm tests catch the pre-fix behaviour
+```bash
+./venv/Scripts/python.exe - <<'PY'
+# Simulate the PRE-FIX behaviour (constant "HIGH") and confirm the invariant fails.
+import agents.answer as A
+from agents.retriever import RetrievalResult
+A.chat = lambda messages, **kw: ("x", type("M",(),{"provider_name":"F","model":"m","prompt_tokens":1,"completion_tokens":1})())
+class C:
+    payload={"text":"t","doc_name":"BNS","page":1}
+A.tier_for_confidence = lambda c: "HIGH"   # the old constant
+fails=[]
+for conf in (0.30, 0.45, 0.5499, 0.60):
+    out=A.AnswerAgent().answer("q", RetrievalResult(chunks=[C()],confidence=conf,total_chunks=1,total_retrieved
+… [truncated, 281 more chars]
+```
+
+`2026-09-01 11:40:28` · **cmd** — Run full test suite
+```bash
+./venv/Scripts/python.exe -m pytest -q 2>&1 | tail -25
+```
+
+`2026-09-01 11:40:54` · **cmd** — Run tests/ suite
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -15
+```
+
+`2026-09-01 11:40:57` · **cmd** — Inspect stray root test file
+```bash
+ls test_ingest.py && head -8 test_ingest.py
+```
+
+`2026-09-01 11:41:08` · **cmd** — Snapshot old parser to scratchpad
+```bash
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"; mkdir -p "$SP"; cp /c/Users/uniya/legal-mvp/core/citations.py "$SP/citations_old.py"; ls -la "$SP"
+```
+
+`2026-09-01 11:41:13` · **cmd** — Wilson CIs for the mislabel rate
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import wilson
+for k,n,lab in [(369,859,'mislabelled'),(354,859,'true MEDIUM'),(15,859,'true LOW'),(490,859,'true HIGH')]:
+    p,lo,hi=wilson(k,n)
+    print('%-12s %3d/%d  p=%.4f  95%% Wilson [%.4f, %.4f]'%(lab,k,n,p,lo,hi))
+"
+```
+
+`2026-09-01 11:41:23` · **cmd** — Baseline full test suite
+```bash
+./venv/Scripts/python.exe -m pytest -q 2>&1 | tail -5
+```
+
+`2026-09-01 11:41:33` · **cmd** — Check pytest config
+```bash
+ls /c/Users/uniya/legal-mvp/*.cfg /c/Users/uniya/legal-mvp/*.ini /c/Users/uniya/legal-mvp/*.toml 2>/dev/null; echo "---"; cat /c/Users/uniya/legal-mvp/pytest.ini 2>/dev/null; cat /c/Users/uniya/legal-mvp/setup.cfg 2>/dev/null; cat /c/Users/uniya/legal-mvp/pyproject.toml 2>/dev/null; echo "--- root test files ---"; ls /c/Users/uniya/legal-mvp/test_*.py 2>/dev/null
+```
+
+`2026-09-01 11:41:42` · **cmd** — Find all uses of prompt_variant
+```bash
+grep -rn "prompt_variant" --include=*.py --include=*.md . 2>/dev/null | grep -v "^./tests/test_tier_bug.py" | grep -v "^./agents/answer.py"
+```
+
+`2026-09-01 11:42:12` · **cmd** — Baseline tests/ suite
+```bash
+./venv/Scripts/python.exe -m pytest -q tests/ 2>&1 | tail -5
+```
+
+`2026-09-01 11:43:07` · **cmd** — Verify the documented regenerate command runs
+```bash
+./venv/Scripts/python.exe -c "
+import json,glob,collections,sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import wilson
+HIGH,MED=0.55,0.38
+def tier(d):
+    a=d.get('answer') or {}
+    if a.get('refused') or (d.get('confidence') or {}).get('refused'): return 'REFUSED'
+    c=(d.get('confidence') or {}).get('composite')
+    return None if c is None else ('LOW' if c<MED else ('MEDIUM' if c<HIGH else 'HIGH'))
+n=wrong=0; true_c=collections.Counter(); log_c=collections.Counter()
+for f in sorted(glob.glob('runs/*/queries.jsonl')):
+    for line in open(f,encoding='utf-8'):
+        if not lin
+… [truncated, 327 more chars]
+```
+
+`2026-09-01 11:43:16` · **cmd** — Sanity-check new attribution rule
+```bash
+./venv/Scripts/python.exe -c "
+from core.citations import extract_provisions as ep
+cases = [
+ 'Section 420 IPC for cheating',
+ 'IPC Section 302 punishment for murder',
+ 'Sec 138 of the Negotiable Instruments Act, 1881',
+ 'under Sections 299 and 300 IPC',
+ 'Secs 41, 41A and 50 of CrPC',
+ 'Consumer Protection Act, 2019 Sec 2(6)',
+ 'Article 22(1) right to be informed',
+ 'Order 37 CPC summary suit',
+ 'Â§ 482 CrPC quashing',
+ 's. 41A CrPC notice of appearance',
+ 'BNSS Sec 35 arrest without warrant',
+ 'CrPC Sec 437(3) conditions',
+ 'Under the Indian Penal Code the offence was punishable, and the cor
+… [truncated, 205 more chars]
+```
+
+### 2026-09-01 11:43:32 · prompt
+
+<task-notification>
+<task-id>a7f36aa3a327be39d</task-id>
+<tool-use-id>toolu_015fwubm4FgFrXMm8A5rfNPH</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\a7f36aa3a327be39d.output</output-file>
+<status>completed</status>
+<summary>Agent "Wave 1 S1: tier logging bug" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Verified. Final state confirmed.
+
+## Report
+
+**Diff â€” `agents/answer.py`** (3 hunks, +19/âˆ’2):
+
+1. Added module-level pure function after the thresholds:
+```python
+def tier_for_confidence(confidence: float) -&gt; str:
+    if confidence &lt; MEDIUM_CONFIDENCE:
+        return "LOW"
+    if confidence &lt; HIGH_CONFIDENCE:
+        return "MEDIUM"
+    return "HIGH"
+```
+(plus a docstring recording the defect)
+
+2. Deleted line 103 `prompt_variant = "HIGH"`. The `if/elif/else` branch that selects the disclaimer is **byte-for-byte unchanged**, as are all `print()` traces.
+
+3. Log field now `"prompt_variant": tier_for_confidence(retrieval.confidence),`
+
+REFUSED path untouched. No behaviour change â€” only the recorded field. No logger introduced.
+
+**Measured mislabel rate â€” the plan's number is exactly right.**
+
+- **369 / 859 = 42.96%**, 95% Wilson [39.69%, 46.29%]
+- Logged: `{HIGH: 859}`. True: `{HIGH: 490, MEDIUM: 354, LOW: 15}`
+- Legitimacy of the recomputation: `app.py:229` writes `composite=retrieval.confidence` â€” the logged float *is* the value the `if` tested, so this reproduces the branch rather than estimating it.
+- Reproducing command is in `results/_explain_w1_s1.md` and was executed as written.
+
+**Tests â€” `tests/test_tier_bug.py`, 31 tests, all pass.** Covers all six required cases plus: both boundaries re-derived from the operator (not hard-coded), just-below-boundary cases, empty-chunksâ†’REFUSED, LLM-exception still logs the right tier, and the invariant (logged tier == disclaimer actually prepended) parametrised over 10 confidences. The invariant is asserted by monkeypatching `agents.answer.chat` and reading the real `messages[0]["content"]`. **Zero API calls.** I verified non-vacuity by simulating the pre-fix constant: it fails at 0.30, 0.45, 0.5499 and passes only at 0.60.
+
+**Test counts: 175 before â†’ 206 after** (`pytest tests/ -q`). 175 + 31 = 206 exactly; nothing previously passing fails.
+
+**Three things for you, main agent:**
+
+1. **Bare `pytest -q` is unusable and always was.** It aborts during *collection* on `test_ingest.py` at the repo root â€” a manual script that opens three PDFs from `C:\Users\uniya\Downloads\` at import time. Pre-existing, fails identically without my change, not in my file list so I left it. The suite must be run as `pytest tests/ -q`. If the other two subagents report "175 baseline" they were also running `tests/`.
+
+2. **The REFUSED path has never fired â€” not once in 859 records.** Lowest tier observed is LOW at 15 rows (1.75%). A safety valve with a 0/859 trigger rate is either perfectly calibrated or dead code; given that `entity_coverage` used to grant 0.30 for free (GAPS #2), dead is likelier. Worth its own check â€” I kept the path intact as instructed and did not investigate.
+
+3. **`prompt_variant` was never used in a headline number.** Repo-wide grep: written by `app.py:241`, read by nothing in `experiments/` or `scripts/`. No published result needs restating. What it blocked is the Phase G tier analysis (`docs/AUDIT_2026-08-26.md:201`) â€” which is now recoverable *retrospectively* on the existing 859 rows by recomputing from `confidence.composite`, at zero API cost. The explanation file says this plainly rather than inflating it.
+
+**Surprise:** the bug failed in the reassuring direction. A log reading `"LOW"` on a confident answer would have been caught in a day; a log reading `"HIGH"` on every
+… [truncated, 352 more chars]
+
+`2026-09-01 11:43:42` · **cmd** — Run tests after change
+```bash
+./venv/Scripts/python.exe -m pytest -q tests/ 2>&1 | tail -30
+```
+
+`2026-09-01 11:44:37` · **cmd** — Measure blast radius over real answers
+```bash
+cat > "/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/blast_w1_s3.py" <<'PYEOF'
+"""Blast radius of the citation statute-binding fix. READ-ONLY over runs/."""
+import importlib.util, json, sys
+from pathlib import Path
+
+ROOT = Path(r"C:\Users\uniya\legal-mvp")
+SCRATCH = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+
+from core import citations as new                     # noqa: E402
+from experiments.metrics_lib import wilson            # noqa: E402
+
+spec = importlib.util.spec_from_file_location("citations_old", SCRA
+… [truncated, 5094 more chars]
+```
+
+`2026-09-01 11:44:50` · **cmd** — Register old module in sys.modules
+```bash
+cd "/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && ./x 2>/dev/null; python - <<'EOF'
+import re,pathlib
+p=pathlib.Path(r"C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\scratchpad\blast_w1_s3.py")
+s=p.read_text()
+s=s.replace('old = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(old)',
+            'old = importlib.util.module_from_spec(spec)\nsys.modules["citations_old"] = old\nspec.loader.exec_module(old)')
+p.write_text(s)
+print("patched")
+EOF
+```
+
+`2026-09-01 11:45:13` · **cmd** — Run blast radius measurement
+```bash
+./venv/Scripts/python.exe "/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/blast_w1_s3.py" 2>&1 | tail -60
+```
+
+`2026-09-01 11:47:36` · **cmd** — Re-check refined rule
+```bash
+./venv/Scripts/python.exe -c "
+from core.citations import extract_provisions as ep
+cases = [
+ 'Section 420 IPC for cheating',
+ 'IPC Section 302 punishment for murder',
+ 'Sec 138 of the Negotiable Instruments Act, 1881',
+ 'under Sections 299 and 300 IPC',
+ 'Secs 41, 41A and 50 of CrPC',
+ 'Consumer Protection Act, 2019 Sec 2(6)',
+ 'Article 22(1) right to be informed',
+ 'Order 37 CPC summary suit',
+ 'BNSS Sec 35 arrest without warrant',
+ 'CrPC Sec 437(3) conditions',
+ 'Under the Indian Penal Code the offence was punishable, and the corresponding provision is now Section 190.',
+ 'Section 190 of th
+… [truncated, 356 more chars]
+```
+
+`2026-09-01 11:48:11` · **cmd** — Full tests after refined rule
+```bash
+./venv/Scripts/python.exe -m pytest -q tests/ 2>&1 | tail -20
+```
+
+`2026-09-01 11:48:40` · **cmd** — Re-measure blast radius
+```bash
+time ./venv/Scripts/python.exe "/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/blast_w1_s3.py" 2>&1 | sed 's/_statute_near/OLD/' | tail -45
+```
+
+`2026-09-01 11:49:34` · **cmd** — Run exp08 filter analysis
+```bash
+./venv/Scripts/python.exe experiments/exp08_filter.py
+```
+
+`2026-09-01 11:49:58` · **cmd** — Inspect output CSV
+```bash
+head -1 results/filter_analysis.csv && echo "---" && grep -E '^counterfactual_(recall|mean_chunks),layman_situation' results/filter_analysis.csv && echo "--- binding ---" && grep '^binding_arm' results/filter_analysis.csv && echo "--- rowcount ---" && wc -l results/filter_analysis.csv
+```
+
+`2026-09-01 11:50:09` · **cmd** — Verify refined rule and rerun suite
+```bash
+./venv/Scripts/python.exe -c "
+from core.citations import extract_provisions as ep
+cases = [
+ 'Section 420 IPC for cheating','IPC Section 302 punishment for murder',
+ 'Sec 138 of the Negotiable Instruments Act, 1881','under Sections 299 and 300 IPC',
+ 'Secs 41, 41A and 50 of CrPC','Consumer Protection Act, 2019 Sec 2(6)',
+ 'Article 22(1) right to be informed','Order 37 CPC summary suit',
+ 'BNSS Sec 35 arrest without warrant','CrPC Sec 437(3) conditions',
+ 'Under the Indian Penal Code the offence was punishable, and the corresponding provision is now Section 190.',
+ 'The offence falls under the
+… [truncated, 580 more chars]
+```
+
+`2026-09-01 11:50:15` · **cmd** — Pull layman cut detail rows for worked example
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import experiments.exp08_filter as e
+df = e.build()
+d = df[df['query_set']=='layman_situation']
+cuts = d[d['in_raw15'] & ~d['hit@0.35']]
+print(cuts[['query_id','gold','gold_score','gold_rank_raw','gold_rank_reranked','top_score','relative_arm','threshold_deployed','nchunks@0.35','nchunks@0.20']].to_string())
+"
+```
+
+`2026-09-01 11:50:34` · **cmd** — Final blast radius
+```bash
+time ./venv/Scripts/python.exe "/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/blast_w1_s3.py" 2>&1 | tail -45
+```
+
+`2026-09-01 11:51:03` · **cmd** — Analyse statute flips
+```bash
+cat > "/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/flips_w1_s3.py" <<'PYEOF'
+import importlib.util, json, sys, collections
+from pathlib import Path
+ROOT = Path(r"C:\Users\uniya\legal-mvp"); SCRATCH = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+from core import citations as new
+from experiments.metrics_lib import wilson
+spec = importlib.util.spec_from_file_location("citations_old", SCRATCH / "citations_old.py")
+old = importlib.util.module_from_spec(spec); sys.modules["citations_old"] = old; spec.loader.exec_
+… [truncated, 1780 more chars]
+```
+
+`2026-09-01 11:53:09` · **cmd** — Verify with disqualifier
+```bash
+./venv/Scripts/python.exe -c "
+from core.citations import extract_provisions as ep
+cases = [
+ 'Section 420 IPC for cheating','IPC Section 302 punishment for murder',
+ 'Sec 138 of the Negotiable Instruments Act, 1881','under Sections 299 and 300 IPC',
+ 'Secs 41, 41A and 50 of CrPC','Consumer Protection Act, 2019 Sec 2(6)',
+ 'Article 22(1) right to be informed','Order 37 CPC summary suit',
+ 'BNSS Sec 35 arrest without warrant','CrPC Sec 437(3) conditions',
+ 'Under the Indian Penal Code the offence was punishable, and the corresponding provision is now Section 190.',
+ 'Section 190 of the Bharatiy
+… [truncated, 720 more chars]
+```
+
+`2026-09-01 11:54:17` · **cmd** — Verify final rule
+```bash
+./venv/Scripts/python.exe -c "
+from core.citations import extract_provisions as ep
+cases = [
+ 'Section 420 IPC for cheating','IPC Section 302 punishment for murder',
+ 'Sec 138 of the Negotiable Instruments Act, 1881','under Sections 299 and 300 IPC',
+ 'Secs 41, 41A and 50 of CrPC','Consumer Protection Act, 2019 Sec 2(6)',
+ 'Article 22(1) right to be informed','Order 37 CPC summary suit',
+ 'BNSS Sec 35 arrest without warrant','CrPC Sec 437(3) conditions',
+ 'Under the Indian Penal Code the offence was punishable, and the corresponding provision is now Section 190.',
+ 'Section 190 of the Bharatiy
+… [truncated, 720 more chars]
+```
+
+`2026-09-01 11:54:54` · **cmd** — Final blast radius and flip analysis
+```bash
+time ./venv/Scripts/python.exe "/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/blast_w1_s3.py" 2>&1 | head -24; echo "=== FLIPS ==="; ./venv/Scripts/python.exe "/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/flips_w1_s3.py" 2>&1 | tail -12
+```
+
+`2026-09-01 11:55:02` · **cmd** — Review final implementation
+```bash
+sed -n 100,270p core/citations.py
+```
+
+`2026-09-01 11:55:11` · **cmd** — Verify CSV integrity after interrupted run
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/filter_analysis.csv')
+print('shape',d.shape); print(list(d.columns))
+print(d['metric'].value_counts().to_string())
+" && echo "--- anchors ---" && grep '^recall_gold_section' results/filter_analysis.csv
+```
+
+### 2026-09-01 11:55:55 · prompt
+
+<task-notification>
+<task-id>a49857200fb219fee</task-id>
+<tool-use-id>toolu_01Ess6GCni2AwqVeiFQ4jsVc</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\a49857200fb219fee.output</output-file>
+<status>completed</status>
+<summary>Agent "Wave 1 S2: adaptive filter analysis" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Done. Files written: `C:\Users\uniya\legal-mvp\experiments\exp08_filter.py`, `C:\Users\uniya\legal-mvp\results\filter_analysis.csv` (150 rows, 12 columns, schema exact), `C:\Users\uniya\legal-mvp\results\_explain_w1_s2.md` (all 8 headings). No production file touched; the 0.35 floor is unchanged everywhere.
+
+**Scope:** 617 rows (621 joined logsÃ—stages, minus 4 SMOKE rows with no gold and 3 legacy `criminal_*` rows). Join was 621/621, zero orphans.
+
+**PAIRED CHECK â€” AGREED, exactly.** Layman `filtered_n` recall computed two independent ways: my reconstructed filter = **0.075000**, Wave 0's stored Stage C chunk list = **0.075000**. Agreement to &lt;1e-12 on every query set individually and pooled (0.4927 on all 617). Stricter second check: reconstructed keep-list *length* vs stored Stage C length, **0 mismatches in 621 rows**. Both are `assert`s in `check_paired()`.
+
+**(a) What the filter cut** (`raw_15` â†’ `filtered_n`, deployed floor)
+
+| set | n | gold in raw_15 | cuts | lost | cut gold score mean (minâ€“max) | cut gold rank (raw_15) mean/med | top_score mean | threshold mean |
+|---|---|---|---|---|---|---|---|---|
+| generated_retrieval | 198 | 137 | 3 | 1.5 pp | 0.397 (0.388â€“0.407) | 11.67 / 10 | 0.566 | 0.416 |
+| paired_recodification | 99 | 73 | 3 | 3.0 pp | 0.634 (0.617â€“0.664) | 8.67 / 9 | 0.816 | 0.666 |
+| paired_dated_conflict | 197 | 97 | 8 | 4.1 pp | 0.594 (0.565â€“0.643) | 9.25 / 9 | 0.773 | 0.623 |
+| layman_situation | 120 | 18 | **9** | **7.5 pp** | **0.288 (0.234â€“0.347)** | 9.89 / 12 | **0.335** | **0.350 (all 9)** |
+
+**(b) Binding arm â€” hypothesis confirmed in its strongest form, a clean 100/0 both ways**
+
+| set | cuts | floor binding [95% Wilson] | relative binding |
+|---|---|---|---|
+| generated_retrieval | 3 | 0 â€” 0.000 [0.000â€“0.561] | 3 â€” 1.000 [0.439â€“1.000] |
+| paired_recodification | 3 | 0 â€” 0.000 [0.000â€“0.561] | 3 â€” 1.000 [0.439â€“1.000] |
+| paired_dated_conflict | 8 | 0 â€” 0.000 [0.000â€“0.324] | 8 â€” 1.000 [0.676â€“1.000] |
+| layman_situation | 9 | **9 â€” 1.000 [0.701â€“1.000]** | 0 â€” 0.000 [0.000â€“0.299] |
+
+All 9 layman cuts floor-bound; 0 of 14 non-layman cuts were. Mechanism as predicted: layman `top_score` mean 0.335, so relative arm â‰ˆ 0.185, floor wins at 0.35, and layman gold chunks (mean 0.288) cannot clear it.
+
+**(c) Counterfactual sweep â€” recall [95% Wilson] / mean chunks to LLM**
+
+| set | n | 0.35 deployed | 0.30 | 0.25 | 0.20 | none | raw_15 ceiling |
+|---|---|---|---|---|---|---|---|
+| generated_retrieval | 198 | 0.677 [.609â€“.738] / 11.2 | 0.677 / 11.2 | 0.677 / 11.2 | 0.677 / 11.2 | 0.677 / 11.2 | 0.692 |
+| paired_recodification | 99 | 0.707 [.611â€“.788] / 10.3 | 0.707 / 10.3 | 0.707 / 10.3 | 0.707 / 10.3 | 0.707 / 10.3 | 0.737 |
+| paired_dated_conflict | 197 | 0.452 [.384â€“.522] / 10.1 | 0.452 / 10.1 | 0.452 / 10.1 | 0.452 / 10.1 | 0.452 / 10.1 | 0.492 |
+| layman_situation | 120 | **0.075 [.040â€“.136] / 5.1** | 0.117 [.071â€“.186] / 9.0 | 0.117 [.071â€“.186] / 13.4 | **0.150 [.097â€“.225] / 15.0** | 0.150 / 15.0 | 0.150 |
+
+Layman cluster (`pair_id`) CIs, the defensible ones: 0.35 â†’ [0.000â€“0.167]; 0.30/0.25 â†’ [0.025â€“0.233]; 0.20/none â†’ [0.033â€“0.275].
+
+**Three surprises.**
+1. **The floor is a total no-op on 3 of 4 query sets** â€” removing it entirely changes recall by 0.000 and chunk count by 0.0. Their 1.5/3.0/4.1 pp loss is the *relative* arm, which the swe
+… [truncated, 1631 more chars]
+
+`2026-09-01 11:56:11` · **cmd** — Run new tests
+```bash
+./venv/Scripts/python.exe -m pytest -q tests/test_citations_bug.py 2>&1 | tail -40
+```
+
+`2026-09-01 11:56:44` · **cmd** — Full suite with new tests
+```bash
+./venv/Scripts/python.exe -m pytest -q tests/ 2>&1 | tail -6
+```
+
+`2026-09-01 11:57:03` · **cmd** — Pull worked example from real log
+```bash
+./venv/Scripts/python.exe -c "
+import json,sys
+sys.path.insert(0,'.')
+from core.citations import extract_provisions
+p='runs/2026-08-23_0206_36ec68d/queries.jsonl'
+for line in open(p,encoding='utf-8'):
+    r=json.loads(line)
+    if r.get('query_id')=='P0037':
+        t=r['answer']['answer_text']
+        i=t.find('Section 164')
+        print('OLD verifier.cited (logged):', r['verifier']['cited'])
+        print()
+        print('--- real text ---')
+        print(repr(t[i-120:i+140]))
+        print()
+        print('NEW:', [pp.key for pp in extract_provisions(t[i-120:i+140])])
+        break
+"
+```
+
+`2026-09-01 11:57:24` · **cmd** — Before/after cited list for P0037
+```bash
+./venv/Scripts/python.exe -c "
+import json,sys
+sys.path.insert(0,'.')
+from core.citations import extract_provisions
+p='runs/2026-08-23_0206_36ec68d/queries.jsonl'
+for line in open(p,encoding='utf-8'):
+    r=json.loads(line)
+    if r.get('query_id')=='P0037':
+        print('query:', r['query_raw'][:120])
+        print('OLD:', r['verifier']['cited'])
+        print('NEW:', [str(x) for x in extract_provisions(r['answer']['answer_text'])])
+        break
+"
+```
+
+`2026-09-01 11:57:52` · **cmd** — Find the retired metrics
+```bash
+grep -rn "retire\|Retire\|withdraw" docs/*.md | head -30
+```
+
+`2026-09-01 11:58:05` · **cmd** — CIs for the not-at-risk contrast
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import wilson
+for k,n,l in [(289,2975,'not-at-risk: confident->UNKNOWN'),(21,2975,'not-at-risk: A->B'),(70,72,'flips that are recodification pairs')]:
+    p,lo,hi=wilson(k,n); print(f'{l:42s} {k}/{n} = {100*p:.1f}% [{100*lo:.1f}, {100*hi:.1f}]')
+"
+```
+
+`2026-09-01 11:58:15` · **cmd** — Read the retired-metric worklog entry
+```bash
+sed -n 405,455p docs/WORKLOG.md
+```
+
+`2026-09-01 12:00:53` · **cmd** — Validate the documented reproducing command
+```bash
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"; sed -n '/^\.\/venv\/Scripts\/python.exe - <<.PY.$/,/^PY$/p' results/_explain_w1_s3.md | sed "s#/tmp/citations_old.py#$SP/citations_old.py#" > "$SP/repro.sh"; head -3 "$SP/repro.sh"; echo "..."; bash "$SP/repro.sh" 2>&1 | tail -20
+```
+
+`2026-09-01 12:01:12` · **cmd** — Rerun documented repro command
+```bash
+SP="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"; sed -n '/^\.\/venv\/Scripts\/python.exe - <<.PY.$/,/^PY$/p' results/_explain_w1_s3.md | sed "s#/tmp/citations_old.py#$SP/citations_old.py#" > "$SP/repro.sh"; bash "$SP/repro.sh" 2>&1 | tail -20
+```
+
+`2026-09-01 12:01:53` · **cmd** — Final suite run
+```bash
+./venv/Scripts/python.exe -m pytest -q tests/ 2>&1 | tail -4; echo "=== root pytest -q ==="; ./venv/Scripts/python.exe -m pytest -q 2>&1 | tail -3
+```
+
+### 2026-09-01 12:02:27 · prompt
+
+<task-notification>
+<task-id>abaaa2d5c23318a05</task-id>
+<tool-use-id>toolu_011cuRQawSbxSpFoFqpQxErQ</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\abaaa2d5c23318a05.output</output-file>
+<status>completed</status>
+<summary>Agent "Wave 1 S3: citations binding bug" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Done.
+
+**Citation unit â€” definition chosen**
+
+The reference regex match, extended in both directions over tokens carrying no propositional content. Filler = whitespace, `, ( ) [ ] * | /`, the words `of` / `the` / `under`, a 4-digit year. Statute aliases may also extend it. Everything else terminates the unit â€” every content word, every conjunction (`and`, `or`, `which`), and `. ; : -`.
+
+Why this over the alternatives: "same regex match" alone loses `Section 420 IPC`; "bracketed reference" fails all four preserved behaviours (Indian prose does not bracket); "clause delimited by comma/semicolon/conjunction" splits `Sections 299 and 300 IPC` on `and` and strands 299. The extended-match definition keeps enumerations whole because attribution is resolved once against the run in `add_run()`.
+
+Two refinements, both forced by counterexamples in the real logs, not by the aggregate:
+- A **trailing** statute is decisive (Indian citation form puts the Act after the number); a leading one is a heading and is only a fallback.
+- An Act is discarded when a list separator (`/ | , ;`) divides it from this reference **and** another reference begins right after it â€” this is what separates `Section 357C CrPC / Section 397 BNSS` from `CrPC Section 154(3) / BNSS Section 175(3)`. Both now parse correctly.
+
+What it fails on: an Act named in the previous sentence, or separated by a content word inside a table header cell (`| Indian Penal Code, 1860 (IPC - Historical) | Sec 141 &amp; 149 |`). Under-attribution, the safe direction.
+
+**UNKNOWN reuses `None`.** Checked all six call sites: `Provision.key` (renders `?`), `same_provision` (statute-less matches on number â€” retrieved chunk text also parses `None`), `statute_mapper.py:164` (`if p.statute`), `verifier.py:reattribute` (`if not p.statute`), `verifier.py:_vintage_relation` (`if not cited`), `analyze_eval.py:178,188` (gold strings are leading-form, still attributed). A truthy sentinel would walk past four of six.
+
+**Diff shape:** `core/citations.py` only. Deleted `_statute_near` (28 lines); added `_statute_for_unit`, `_trailing_statutes`, `_reference_starts_at` and the token grammar; one line changed in `add_run`. No signature changed. `core/verifier.py` untouched.
+
+**Blast radius** â€” 859 answers, 6,687 citation units, all `runs/*/queries.jsonl`, read-only. Old parser reproduces logged `verifier.cited` 857/857 = 100.0% [99.6, 100.0], so "before" is the parser that produced the recorded numbers.
+
+```
+answers naming BOTH IPC and BNS (at risk)   497/859  = 57.9% [54.5, 61.1]
+units: UNCHANGED                           5555/6687 = 83.1% [82.2, 84.0]
+units: confident statute -&gt; UNKNOWN         1060/6687 = 15.9% [15.0, 16.7]
+units: statute A -&gt; statute B                 72/6687 =  1.1% [ 0.9,  1.4]
+units: UNKNOWN -&gt; confident statute            0/6687 =  0.0% [ 0.0,  0.1]
+answers with &gt;=1 changed unit                447/859  = 52.0% [48.7, 55.4]
+deduped Provision level: -&gt; UNKNOWN          797/5616 = 14.2% [13.3, 15.1]
+```
+
+Concentrated on the at-risk population, intervals non-overlapping on both rows:
+
+| | at risk (n=3,712) | not at risk (n=2,975) |
+|---|---|---|
+| â†’ UNKNOWN | 20.8% [19.5, 22.1] | 9.7% [8.7, 10.8] |
+| A â†’ B | 1.4% [1.0, 1.8] | 0.7% [0.5, 1.1] |
+
+**70/72 = 97.2% [90.4, 99.2] of flips are recodification pairs** (CrPCâ†’BNSS 46, BNSâ†’IPC 10, BNSSâ†’CRPC 8, IEAâ†’BSA 2, IPCâ†’BNS 2, BS
+… [truncated, 1352 more chars]
+
+`2026-09-01 12:03:10` · **cmd** — Verify tests, blocks, and CSV before committing
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== A. pytest tests/ ==="
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -3
+echo
+echo "=== B. bare pytest -q (settling my earlier 175 claim) ==="
+./venv/Scripts/python.exe -m pytest -q 2>&1 | tail -5
+echo
+echo "=== C. explanation blocks: heading count (want 8 each) ==="
+for f in results/_explain_w1_s1.md results/_explain_w1_s2.md results/_explain_w1_s3.md; do
+  printf "%-32s %s headings, %s lines\n" "$f" "$(grep -c '^### ' "$f")" "$(wc -l < "$f")"
+done
+echo
+echo "=== D. filter_analysis.csv shape ==="
+head -1 results/filter_analysis.csv; echo "rows: 
+… [truncated, 106 more chars]
+```
+
+`2026-09-01 12:09:27` · **cmd** — Re-run filter analysis and check byte-identical output
+```bash
+cd /c/Users/uniya/legal-mvp
+cp results/filter_analysis.csv /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/filter_run1.csv
+echo "=== re-running exp08_filter.py ==="
+time ./venv/Scripts/python.exe experiments/exp08_filter.py 2>&1 | tail -6
+echo
+echo "=== byte-identical? ==="
+if cmp -s results/filter_analysis.csv /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/filter_run1.csv; then
+  echo "IDENTICAL - deterministic, observed not argued"
+else
+  echo "DIFFERS:"; diff 
+… [truncated, 171 more chars]
+```
+
+`2026-09-01 12:09:36` · **cmd** — Find my earlier filter-cost figures in the worklog
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== my earlier Wave 0 filter figures ==="
+grep -n -i "filter" docs/WORKLOG.md | grep -iE "layman|paired|generated|%" | tail -12
+```
+
+`2026-09-01 12:10:00` · **cmd** — Correct PLAN.md figure and merge explanation blocks
+```bash
+cd /c/Users/uniya/legal-mvp
+# 1. correct the figure I invented in PLAN.md
+sed -i 's|generated 2%, paired 4%, paired_dated 8% -- but layman 50%\.|generated 2%, paired 4%, paired_dated 8% -- but layman 50%. [CORRECTED 1 Sept, post-measurement: the real losses are 1.5, 3.0 and 4.1 percentage points; layman 7.5 pp = 50% relative. The "8%" was mine and was never in WORKLOG, which said 2-4%.]|' docs/PLAN.md
+grep -c "CORRECTED 1 Sept" docs/PLAN.md
+
+# 2. merge the three blocks into EXPLAIN.md
+{ echo; echo "---"; echo;
+  cat results/_explain_w1_s1.md; echo; echo "---"; echo;
+  cat results/_explain_w1_s
+… [truncated, 331 more chars]
+```
+
+`2026-09-01 12:11:39` · **cmd** — Append the Wave 1 worklog entry
+```bash
+cd /c/Users/uniya/legal-mvp
+cat >> docs/WORKLOG.md <<'ENDOFENTRY'
+
+---
+
+## 2026-09-01 â€” Wave 1: three parallel tasks, one reframing of the paper
+
+Branch `metrics/sept-01`. Three subagents ran concurrently under the PLAN.md
+concurrency rules (one owner per file, no subagent runs git, everyone imports
+`experiments/metrics_lib.py`). Zero API calls; cost to the OpenRouter key â‚¹0.
+
+### S1 â€” tier logging bug (agents/answer.py)
+
+`prompt_variant` was initialised to "HIGH" and never reassigned in the LOW or
+MEDIUM branches. The disclaimer itself was always applied correctly; only the
+recorded fie
+… [truncated, 6469 more chars]
+```

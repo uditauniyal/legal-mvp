@@ -74,6 +74,24 @@ HIGH_CONFIDENCE = 0.55
 MEDIUM_CONFIDENCE = 0.38
 
 
+def tier_for_confidence(confidence: float) -> str:
+    """The prompt tier a confidence value falls in.
+
+    Mirrors the branch conditions in AnswerAgent.answer() exactly, so the
+    tier that gets logged is derived from the confidence itself rather than
+    from a variable a future edit has to remember to keep in sync. The
+    previous version initialised prompt_variant to "HIGH" and never
+    reassigned it in the LOW or MEDIUM branches, so 369 of 859 logged
+    records (43.0%) recorded the wrong tier. The disclaimer actually applied
+    to the prompt was correct throughout -- only the log field was wrong.
+    """
+    if confidence < MEDIUM_CONFIDENCE:
+        return "LOW"
+    if confidence < HIGH_CONFIDENCE:
+        return "MEDIUM"
+    return "HIGH"
+
+
 class AnswerAgent:
     def __init__(self):
         pass
@@ -100,7 +118,6 @@ class AnswerAgent:
 
         # --- Confidence-aware prompt adjustment ---
         system_prompt = ANSWER_SYSTEM_PROMPT
-        prompt_variant = "HIGH"
         if retrieval.confidence < MEDIUM_CONFIDENCE:
             system_prompt = LOW_CONFIDENCE_DISCLAIMER + "\n\n" + ANSWER_SYSTEM_PROMPT
             print(f"[Answer] LOW confidence ({retrieval.confidence:.3f}) - adding strong disclaimer")
@@ -144,7 +161,7 @@ class AnswerAgent:
             "confidence": retrieval.confidence,
             "refused": False,
             # --- logging fields (C3) ---
-            "prompt_variant": prompt_variant,
+            "prompt_variant": tier_for_confidence(retrieval.confidence),
             "llm_ok": llm_ok,
             "llm_error": llm_error,
             "gen_provider": getattr(meta, "provider_name", None),

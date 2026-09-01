@@ -1,0 +1,151 @@
+metric,query_set,definition,stage,k,value,n,ci_lo,ci_hi,cluster_ci_lo,cluster_ci_hi,notes
+recall_gold_section,generated_retrieval,retrieved@k,raw_15,15,0.691919,198,0.624467,0.752066,0.647368,0.735294,gold section present among Qdrant's 15; k=137
+recall_gold_section,generated_retrieval,retrieved@k,reranked_15,15,0.691919,198,0.624467,0.752066,0.647368,0.735294,"same 15, entity-reordered; k=137"
+filter_cut_rate,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.021898,137,0.007475,0.062401,,,gold in raw_15 but absent from filtered_n; k=3; denominator = queries whose gold was in raw_15
+filter_cut_count,generated_retrieval,retrieved@k,raw_15->filtered_n,15,3.0,198,,,,,absolute count of cuts; n = all gold-labelled queries in set
+recall_lost_pp,generated_retrieval,retrieved@k,raw_15->filtered_n,15,1.515152,198,,,,,"percentage POINTS of recall lost, raw_15 -> filtered_n, deployed floor"
+cut_gold_score_mean,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.396599,3,,,,,mean; score of the best-ranked gold chunk in raw_15
+cut_gold_score_median,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.394284,3,,,,,median; score of the best-ranked gold chunk in raw_15
+cut_gold_score_min,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.388403,3,,,,,min; score of the best-ranked gold chunk in raw_15
+cut_gold_score_max,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.40711,3,,,,,max; score of the best-ranked gold chunk in raw_15
+cut_gold_rank_raw_mean,generated_retrieval,retrieved@k,raw_15->filtered_n,15,11.666667,3,,,,,mean; 1-based rank of that chunk in raw_15
+cut_gold_rank_raw_median,generated_retrieval,retrieved@k,raw_15->filtered_n,15,10.0,3,,,,,median; 1-based rank of that chunk in raw_15
+cut_gold_rank_raw_min,generated_retrieval,retrieved@k,raw_15->filtered_n,15,10.0,3,,,,,min; 1-based rank of that chunk in raw_15
+cut_gold_rank_raw_max,generated_retrieval,retrieved@k,raw_15->filtered_n,15,15.0,3,,,,,max; 1-based rank of that chunk in raw_15
+cut_gold_rank_reranked_mean,generated_retrieval,retrieved@k,raw_15->filtered_n,15,1.0,3,,,,,mean; its 1-based rank after entity rerank
+cut_gold_rank_reranked_median,generated_retrieval,retrieved@k,raw_15->filtered_n,15,1.0,3,,,,,median; its 1-based rank after entity rerank
+cut_gold_rank_reranked_min,generated_retrieval,retrieved@k,raw_15->filtered_n,15,1.0,3,,,,,min; its 1-based rank after entity rerank
+cut_gold_rank_reranked_max,generated_retrieval,retrieved@k,raw_15->filtered_n,15,1.0,3,,,,,max; its 1-based rank after entity rerank
+cut_top_score_mean,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.566361,3,,,,,mean; top_score of the query
+cut_top_score_median,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.559511,3,,,,,median; top_score of the query
+cut_top_score_min,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.556439,3,,,,,min; top_score of the query
+cut_top_score_max,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.583133,3,,,,,max; top_score of the query
+cut_threshold_mean,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.416361,3,,,,,"mean; max(top_score-0.15, 0.35), the value that cut it"
+cut_threshold_median,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.409511,3,,,,,"median; max(top_score-0.15, 0.35), the value that cut it"
+cut_threshold_min,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.406439,3,,,,,"min; max(top_score-0.15, 0.35), the value that cut it"
+cut_threshold_max,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.433133,3,,,,,"max; max(top_score-0.15, 0.35), the value that cut it"
+binding_arm_floor,generated_retrieval,retrieved@k,raw_15->filtered_n,15,0.0,3,0.0,0.561497,,,binding arm = absolute_floor; k=0; denominator = cuts; the floor binds iff 0.35 > top_score-0.15
+binding_arm_relative,generated_retrieval,retrieved@k,raw_15->filtered_n,15,1.0,3,0.438503,1.0,,,binding arm = relative; k=3; denominator = cuts; the floor binds iff 0.35 > top_score-0.15
+counterfactual_recall,generated_retrieval,retrieved@k,filtered_n,,0.676768,198,0.608792,0.738015,0.62963,0.722222,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.35 (deployed); k=134
+counterfactual_mean_chunks,generated_retrieval,retrieved@k,filtered_n,,11.242424,198,,,10.488127,11.973129,"COST SIDE: mean chunks reaching the LLM; floor=0.35 (deployed); ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,generated_retrieval,retrieved@k,filtered_n,,0.676768,198,0.608792,0.738015,0.62963,0.722222,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.30; k=134
+counterfactual_mean_chunks,generated_retrieval,retrieved@k,filtered_n,,11.242424,198,,,10.488127,11.973129,"COST SIDE: mean chunks reaching the LLM; floor=0.30; ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,generated_retrieval,retrieved@k,filtered_n,,0.676768,198,0.608792,0.738015,0.62963,0.722222,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.25; k=134
+counterfactual_mean_chunks,generated_retrieval,retrieved@k,filtered_n,,11.242424,198,,,10.488127,11.973129,"COST SIDE: mean chunks reaching the LLM; floor=0.25; ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,generated_retrieval,retrieved@k,filtered_n,,0.676768,198,0.608792,0.738015,0.62963,0.722222,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.20; k=134
+counterfactual_mean_chunks,generated_retrieval,retrieved@k,filtered_n,,11.242424,198,,,10.488127,11.973129,"COST SIDE: mean chunks reaching the LLM; floor=0.20; ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,generated_retrieval,retrieved@k,filtered_n,,0.676768,198,0.608792,0.738015,0.62963,0.722222,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=none (relative arm only); k=134
+counterfactual_mean_chunks,generated_retrieval,retrieved@k,filtered_n,,11.242424,198,,,10.488127,11.973129,"COST SIDE: mean chunks reaching the LLM; floor=none (relative arm only); ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+recall_gold_section,paired_recodification,retrieved@k,raw_15,15,0.737374,99,0.642996,0.814019,0.686869,0.79798,gold section present among Qdrant's 15; k=73
+recall_gold_section,paired_recodification,retrieved@k,reranked_15,15,0.737374,99,0.642996,0.814019,0.686869,0.79798,"same 15, entity-reordered; k=73"
+filter_cut_rate,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.041096,73,0.014074,0.114001,,,gold in raw_15 but absent from filtered_n; k=3; denominator = queries whose gold was in raw_15
+filter_cut_count,paired_recodification,retrieved@k,raw_15->filtered_n,15,3.0,99,,,,,absolute count of cuts; n = all gold-labelled queries in set
+recall_lost_pp,paired_recodification,retrieved@k,raw_15->filtered_n,15,3.030303,99,,,,,"percentage POINTS of recall lost, raw_15 -> filtered_n, deployed floor"
+cut_gold_score_mean,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.633475,3,,,,,mean; score of the best-ranked gold chunk in raw_15
+cut_gold_score_median,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.619535,3,,,,,median; score of the best-ranked gold chunk in raw_15
+cut_gold_score_min,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.61703,3,,,,,min; score of the best-ranked gold chunk in raw_15
+cut_gold_score_max,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.663861,3,,,,,max; score of the best-ranked gold chunk in raw_15
+cut_gold_rank_raw_mean,paired_recodification,retrieved@k,raw_15->filtered_n,15,8.666667,3,,,,,mean; 1-based rank of that chunk in raw_15
+cut_gold_rank_raw_median,paired_recodification,retrieved@k,raw_15->filtered_n,15,9.0,3,,,,,median; 1-based rank of that chunk in raw_15
+cut_gold_rank_raw_min,paired_recodification,retrieved@k,raw_15->filtered_n,15,7.0,3,,,,,min; 1-based rank of that chunk in raw_15
+cut_gold_rank_raw_max,paired_recodification,retrieved@k,raw_15->filtered_n,15,10.0,3,,,,,max; 1-based rank of that chunk in raw_15
+cut_gold_rank_reranked_mean,paired_recodification,retrieved@k,raw_15->filtered_n,15,1.0,3,,,,,mean; its 1-based rank after entity rerank
+cut_gold_rank_reranked_median,paired_recodification,retrieved@k,raw_15->filtered_n,15,1.0,3,,,,,median; its 1-based rank after entity rerank
+cut_gold_rank_reranked_min,paired_recodification,retrieved@k,raw_15->filtered_n,15,1.0,3,,,,,min; its 1-based rank after entity rerank
+cut_gold_rank_reranked_max,paired_recodification,retrieved@k,raw_15->filtered_n,15,1.0,3,,,,,max; its 1-based rank after entity rerank
+cut_top_score_mean,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.815762,3,,,,,mean; top_score of the query
+cut_top_score_median,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.816923,3,,,,,median; top_score of the query
+cut_top_score_min,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.792746,3,,,,,min; top_score of the query
+cut_top_score_max,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.837617,3,,,,,max; top_score of the query
+cut_threshold_mean,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.665762,3,,,,,"mean; max(top_score-0.15, 0.35), the value that cut it"
+cut_threshold_median,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.666923,3,,,,,"median; max(top_score-0.15, 0.35), the value that cut it"
+cut_threshold_min,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.642746,3,,,,,"min; max(top_score-0.15, 0.35), the value that cut it"
+cut_threshold_max,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.687617,3,,,,,"max; max(top_score-0.15, 0.35), the value that cut it"
+binding_arm_floor,paired_recodification,retrieved@k,raw_15->filtered_n,15,0.0,3,0.0,0.561497,,,binding arm = absolute_floor; k=0; denominator = cuts; the floor binds iff 0.35 > top_score-0.15
+binding_arm_relative,paired_recodification,retrieved@k,raw_15->filtered_n,15,1.0,3,0.438503,1.0,,,binding arm = relative; k=3; denominator = cuts; the floor binds iff 0.35 > top_score-0.15
+counterfactual_recall,paired_recodification,retrieved@k,filtered_n,,0.707071,99,0.611038,0.787634,0.636364,0.777778,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.35 (deployed); k=70
+counterfactual_mean_chunks,paired_recodification,retrieved@k,filtered_n,,10.272727,99,,,9.090657,11.444444,"COST SIDE: mean chunks reaching the LLM; floor=0.35 (deployed); ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,paired_recodification,retrieved@k,filtered_n,,0.707071,99,0.611038,0.787634,0.636364,0.777778,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.30; k=70
+counterfactual_mean_chunks,paired_recodification,retrieved@k,filtered_n,,10.272727,99,,,9.090657,11.444444,"COST SIDE: mean chunks reaching the LLM; floor=0.30; ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,paired_recodification,retrieved@k,filtered_n,,0.707071,99,0.611038,0.787634,0.636364,0.777778,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.25; k=70
+counterfactual_mean_chunks,paired_recodification,retrieved@k,filtered_n,,10.272727,99,,,9.090657,11.444444,"COST SIDE: mean chunks reaching the LLM; floor=0.25; ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,paired_recodification,retrieved@k,filtered_n,,0.707071,99,0.611038,0.787634,0.636364,0.777778,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.20; k=70
+counterfactual_mean_chunks,paired_recodification,retrieved@k,filtered_n,,10.272727,99,,,9.090657,11.444444,"COST SIDE: mean chunks reaching the LLM; floor=0.20; ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,paired_recodification,retrieved@k,filtered_n,,0.707071,99,0.611038,0.787634,0.636364,0.777778,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=none (relative arm only); k=70
+counterfactual_mean_chunks,paired_recodification,retrieved@k,filtered_n,,10.272727,99,,,9.090657,11.444444,"COST SIDE: mean chunks reaching the LLM; floor=none (relative arm only); ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+recall_gold_section,paired_dated_conflict,retrieved@k,raw_15,15,0.492386,197,0.423389,0.561673,0.436548,0.543147,gold section present among Qdrant's 15; k=97
+recall_gold_section,paired_dated_conflict,retrieved@k,reranked_15,15,0.492386,197,0.423389,0.561673,0.436548,0.543147,"same 15, entity-reordered; k=97"
+filter_cut_rate,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.082474,97,0.042383,0.154376,,,gold in raw_15 but absent from filtered_n; k=8; denominator = queries whose gold was in raw_15
+filter_cut_count,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,8.0,197,,,,,absolute count of cuts; n = all gold-labelled queries in set
+recall_lost_pp,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,4.060914,197,,,,,"percentage POINTS of recall lost, raw_15 -> filtered_n, deployed floor"
+cut_gold_score_mean,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.593665,8,,,,,mean; score of the best-ranked gold chunk in raw_15
+cut_gold_score_median,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.582104,8,,,,,median; score of the best-ranked gold chunk in raw_15
+cut_gold_score_min,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.565318,8,,,,,min; score of the best-ranked gold chunk in raw_15
+cut_gold_score_max,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.643225,8,,,,,max; score of the best-ranked gold chunk in raw_15
+cut_gold_rank_raw_mean,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,9.25,8,,,,,mean; 1-based rank of that chunk in raw_15
+cut_gold_rank_raw_median,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,9.0,8,,,,,median; 1-based rank of that chunk in raw_15
+cut_gold_rank_raw_min,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,8.0,8,,,,,min; 1-based rank of that chunk in raw_15
+cut_gold_rank_raw_max,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,12.0,8,,,,,max; 1-based rank of that chunk in raw_15
+cut_gold_rank_reranked_mean,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,3.25,8,,,,,mean; its 1-based rank after entity rerank
+cut_gold_rank_reranked_median,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,1.0,8,,,,,median; its 1-based rank after entity rerank
+cut_gold_rank_reranked_min,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,1.0,8,,,,,min; its 1-based rank after entity rerank
+cut_gold_rank_reranked_max,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,12.0,8,,,,,max; its 1-based rank after entity rerank
+cut_top_score_mean,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.772529,8,,,,,mean; top_score of the query
+cut_top_score_median,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.775218,8,,,,,median; top_score of the query
+cut_top_score_min,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.740099,8,,,,,min; top_score of the query
+cut_top_score_max,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.793817,8,,,,,max; top_score of the query
+cut_threshold_mean,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.622529,8,,,,,"mean; max(top_score-0.15, 0.35), the value that cut it"
+cut_threshold_median,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.625217,8,,,,,"median; max(top_score-0.15, 0.35), the value that cut it"
+cut_threshold_min,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.590099,8,,,,,"min; max(top_score-0.15, 0.35), the value that cut it"
+cut_threshold_max,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.643817,8,,,,,"max; max(top_score-0.15, 0.35), the value that cut it"
+binding_arm_floor,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,0.0,8,0.0,0.324408,,,binding arm = absolute_floor; k=0; denominator = cuts; the floor binds iff 0.35 > top_score-0.15
+binding_arm_relative,paired_dated_conflict,retrieved@k,raw_15->filtered_n,15,1.0,8,0.675592,1.0,,,binding arm = relative; k=8; denominator = cuts; the floor binds iff 0.35 > top_score-0.15
+counterfactual_recall,paired_dated_conflict,retrieved@k,filtered_n,,0.451777,197,0.383865,0.521533,0.377551,0.520408,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.35 (deployed); k=89
+counterfactual_mean_chunks,paired_dated_conflict,retrieved@k,filtered_n,,10.081218,197,,,8.847696,11.306171,"COST SIDE: mean chunks reaching the LLM; floor=0.35 (deployed); ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,paired_dated_conflict,retrieved@k,filtered_n,,0.451777,197,0.383865,0.521533,0.377551,0.520408,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.30; k=89
+counterfactual_mean_chunks,paired_dated_conflict,retrieved@k,filtered_n,,10.081218,197,,,8.847696,11.306171,"COST SIDE: mean chunks reaching the LLM; floor=0.30; ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,paired_dated_conflict,retrieved@k,filtered_n,,0.451777,197,0.383865,0.521533,0.377551,0.520408,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.25; k=89
+counterfactual_mean_chunks,paired_dated_conflict,retrieved@k,filtered_n,,10.081218,197,,,8.847696,11.306171,"COST SIDE: mean chunks reaching the LLM; floor=0.25; ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,paired_dated_conflict,retrieved@k,filtered_n,,0.451777,197,0.383865,0.521533,0.377551,0.520408,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.20; k=89
+counterfactual_mean_chunks,paired_dated_conflict,retrieved@k,filtered_n,,10.081218,197,,,8.847696,11.306171,"COST SIDE: mean chunks reaching the LLM; floor=0.20; ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,paired_dated_conflict,retrieved@k,filtered_n,,0.451777,197,0.383865,0.521533,0.377551,0.520408,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=none (relative arm only); k=89
+counterfactual_mean_chunks,paired_dated_conflict,retrieved@k,filtered_n,,10.081218,197,,,8.847696,11.306171,"COST SIDE: mean chunks reaching the LLM; floor=none (relative arm only); ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+recall_gold_section,layman_situation,retrieved@k,raw_15,15,0.15,120,0.097038,0.224675,0.033333,0.275,gold section present among Qdrant's 15; k=18
+recall_gold_section,layman_situation,retrieved@k,reranked_15,15,0.15,120,0.097038,0.224675,0.033333,0.275,"same 15, entity-reordered; k=18"
+filter_cut_rate,layman_situation,retrieved@k,raw_15->filtered_n,15,0.5,18,0.29031,0.70969,,,gold in raw_15 but absent from filtered_n; k=9; denominator = queries whose gold was in raw_15
+filter_cut_count,layman_situation,retrieved@k,raw_15->filtered_n,15,9.0,120,,,,,absolute count of cuts; n = all gold-labelled queries in set
+recall_lost_pp,layman_situation,retrieved@k,raw_15->filtered_n,15,7.5,120,,,,,"percentage POINTS of recall lost, raw_15 -> filtered_n, deployed floor"
+cut_gold_score_mean,layman_situation,retrieved@k,raw_15->filtered_n,15,0.287955,9,,,,,mean; score of the best-ranked gold chunk in raw_15
+cut_gold_score_median,layman_situation,retrieved@k,raw_15->filtered_n,15,0.314361,9,,,,,median; score of the best-ranked gold chunk in raw_15
+cut_gold_score_min,layman_situation,retrieved@k,raw_15->filtered_n,15,0.234308,9,,,,,min; score of the best-ranked gold chunk in raw_15
+cut_gold_score_max,layman_situation,retrieved@k,raw_15->filtered_n,15,0.346579,9,,,,,max; score of the best-ranked gold chunk in raw_15
+cut_gold_rank_raw_mean,layman_situation,retrieved@k,raw_15->filtered_n,15,9.888889,9,,,,,mean; 1-based rank of that chunk in raw_15
+cut_gold_rank_raw_median,layman_situation,retrieved@k,raw_15->filtered_n,15,12.0,9,,,,,median; 1-based rank of that chunk in raw_15
+cut_gold_rank_raw_min,layman_situation,retrieved@k,raw_15->filtered_n,15,6.0,9,,,,,min; 1-based rank of that chunk in raw_15
+cut_gold_rank_raw_max,layman_situation,retrieved@k,raw_15->filtered_n,15,15.0,9,,,,,max; 1-based rank of that chunk in raw_15
+cut_gold_rank_reranked_mean,layman_situation,retrieved@k,raw_15->filtered_n,15,9.888889,9,,,,,mean; its 1-based rank after entity rerank
+cut_gold_rank_reranked_median,layman_situation,retrieved@k,raw_15->filtered_n,15,12.0,9,,,,,median; its 1-based rank after entity rerank
+cut_gold_rank_reranked_min,layman_situation,retrieved@k,raw_15->filtered_n,15,6.0,9,,,,,min; its 1-based rank after entity rerank
+cut_gold_rank_reranked_max,layman_situation,retrieved@k,raw_15->filtered_n,15,15.0,9,,,,,max; its 1-based rank after entity rerank
+cut_top_score_mean,layman_situation,retrieved@k,raw_15->filtered_n,15,0.334516,9,,,,,mean; top_score of the query
+cut_top_score_median,layman_situation,retrieved@k,raw_15->filtered_n,15,0.353179,9,,,,,median; top_score of the query
+cut_top_score_min,layman_situation,retrieved@k,raw_15->filtered_n,15,0.288336,9,,,,,min; top_score of the query
+cut_top_score_max,layman_situation,retrieved@k,raw_15->filtered_n,15,0.380674,9,,,,,max; top_score of the query
+cut_threshold_mean,layman_situation,retrieved@k,raw_15->filtered_n,15,0.35,9,,,,,"mean; max(top_score-0.15, 0.35), the value that cut it"
+cut_threshold_median,layman_situation,retrieved@k,raw_15->filtered_n,15,0.35,9,,,,,"median; max(top_score-0.15, 0.35), the value that cut it"
+cut_threshold_min,layman_situation,retrieved@k,raw_15->filtered_n,15,0.35,9,,,,,"min; max(top_score-0.15, 0.35), the value that cut it"
+cut_threshold_max,layman_situation,retrieved@k,raw_15->filtered_n,15,0.35,9,,,,,"max; max(top_score-0.15, 0.35), the value that cut it"
+binding_arm_floor,layman_situation,retrieved@k,raw_15->filtered_n,15,1.0,9,0.700855,1.0,,,binding arm = absolute_floor; k=9; denominator = cuts; the floor binds iff 0.35 > top_score-0.15
+binding_arm_relative,layman_situation,retrieved@k,raw_15->filtered_n,15,0.0,9,0.0,0.299145,,,binding arm = relative; k=0; denominator = cuts; the floor binds iff 0.35 > top_score-0.15
+counterfactual_recall,layman_situation,retrieved@k,filtered_n,,0.075,120,0.039957,0.136409,0.0,0.166667,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.35 (deployed); k=9
+counterfactual_mean_chunks,layman_situation,retrieved@k,filtered_n,,5.066667,120,,,3.691667,6.691667,"COST SIDE: mean chunks reaching the LLM; floor=0.35 (deployed); ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,layman_situation,retrieved@k,filtered_n,,0.116667,120,0.070781,0.186334,0.025,0.233333,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.30; k=14
+counterfactual_mean_chunks,layman_situation,retrieved@k,filtered_n,,9.008333,120,,,7.083333,10.975,"COST SIDE: mean chunks reaching the LLM; floor=0.30; ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,layman_situation,retrieved@k,filtered_n,,0.116667,120,0.070781,0.186334,0.025,0.233333,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.25; k=14
+counterfactual_mean_chunks,layman_situation,retrieved@k,filtered_n,,13.383333,120,,,12.1,14.466667,"COST SIDE: mean chunks reaching the LLM; floor=0.25; ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,layman_situation,retrieved@k,filtered_n,,0.15,120,0.097038,0.224675,0.033333,0.275,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=0.20; k=18
+counterfactual_mean_chunks,layman_situation,retrieved@k,filtered_n,,15.0,120,,,15.0,15.0,"COST SIDE: mean chunks reaching the LLM; floor=0.20; ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+counterfactual_recall,layman_situation,retrieved@k,filtered_n,,0.15,120,0.097038,0.224675,0.033333,0.275,COUNTERFACTUAL re-applied to stored chunks; deployed config unchanged; relative arm and >=3 rule held fixed; floor=none (relative arm only); k=18
+counterfactual_mean_chunks,layman_situation,retrieved@k,filtered_n,,15.0,120,,,15.0,15.0,"COST SIDE: mean chunks reaching the LLM; floor=none (relative arm only); ci_lo/ci_hi empty -- Wilson is for proportions, not means"
+rows_analysed,ALL,,,,617.0,617,,,,,"joined logs x stages, gold label present; 3 rows excluded (query_set not one of the four reported sets)"
+paired_check_agreement,ALL,retrieved@k,filtered_n,,1.0,617,,,,,"1.0 = reconstructed-filter recall EQUALS stored Stage C recall on every query set to 1e-12, and Stage C lengths match on every row"

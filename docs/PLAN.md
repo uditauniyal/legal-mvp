@@ -334,7 +334,7 @@ SUBAGENT 2 — the adaptive filter investigation
   15.0% discrepancy was a STAGE confusion, not a defect.
 
   Wave 0 surfaced a real finding instead. The adaptive filter costs
-  generated 2%, paired 4%, paired_dated 8% -- but layman 50%. Find out
+  generated 2%, paired 4%, paired_dated 8% -- but layman 50%. [CORRECTED 1 Sept, post-measurement: the real losses are 1.5, 3.0 and 4.1 percentage points; layman 7.5 pp = 50% relative. The "8%" was mine and was never in WORKLOG, which said 2-4%.] Find out
   why, and how much it costs.
 
   a) For every query where the gold section was in raw_15 but NOT in
