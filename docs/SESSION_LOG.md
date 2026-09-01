@@ -6521,3 +6521,57 @@ t=t.replace(
 """**The counting bug.** The analysis identified a retrieved passage by reading the first 160 characters of its text and looking for `"Section 190."`. Passages beginning mid-provision, such as *"Explanation.â€”A threat to injure..."*, carry no number there and were counted as failures. The authoritative `
 … [truncated, 5190 more chars]
 ```
+
+`2026-09-01 11:17:27` · **cmd** — Repurpose subagent 2 and commit Wave 0
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PY'
+import io,sys,pathlib
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+p=pathlib.Path("docs/PLAN.md"); t=p.read_text(encoding="utf-8"); o=t
+old="""SUBAGENT 2 â€” counting bug
+  Owns: the analysis/scoring code doing the 160-character match,
+        tests/test_counting_bug.py
+  Analysis identifies a retrieved passage by reading its first 160
+  characters looking for "Section N.". Passages beginning mid-provision
+  carry no number there and were counted as failures. The authoritative
+  section_number field is in the Qdr
+… [truncated, 4612 more chars]
+```
+
+`2026-09-01 11:18:03` · **cmd** — Check which analysis libraries are available
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import importlib,sys
+for m in ['numpy','pandas','sklearn','scipy','matplotlib','rank_bm25']:
+    try:
+        mod=importlib.import_module(m)
+        print('  OK      %-14s %s'%(m, getattr(mod,'__version__','?')))
+    except ImportError:
+        print('  MISSING %-14s'%m)
+"
+```
+
+`2026-09-01 11:21:24` · **cmd** — Run the known-answer tests
+```bash
+cd /c/Users/uniya/legal-mvp
+touch experiments/__init__.py
+./venv/Scripts/python.exe -m pytest tests/test_metrics_known_answers.py -q 2>&1 | tail -25
+```
+
+`2026-09-01 11:22:34` · **cmd** — Verify tests pass and library loads real data
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -m pytest tests/test_metrics_known_answers.py -q 2>&1 | tail -3
+echo "--- full suite ---"
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -3
+echo "--- library loads against real data? ---"
+./venv/Scripts/python.exe -c "
+import io,sys; sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs, load_stages
+df=load_logs(); st=load_stages()
+print('  logs  : %d rows after dedupe (dropped %d of %d)'%(len(df), df.attrs['rows_dropped'], df.attrs['rows_before_dedupe
+… [truncated, 132 more chars]
+```
