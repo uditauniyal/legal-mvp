@@ -776,3 +776,288 @@ Suite 229 to 237 (`pytest tests/ -q`).
 
 Wave 2 — five metric families in parallel. Per the plan, Wave 2 must not start
 until these three numbers have been read.
+
+---
+
+## 2026-09-01 — Wave 2: five metric families in parallel
+
+Branch `metrics/sept-01`. Five subagents concurrent, one owner per file, none ran
+git, all imported `experiments/metrics_lib.py`. Zero API calls, cost to the
+OpenRouter key ₹0. All six result CSVs share the exact long-format schema;
+1,312 result rows total. Suite 237 passing throughout.
+
+Outputs: `retrieval_metrics.csv` (623), `routing_confusion.csv` (109),
+`calibration.csv` (172), `ablation.csv` (133), `robustness.csv` (125), plus
+Wave 1 `filter_analysis.csv` (150). Explanation blocks merged into
+`results/EXPLAIN.md`, eight headings each.
+
+### THE FINDING OF THE WAVE — the deployed confidence formula has a sign error
+
+S4 paired check. The formula recorded in CLAUDE.md and in the Wave 2 brief,
+`0.55*top_k_mean + 0.15*score_gap + 0.30*entity_coverage`, reproduces NONE of
+the 617 logged composites (max deviation 0.148, all 617 rows off by >1e-3).
+
+The deployed formula at `agents/retriever.py:137-142` normalises and INVERTS
+the gap:
+
+    gap_penalty = min(score_gap / 0.3, 1.0)
+    composite   = 0.55*top_k_mean + 0.15*(1.0 - gap_penalty) + 0.30*entity_coverage
+
+With the inversion, reconstruction agrees to 9.0e-05 on every row — the 4-dp
+rounding floor. Verified by two routes sharing no code, both asserting.
+**The logged scores are correct; the written description was wrong.**
+
+Consequence, `retrieved@k` at `raw_15`, n=617, 327 positives:
+
+| Signal | AUROC | paired diff vs composite | p |
+|---|---|---|---|
+| `max_score` | 0.784 | +0.121 | <0.0001 |
+| `top_k_mean` | 0.757 | +0.094 | <0.0001 |
+| `score_gap` raw, uninverted | 0.730 | +0.067 | 0.018 |
+| **`composite` deployed** | **0.663** | — | — |
+| `entity_coverage` | 0.581 | -0.083 | <0.0001 |
+| **`gap_term` as deployed** | **0.270** | -0.393 | <0.0001 |
+
+An AUROC of 0.270 is anti-predictive: below 0.5 means the signal points the
+wrong way. The gap is worth 0.730 raw and 0.270 inverted. Confirmed by a
+secondary sweep with the gap NOT inverted: 0.55/0.45/0.00 gives 0.785, which
+beats `max_score`. **The signal is valuable and wired backwards.**
+
+Leave-one-out, renormalised: dropping `gap_term` IMPROVES the composite by
++0.0415 (p<0.0001); dropping `entity_coverage` changes nothing (-0.005, p=0.82);
+dropping `top_k_mean` collapses it to 0.486.
+
+Weight sweep, 231 weightings: argmax is **1.00 / 0.00 / 0.00 under all three
+correctness definitions**, and the peak is sharp (1 of 231 within 0.005).
+Held out on a 60/40 stratified split the gain survives at +0.0918 on
+`retrieved@k` (test AUROC 0.744 vs deployed 0.652).
+
+NOTHING DEPLOYED WAS CHANGED. 55/15/30 and the 0.55/0.38 tiers stand. This is
+analysis. The weights were fixed in Feb 2026 before any score was logged, and
+that remains a methodological strength.
+
+Correction to our own docs: `entity_coverage` is NOT broken as GAPS.md
+describes. In these logs it takes only {0.0, 0.5, 1.0}, never exceeds 1.0, and
+no free 0.30 default appears. Its AUROC is 0.581, not the 0.492 repeatedly
+quoted. It is not defective — it is a three-level flag that is CONSTANT for
+43.4% of queries, and exactly 0.500 on all 120 layman rows because no layman
+query names a section.
+
+`entity_coverage` scores 0.386 on recodification queries — BELOW CHANCE —
+because the query names the repealed IPC section while the corpus holds the
+successor BNS text. A legal fact surfacing as a measurement artefact.
+
+### S5 — the claims that FAIL. Read this before writing anything.
+
+**1. The recodification gap dies under two of three correctness definitions.**
+It holds under `retrieved@15` at every stage and under every restriction:
++0.545 [0.303, 0.758] clustered. Under `cited` it is -0.030 [-0.121, 0.061] and
+under `grounded` -0.030 [-0.091, 0.000] — both contain zero and the sign flips.
+
+Cause, measured: the IPC arm cites the gold section 90.9% of the time and the
+BNS arm 93.9%. The answer generator cites correct sections REGARDLESS of what
+was retrieved. **The failure is a retrieval failure, and the answer text hides
+it.** This must be stated as a scope condition, not buried.
+
+**2. The layman rate at `filtered_n` dies under clustering.** Naive interval
+[0.033, 0.125] excludes zero; clustered [0.000, 0.167] does not. The 9 hits sit
+in only 3 of 30 situations. This is the one threshold crossing in the wave.
+
+**3. "Composite worse than max_score" survives only under `retrieved@15`.**
+Under `cited` it holds unrestricted but dies under all three real restrictions;
+under `grounded` it never holds and once flips to +0.219.
+
+Design effects (naive variance vs clustered): layman 1.93, max_score AUROC 1.37,
+composite AUROC 1.26, AUROC diff 1.10. Clustering does NOT always widen here —
+`paired_recodification` 0.64 and `paired_dated_conflict` 0.79, because
+contrastive variants are BUILT to disagree, so within-cluster correlation is
+negative. S5 flagged its own first implementation for inverting this ratio and
+caught it against theory before it reached the CSV.
+
+S5 left CHECK 2 deliberately FAILING: 8 AUROC values narrowed under clustering,
+4 explained by measured negative within-situation correlation, **4 unresolved**
+(`cited`/`grounded` restricted subsets, ratios 1.043-1.121). Resampler bug and
+Monte Carlo noise ruled out across 5 seeds. Not ruled out: AUROC is a rank
+statistic and the mean-based design-effect argument may not transfer.
+**Do not rely on clustered AUROC intervals for those two restricted subsets.**
+`restriction=none` is unaffected.
+
+### S3 — calibration
+
+Coverage at 10% risk, i.e. what share of questions could be answered while
+keeping errors at or below 10%:
+
+| | retrieved@15 | cited | grounded |
+|---|---|---|---|
+| composite | **0.0000** | 0.6483 | **0.0000** |
+| max_score | 0.0486 | 0.8768 | 0.0000 |
+
+The zeros are MEASURED, not missing. For composite under `retrieved@15` no
+threshold anywhere on the curve reaches 10% risk; the curve minimum is 0.2685
+at 59.2% coverage. **There is no confidence setting at which this system can
+answer any share of questions and be wrong one time in ten.**
+
+ECE (Expected Calibration Error, lower better), clustered CIs:
+composite 0.2410 [0.1983, 0.2737] vs max_score 0.1270 [0.0991, 0.1724] under
+`retrieved@15`. Brier 0.2326 vs 0.2113. AURC 0.398 vs 0.271. Raw similarity
+beats the engineered blend on every axis measured.
+
+**The composite reliability curve is NON-MONOTONE.** Accuracy by bin:
+0.35, 0.16, 0.15, 0.28, 0.95, 1.00, 0.79, 0.51, 0.56, 0.55. It peaks at
+composite ~0.62 and falls back to the base rate at the top. `max_score` is
+monotone throughout. A single ECE number hides this completely.
+
+Platt scaling on the test half only: composite/`grounded` ECE 0.550 -> 0.037
+looks spectacular and is DEGENERATE — the fitted probabilities span 0.037-0.049,
+a near-constant equal to the base rate, AUROC 0.524. Reported as a failure, not
+a success. Platt is monotone so it cannot repair the non-monotonicity either;
+on the deployed configuration it moves ECE only 0.220 -> 0.201.
+
+### S2 — routing
+
+Base-rate control VERIFIED, not refuted. Index shares read from Qdrant
+read-only (CrPC 742, IPC 595, BNS 424, CPA 138 of 1,899). Recorded 70.4% /
+39.1% / 1.8x; recomputed 70.23% / 39.07% / **1.7974x**.
+
+**But the recorded figure was a `filtered_n` number quoted with no stage.** At
+`raw_15` the same queries give 1.49x. Both exceed chance; the magnitudes differ
+by a third. Every future quotation must carry its stage.
+
+**NEW: the adaptive score filter is a bias amplifier.** raw_15 -> filtered_n:
+CrPC 1.49x -> 1.80x, IPC 0.59x -> 0.48x, BNS 0.58x -> **0.34x**. A step whose
+purpose is removing noise is preferentially deleting substantive criminal law.
+Nobody was looking for this.
+
+4x4 layman routing confusion at `raw_15`, "went to" = dominant corpus among
+retrieved chunks, 0 ties:
+
+| gold / got | IPC | BNS | CrPC | CPA | n | accuracy |
+|---|---|---|---|---|---|---|
+| IPC | 3 | 2 | 17 | 1 | 23 | 13.0% |
+| BNS | 3 | 1 | 18 | 1 | 23 | **4.3%** |
+| CrPC | 0 | 0 | 5 | 0 | 5 | 100% |
+| CPA | 0 | 0 | 0 | 8 | 8 | 100% |
+
+35 of 46 substantive-law queries land in the procedure code. **BNS — the
+criminal code currently in force — is the worst-routed book in the system.**
+
+The paired 2x2 on `paired_recodification` returns 33/33 and 33/33 at every
+stage. Not a result: the corpus filter fired IPC on all 33 IPC-named and BNS on
+all 33 BNS-named queries, so the diagonal was guaranteed before an embedding was
+compared. Usable only as the contrast to the filter-off condition, where BNS
+falls 100% -> 51.5%. Labelled `filter_as_recorded` throughout.
+
+**61 of 120 layman queries are structurally unanswerable**: 56 state no date
+(either code could be correct, no single right column) and 5 require the BNSS,
+which is not in the index. Belongs in Limitations as a corpus-coverage claim.
+
+All 4 CPA misroutes are ONE situation (`pair_id=L024`, builder took 18 lakh,
+gold is criminal cheating). One clustered mistake counting four times.
+
+S2 paired check agreed to one chunk in 608. Traced: query L0089, replay and
+original differ in the FIFTH decimal of a cosine score (0.259167 vs 0.259176),
+flipping the third slot of the >=3-forced-through rule between a CPA chunk at
+0.2489 and a CrPC chunk at 0.2491. Reported, not smoothed.
+
+### S1 — retrieval metrics
+
+Recall@15, `retrieved@k`, Wilson intervals:
+
+| set | n | raw_15 | filtered_n |
+|---|---|---|---|
+| generated | 198 | 0.692 [0.624, 0.752] | 0.677 |
+| paired | 99 | 0.737 [0.643, 0.814] | 0.707 |
+| paired_dated | 197 | 0.492 [0.423, 0.562] | 0.452 |
+| layman | 120 | 0.150 [0.097, 0.225] | 0.075 [0.040, 0.136] |
+| ALL | 617 | 0.530 [0.491, 0.569] | 0.493 |
+
+Paired check reproduced both gate anchors (9/120 and 327/617) through a route
+that does not import `metrics_lib` at all — its own parser, its own Wilson
+algebra. 2,306 comparisons agree.
+
+**DEFECT in `metrics_lib`: `ranked_sections()` compresses rank.** It drops
+chunks with no `section_number`, so a gold chunk retrieved at position 5 is
+reported at rank 3. Only 118 of 617 `raw_15` lists have a section number on all
+15 chunks, so this is the common case. Identical at k=15 — which is why every
+anchor held — but `layman` Recall@5 is 0.100 compressed vs 0.050 positional, a
+factor of two. Neither convention is wrong; BOTH are in the CSV under distinct
+metric names with the convention named in every row's `notes`.
+S2, S3 and S4 all used k=15 or no k, so Wave 2 is unaffected.
+
+**Gold is not always a single section: 525 single, 88 double, 4 triple.** The
+pre-registered "single binary gold" assumption is false for 92 rows. It matters:
+`paired_recodification` Recall@15 is 0.737 binary (found at least one) vs 0.616
+fraction-of-gold (found all). Finding one side of an IPC-BNS pair is not finding
+both. Both reported.
+
+**Do not quote `paired_dated_conflict` = 0.492.** Those 197 rows are 99 baseline
+plus 98 of the SAME queries under `intervention=both`. The pooled figure
+averages **0.293 baseline and 0.694 intervention** — a large intervention effect
+hiding inside a single number. Split rows are in the CSV.
+
+**Reranking moves gold UP, not down**: pooled MRR 0.418 -> 0.467. We had assumed
+reranking only scrambled score order. NOT CLAIMED — cluster intervals overlap;
+flagged as needing a paired test.
+
+Correction to the brief: with gold as a SECTION and retrieval returning CHUNKS,
+P@k = R@k/k holds on 99.2-100% of the 525 single-gold rows and breaks on 4 where
+the gold section spans two retrieved chunks. The nDCG identity was confirmed
+exactly — 14 distinct reciprocal-rank values map one-to-one, zero violations.
+
+### Corrections to the wave brief, from S5
+
+- The 3 legacy `criminal_*` rows (Q001-Q003) are NOT excluded; they sit inside
+  the 617 and share one `pair_id` (`P_murder`) spanning two query sets.
+- Only 1 of the 4 unlabelled rows is a SMOKE row. G0107, G0190 and D0094 are
+  real queries that lost their gold join.
+- The dated set is 33 x 3 x 2 = 197 rows, not 30 x 4. "30 x 4" describes the
+  LAYMAN set.
+- `filter_applied is None` on **208** rows, not 210.
+
+### Known limitation, disclosed rather than fixed
+
+`load_logs()` deduplicates on `(query_id, intervention)` keeping the LAST
+occurrence. In three cases the last occurrence has no gold label while an
+earlier one did, so the labelled row is discarded: `('G0107','baseline')`,
+`('G0190','baseline')`, `('D0094','both')`. **n is 617 where it could be 620** —
+0.5%, and S4 verified it moves no conclusion.
+
+Deliberately NOT fixed now. Changing the loader would shift every number in six
+CSVs by a fraction of a percent and invalidate five carefully written
+explanation blocks that all quote n=617. The cost of that churn exceeds the
+value of 3 rows. Disclosed here with exact identifiers, and to be revisited at
+Wave 4 as a single decision rather than mid-wave.
+
+### Resolved, so nobody re-litigates it
+
+The `cited` positive count has THREE legitimate values on the same 617 rows:
+- **533** — `correctness_label(..., "cited")`, reading the LOGGED
+  `verifier.cited`, produced by the PRE-fix citation parser. S3 and S4 both
+  report this.
+- **538** — the answers RE-PARSED with the Wave 1 S3 post-fix parser. The GATE
+  reports this, labelled.
+- **587** — lenient matching, where a subsection matches its parent section.
+Three routes, three correct answers to three different questions. Any figure
+quoted must name its route.
+
+### Not measured, with reasons
+
+- Significance test that the CrPC over-representation ratio DIFFERS between
+  `raw_15` and `filtered_n`. The correct instrument is a paired bootstrap on a
+  share difference; `metrics_lib` exposes only the AUROC version. S2 stopped
+  rather than reimplement a metric. The two intervals are reported separately
+  and no difference claim is made.
+- CIs on AURC and coverage-at-risk, and CIs on Platt pre/post — need a nested
+  bootstrap, roughly 10x runtime.
+- Calibration at `reranked_15` and `filtered_n`; per-query-set calibration CIs.
+- Layman under `exclude_entity_default_used` — all 120 layman rows use the
+  neutral default, so the restriction empties the set.
+- `raw_15` has no second source for S2's paired check: the original logs stored
+  only post-filter survivors. Stated as NOT CHECKABLE.
+
+### Next
+
+Wave 3 — two experiments. `statute_consistency` (the fourth confidence signal,
+specified and never built) and BM25 plus hybrid retrieval. `rank_bm25` is NOT
+installed and must not be installed without a decision, since a previous install
+into this venv upgraded starlette and broke fastapi.

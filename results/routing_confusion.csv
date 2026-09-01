@@ -1,0 +1,110 @@
+metric,query_set,definition,stage,k,value,n,ci_lo,ci_hi,cluster_ci_lo,cluster_ci_hi,notes
+confusion_ties_broken_by_top_score,layman_situation,dominant_corpus,raw_15,15,4.0,120,,,,,rows where two or more books supplied an equal number of chunks; broken by the highest-scoring chunk among them
+confusion_expectedIPC_gotIPC,layman_situation,dominant_corpus,raw_15,15,3.0,23,,,,,cell count; 4x4 core matrix
+confusion_expectedIPC_gotBNS,layman_situation,dominant_corpus,raw_15,15,2.0,23,,,,,cell count; 4x4 core matrix
+confusion_expectedIPC_gotCRPC,layman_situation,dominant_corpus,raw_15,15,17.0,23,,,,,cell count; 4x4 core matrix
+confusion_expectedIPC_gotCPA,layman_situation,dominant_corpus,raw_15,15,1.0,23,,,,,cell count; 4x4 core matrix
+routing_accuracy_IPC,layman_situation,dominant_corpus,raw_15,15,0.1304,23,0.0454,0.3213,0.0,0.2609,"diagonal/row total = 3/23; Wilson naive, clustered bootstrap on pair_id (23 clusters, 10000 draws)"
+confusion_expectedBNS_gotIPC,layman_situation,dominant_corpus,raw_15,15,3.0,23,,,,,cell count; 4x4 core matrix
+confusion_expectedBNS_gotBNS,layman_situation,dominant_corpus,raw_15,15,1.0,23,,,,,cell count; 4x4 core matrix
+confusion_expectedBNS_gotCRPC,layman_situation,dominant_corpus,raw_15,15,18.0,23,,,,,cell count; 4x4 core matrix
+confusion_expectedBNS_gotCPA,layman_situation,dominant_corpus,raw_15,15,1.0,23,,,,,cell count; 4x4 core matrix
+routing_accuracy_BNS,layman_situation,dominant_corpus,raw_15,15,0.0435,23,0.0077,0.2099,0.0,0.1304,"diagonal/row total = 1/23; Wilson naive, clustered bootstrap on pair_id (23 clusters, 10000 draws)"
+confusion_expectedCRPC_gotIPC,layman_situation,dominant_corpus,raw_15,15,0.0,5,,,,,cell count; 4x4 core matrix
+confusion_expectedCRPC_gotBNS,layman_situation,dominant_corpus,raw_15,15,0.0,5,,,,,cell count; 4x4 core matrix
+confusion_expectedCRPC_gotCRPC,layman_situation,dominant_corpus,raw_15,15,5.0,5,,,,,cell count; 4x4 core matrix
+confusion_expectedCRPC_gotCPA,layman_situation,dominant_corpus,raw_15,15,0.0,5,,,,,cell count; 4x4 core matrix
+routing_accuracy_CRPC,layman_situation,dominant_corpus,raw_15,15,1.0,5,0.5655,1.0,1.0,1.0,"diagonal/row total = 5/5; Wilson naive, clustered bootstrap on pair_id (5 clusters, 10000 draws)"
+confusion_expectedCPA_gotIPC,layman_situation,dominant_corpus,raw_15,15,0.0,8,,,,,cell count; 4x4 core matrix
+confusion_expectedCPA_gotBNS,layman_situation,dominant_corpus,raw_15,15,0.0,8,,,,,cell count; 4x4 core matrix
+confusion_expectedCPA_gotCRPC,layman_situation,dominant_corpus,raw_15,15,0.0,8,,,,,cell count; 4x4 core matrix
+confusion_expectedCPA_gotCPA,layman_situation,dominant_corpus,raw_15,15,8.0,8,,,,,cell count; 4x4 core matrix
+routing_accuracy_CPA,layman_situation,dominant_corpus,raw_15,15,1.0,8,0.6756,1.0,1.0,1.0,"diagonal/row total = 8/8; Wilson naive, clustered bootstrap on pair_id (2 clusters, 10000 draws)"
+confusionSUPP_expectedEITHER_gotIPC,layman_situation,dominant_corpus,raw_15,15,6.0,56,,,,,"gold is either era (IPC or BNS both acceptable); cannot be a confusion-matrix row, reported for completeness"
+confusionSUPP_expectedEITHER_gotBNS,layman_situation,dominant_corpus,raw_15,15,2.0,56,,,,,"gold is either era (IPC or BNS both acceptable); cannot be a confusion-matrix row, reported for completeness"
+confusionSUPP_expectedEITHER_gotCRPC,layman_situation,dominant_corpus,raw_15,15,46.0,56,,,,,"gold is either era (IPC or BNS both acceptable); cannot be a confusion-matrix row, reported for completeness"
+confusionSUPP_expectedEITHER_gotCPA,layman_situation,dominant_corpus,raw_15,15,2.0,56,,,,,"gold is either era (IPC or BNS both acceptable); cannot be a confusion-matrix row, reported for completeness"
+confusionSUPP_expectedBNSS_gotIPC,layman_situation,dominant_corpus,raw_15,15,0.0,5,,,,,"BNSS is NOT in the 1,899-chunk index at all -- every one of these is unroutable by construction"
+confusionSUPP_expectedBNSS_gotBNS,layman_situation,dominant_corpus,raw_15,15,0.0,5,,,,,"BNSS is NOT in the 1,899-chunk index at all -- every one of these is unroutable by construction"
+confusionSUPP_expectedBNSS_gotCRPC,layman_situation,dominant_corpus,raw_15,15,5.0,5,,,,,"BNSS is NOT in the 1,899-chunk index at all -- every one of these is unroutable by construction"
+confusionSUPP_expectedBNSS_gotCPA,layman_situation,dominant_corpus,raw_15,15,0.0,5,,,,,"BNSS is NOT in the 1,899-chunk index at all -- every one of these is unroutable by construction"
+confusion_ties_broken_by_top_score,layman_situation,dominant_corpus,filtered_n,,18.0,120,,,,,rows where two or more books supplied an equal number of chunks; broken by the highest-scoring chunk among them
+confusion_expectedIPC_gotIPC,layman_situation,dominant_corpus,filtered_n,,3.0,23,,,,,cell count; 4x4 core matrix
+confusion_expectedIPC_gotBNS,layman_situation,dominant_corpus,filtered_n,,3.0,23,,,,,cell count; 4x4 core matrix
+confusion_expectedIPC_gotCRPC,layman_situation,dominant_corpus,filtered_n,,16.0,23,,,,,cell count; 4x4 core matrix
+confusion_expectedIPC_gotCPA,layman_situation,dominant_corpus,filtered_n,,1.0,23,,,,,cell count; 4x4 core matrix
+routing_accuracy_IPC,layman_situation,dominant_corpus,filtered_n,,0.1304,23,0.0454,0.3213,0.0,0.2609,"diagonal/row total = 3/23; Wilson naive, clustered bootstrap on pair_id (23 clusters, 10000 draws)"
+confusion_expectedBNS_gotIPC,layman_situation,dominant_corpus,filtered_n,,4.0,23,,,,,cell count; 4x4 core matrix
+confusion_expectedBNS_gotBNS,layman_situation,dominant_corpus,filtered_n,,4.0,23,,,,,cell count; 4x4 core matrix
+confusion_expectedBNS_gotCRPC,layman_situation,dominant_corpus,filtered_n,,14.0,23,,,,,cell count; 4x4 core matrix
+confusion_expectedBNS_gotCPA,layman_situation,dominant_corpus,filtered_n,,1.0,23,,,,,cell count; 4x4 core matrix
+routing_accuracy_BNS,layman_situation,dominant_corpus,filtered_n,,0.1739,23,0.0698,0.3714,0.0435,0.3478,"diagonal/row total = 4/23; Wilson naive, clustered bootstrap on pair_id (23 clusters, 10000 draws)"
+confusion_expectedCRPC_gotIPC,layman_situation,dominant_corpus,filtered_n,,0.0,5,,,,,cell count; 4x4 core matrix
+confusion_expectedCRPC_gotBNS,layman_situation,dominant_corpus,filtered_n,,0.0,5,,,,,cell count; 4x4 core matrix
+confusion_expectedCRPC_gotCRPC,layman_situation,dominant_corpus,filtered_n,,5.0,5,,,,,cell count; 4x4 core matrix
+confusion_expectedCRPC_gotCPA,layman_situation,dominant_corpus,filtered_n,,0.0,5,,,,,cell count; 4x4 core matrix
+routing_accuracy_CRPC,layman_situation,dominant_corpus,filtered_n,,1.0,5,0.5655,1.0,1.0,1.0,"diagonal/row total = 5/5; Wilson naive, clustered bootstrap on pair_id (5 clusters, 10000 draws)"
+confusion_expectedCPA_gotIPC,layman_situation,dominant_corpus,filtered_n,,0.0,8,,,,,cell count; 4x4 core matrix
+confusion_expectedCPA_gotBNS,layman_situation,dominant_corpus,filtered_n,,0.0,8,,,,,cell count; 4x4 core matrix
+confusion_expectedCPA_gotCRPC,layman_situation,dominant_corpus,filtered_n,,0.0,8,,,,,cell count; 4x4 core matrix
+confusion_expectedCPA_gotCPA,layman_situation,dominant_corpus,filtered_n,,8.0,8,,,,,cell count; 4x4 core matrix
+routing_accuracy_CPA,layman_situation,dominant_corpus,filtered_n,,1.0,8,0.6756,1.0,1.0,1.0,"diagonal/row total = 8/8; Wilson naive, clustered bootstrap on pair_id (2 clusters, 10000 draws)"
+confusionSUPP_expectedEITHER_gotIPC,layman_situation,dominant_corpus,filtered_n,,6.0,56,,,,,"gold is either era (IPC or BNS both acceptable); cannot be a confusion-matrix row, reported for completeness"
+confusionSUPP_expectedEITHER_gotBNS,layman_situation,dominant_corpus,filtered_n,,6.0,56,,,,,"gold is either era (IPC or BNS both acceptable); cannot be a confusion-matrix row, reported for completeness"
+confusionSUPP_expectedEITHER_gotCRPC,layman_situation,dominant_corpus,filtered_n,,40.0,56,,,,,"gold is either era (IPC or BNS both acceptable); cannot be a confusion-matrix row, reported for completeness"
+confusionSUPP_expectedEITHER_gotCPA,layman_situation,dominant_corpus,filtered_n,,4.0,56,,,,,"gold is either era (IPC or BNS both acceptable); cannot be a confusion-matrix row, reported for completeness"
+confusionSUPP_expectedBNSS_gotIPC,layman_situation,dominant_corpus,filtered_n,,0.0,5,,,,,"BNSS is NOT in the 1,899-chunk index at all -- every one of these is unroutable by construction"
+confusionSUPP_expectedBNSS_gotBNS,layman_situation,dominant_corpus,filtered_n,,0.0,5,,,,,"BNSS is NOT in the 1,899-chunk index at all -- every one of these is unroutable by construction"
+confusionSUPP_expectedBNSS_gotCRPC,layman_situation,dominant_corpus,filtered_n,,5.0,5,,,,,"BNSS is NOT in the 1,899-chunk index at all -- every one of these is unroutable by construction"
+confusionSUPP_expectedBNSS_gotCPA,layman_situation,dominant_corpus,filtered_n,,0.0,5,,,,,"BNSS is NOT in the 1,899-chunk index at all -- every one of these is unroutable by construction"
+confusion_stage_agreement_raw15_vs_filteredn,layman_situation,dominant_corpus,raw_15|filtered_n,,0.775,120,,,,,93/120 layman queries get the same dominant book at both stages; does the picture change between stages?
+pairedConfusion_expectedIPC_gotIPC,paired_recodification,dominant_corpus|filter_as_recorded,raw_15,15,33.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+pairedConfusion_expectedIPC_gotBNS,paired_recodification,dominant_corpus|filter_as_recorded,raw_15,15,0.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+pairedConfusion_expectedIPC_gotCRPC,paired_recodification,dominant_corpus|filter_as_recorded,raw_15,15,0.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+pairedConfusion_expectedIPC_gotCPA,paired_recodification,dominant_corpus|filter_as_recorded,raw_15,15,0.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+paired_routing_accuracy_IPC,paired_recodification,dominant_corpus|filter_as_recorded,raw_15,15,1.0,33,0.8957,1.0,1.0,1.0,"33/33; the query NAMES IPC. The CORPUS FILTER is ON, so this measures the ROUTER's keyword lookup, not the embeddings. scripts/ablate_filter.py with the filter OFF gives IPC 97.0% [84.7,99.5] and BNS 51.5% [35.2,67.5] -- a DIFFERENT condition; not a replication"
+pairedConfusion_expectedBNS_gotIPC,paired_recodification,dominant_corpus|filter_as_recorded,raw_15,15,0.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+pairedConfusion_expectedBNS_gotBNS,paired_recodification,dominant_corpus|filter_as_recorded,raw_15,15,33.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+pairedConfusion_expectedBNS_gotCRPC,paired_recodification,dominant_corpus|filter_as_recorded,raw_15,15,0.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+pairedConfusion_expectedBNS_gotCPA,paired_recodification,dominant_corpus|filter_as_recorded,raw_15,15,0.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+paired_routing_accuracy_BNS,paired_recodification,dominant_corpus|filter_as_recorded,raw_15,15,1.0,33,0.8957,1.0,1.0,1.0,"33/33; the query NAMES BNS. The CORPUS FILTER is ON, so this measures the ROUTER's keyword lookup, not the embeddings. scripts/ablate_filter.py with the filter OFF gives IPC 97.0% [84.7,99.5] and BNS 51.5% [35.2,67.5] -- a DIFFERENT condition; not a replication"
+pairedConfusion_expectedIPC_gotIPC,paired_recodification,dominant_corpus|filter_as_recorded,filtered_n,,33.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+pairedConfusion_expectedIPC_gotBNS,paired_recodification,dominant_corpus|filter_as_recorded,filtered_n,,0.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+pairedConfusion_expectedIPC_gotCRPC,paired_recodification,dominant_corpus|filter_as_recorded,filtered_n,,0.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+pairedConfusion_expectedIPC_gotCPA,paired_recodification,dominant_corpus|filter_as_recorded,filtered_n,,0.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+paired_routing_accuracy_IPC,paired_recodification,dominant_corpus|filter_as_recorded,filtered_n,,1.0,33,0.8957,1.0,1.0,1.0,"33/33; the query NAMES IPC. The CORPUS FILTER is ON, so this measures the ROUTER's keyword lookup, not the embeddings. scripts/ablate_filter.py with the filter OFF gives IPC 97.0% [84.7,99.5] and BNS 51.5% [35.2,67.5] -- a DIFFERENT condition; not a replication"
+pairedConfusion_expectedBNS_gotIPC,paired_recodification,dominant_corpus|filter_as_recorded,filtered_n,,0.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+pairedConfusion_expectedBNS_gotBNS,paired_recodification,dominant_corpus|filter_as_recorded,filtered_n,,33.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+pairedConfusion_expectedBNS_gotCRPC,paired_recodification,dominant_corpus|filter_as_recorded,filtered_n,,0.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+pairedConfusion_expectedBNS_gotCPA,paired_recodification,dominant_corpus|filter_as_recorded,filtered_n,,0.0,33,,,,,"corpus filter ON as logged; ablate_filter.py measures the filter-OFF condition, a different question"
+paired_routing_accuracy_BNS,paired_recodification,dominant_corpus|filter_as_recorded,filtered_n,,1.0,33,0.8957,1.0,1.0,1.0,"33/33; the query NAMES BNS. The CORPUS FILTER is ON, so this measures the ROUTER's keyword lookup, not the embeddings. scripts/ablate_filter.py with the filter OFF gives IPC 97.0% [84.7,99.5] and BNS 51.5% [35.2,67.5] -- a DIFFERENT condition; not a replication"
+index_share_IPC,,share_of_index,,,0.3133,1899,,,,,"595/1899 chunks; source qdrant:legal_mvp; census, no sampling error"
+index_share_BNS,,share_of_index,,,0.2233,1899,,,,,"424/1899 chunks; source qdrant:legal_mvp; census, no sampling error"
+index_share_CRPC,,share_of_index,,,0.3907,1899,,,,,"742/1899 chunks; source qdrant:legal_mvp; census, no sampling error"
+index_share_CPA,,share_of_index,,,0.0727,1899,,,,,"138/1899 chunks; source qdrant:legal_mvp; census, no sampling error"
+retrieval_share_IPC,layman_situation,share_of_retrieved_chunks,raw_15,15,0.185,1800,0.1583,0.2128,0.1339,0.2372,"denominator is CHUNKS (1800), not queries; naive CI resamples the 120 queries, clustered CI resamples the 30 situations"
+over_representation_ratio_IPC,layman_situation,retrieval_share/index_share,raw_15,15,0.5904,1800,0.5053,0.6791,0.4273,0.7571,index share 0.3133 held FIXED (census); 1.0 = exactly chance; >1 = over-represented
+retrieval_share_BNS,layman_situation,share_of_retrieved_chunks,raw_15,15,0.13,1800,0.1056,0.155,0.0833,0.1811,"denominator is CHUNKS (1800), not queries; naive CI resamples the 120 queries, clustered CI resamples the 30 situations"
+over_representation_ratio_BNS,layman_situation,retrieval_share/index_share,raw_15,15,0.5822,1800,0.4728,0.6942,0.3732,0.8112,index share 0.2233 held FIXED (census); 1.0 = exactly chance; >1 = over-represented
+retrieval_share_CRPC,layman_situation,share_of_retrieved_chunks,raw_15,15,0.5822,1800,0.5294,0.6344,0.4772,0.685,"denominator is CHUNKS (1800), not queries; naive CI resamples the 120 queries, clustered CI resamples the 30 situations"
+over_representation_ratio_CRPC,layman_situation,retrieval_share/index_share,raw_15,15,1.4901,1800,1.355,1.6237,1.2213,1.7531,index share 0.3907 held FIXED (census); 1.0 = exactly chance; >1 = over-represented
+retrieval_share_CPA,layman_situation,share_of_retrieved_chunks,raw_15,15,0.1028,1800,0.0594,0.1522,0.0228,0.205,"denominator is CHUNKS (1800), not queries; naive CI resamples the 120 queries, clustered CI resamples the 30 situations"
+over_representation_ratio_CPA,layman_situation,retrieval_share/index_share,raw_15,15,1.4143,1800,0.818,2.0947,0.3134,2.821,index share 0.0727 held FIXED (census); 1.0 = exactly chance; >1 = over-represented
+retrieval_share_IPC,layman_situation,share_of_retrieved_chunks,reranked_15,15,0.185,1800,0.1583,0.2128,0.1339,0.2372,"denominator is CHUNKS (1800), not queries; naive CI resamples the 120 queries, clustered CI resamples the 30 situations"
+over_representation_ratio_IPC,layman_situation,retrieval_share/index_share,reranked_15,15,0.5904,1800,0.5053,0.6791,0.4273,0.7571,index share 0.3133 held FIXED (census); 1.0 = exactly chance; >1 = over-represented
+retrieval_share_BNS,layman_situation,share_of_retrieved_chunks,reranked_15,15,0.13,1800,0.1056,0.155,0.0833,0.1811,"denominator is CHUNKS (1800), not queries; naive CI resamples the 120 queries, clustered CI resamples the 30 situations"
+over_representation_ratio_BNS,layman_situation,retrieval_share/index_share,reranked_15,15,0.5822,1800,0.4728,0.6942,0.3732,0.8112,index share 0.2233 held FIXED (census); 1.0 = exactly chance; >1 = over-represented
+retrieval_share_CRPC,layman_situation,share_of_retrieved_chunks,reranked_15,15,0.5822,1800,0.5294,0.6344,0.4772,0.685,"denominator is CHUNKS (1800), not queries; naive CI resamples the 120 queries, clustered CI resamples the 30 situations"
+over_representation_ratio_CRPC,layman_situation,retrieval_share/index_share,reranked_15,15,1.4901,1800,1.355,1.6237,1.2213,1.7531,index share 0.3907 held FIXED (census); 1.0 = exactly chance; >1 = over-represented
+retrieval_share_CPA,layman_situation,share_of_retrieved_chunks,reranked_15,15,0.1028,1800,0.0594,0.1522,0.0228,0.205,"denominator is CHUNKS (1800), not queries; naive CI resamples the 120 queries, clustered CI resamples the 30 situations"
+over_representation_ratio_CPA,layman_situation,retrieval_share/index_share,reranked_15,15,1.4143,1800,0.818,2.0947,0.3134,2.821,index share 0.0727 held FIXED (census); 1.0 = exactly chance; >1 = over-represented
+retrieval_share_IPC,layman_situation,share_of_retrieved_chunks,filtered_n,,0.1497,608,0.1173,0.1856,0.0918,0.2213,"denominator is CHUNKS (608), not queries; naive CI resamples the 120 queries, clustered CI resamples the 30 situations"
+over_representation_ratio_IPC,layman_situation,retrieval_share/index_share,filtered_n,,0.4777,608,0.3743,0.5925,0.2931,0.7063,index share 0.3133 held FIXED (census); 1.0 = exactly chance; >1 = over-represented
+retrieval_share_BNS,layman_situation,share_of_retrieved_chunks,filtered_n,,0.0757,608,0.0553,0.0985,0.0398,0.1236,"denominator is CHUNKS (608), not queries; naive CI resamples the 120 queries, clustered CI resamples the 30 situations"
+over_representation_ratio_BNS,layman_situation,retrieval_share/index_share,filtered_n,,0.3389,608,0.2478,0.441,0.178,0.5534,index share 0.2233 held FIXED (census); 1.0 = exactly chance; >1 = over-represented
+retrieval_share_CRPC,layman_situation,share_of_retrieved_chunks,filtered_n,,0.7023,608,0.643,0.7544,0.5756,0.7966,"denominator is CHUNKS (608), not queries; naive CI resamples the 120 queries, clustered CI resamples the 30 situations"
+over_representation_ratio_CRPC,layman_situation,retrieval_share/index_share,filtered_n,,1.7974,608,1.6456,1.9308,1.4731,2.0386,index share 0.3907 held FIXED (census); 1.0 = exactly chance; >1 = over-represented
+retrieval_share_CPA,layman_situation,share_of_retrieved_chunks,filtered_n,,0.0724,608,0.0412,0.1117,0.0176,0.1596,"denominator is CHUNKS (608), not queries; naive CI resamples the 120 queries, clustered CI resamples the 30 situations"
+over_representation_ratio_CPA,layman_situation,retrieval_share/index_share,filtered_n,,0.9959,608,0.5675,1.5373,0.2421,2.1959,index share 0.0727 held FIXED (census); 1.0 = exactly chance; >1 = over-represented
+over_representation_ratio_CRPC_unfiltered_only,layman_situation,retrieval_share/index_share,raw_15,15,1.5415,1740,1.4106,1.6724,1.2796,1.793,"sensitivity: the 4 layman rows whose CORPUS FILTER fired (CPA) are dropped, leaving 116 rows with filter_applied=None"
+over_representation_ratio_CRPC_unfiltered_only,layman_situation,retrieval_share/index_share,filtered_n,,1.8336,596,1.6853,1.9617,1.5187,2.064,"sensitivity: the 4 layman rows whose CORPUS FILTER fired (CPA) are dropped, leaving 116 rows with filter_applied=None"

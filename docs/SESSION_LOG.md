@@ -7728,3 +7728,2109 @@ git status --porcelain
 ### 2026-09-01 13:20:25 · prompt
 
 sorry please contine
+
+`2026-09-01 13:22:15` · **cmd** — Append gate worklog and commit
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"
+cat "$SP/gate_worklog.md" >> docs/WORKLOG.md
+git add -A && git commit -q -F "$SP/gatemsg.txt"
+git log --oneline -3
+echo "uncommitted: $(git status --porcelain | wc -l)"
+echo "worklog: $(wc -l < docs/WORKLOG.md) lines"
+```
+
+### 2026-09-01 13:27:46 · prompt
+
+explain eveyrhting done from wave 0 to now in simple owrds and hwere are we headed and how is this for our paper
+
+### 2026-09-01 13:43:06 · prompt
+
+yes, go ahead
+
+`2026-09-01 13:43:53` · **cmd** — Check plotting and clustering prerequisites
+```bash
+cd /c/Users/uniya/legal-mvp
+for m in matplotlib numpy pandas scipy sklearn rank_bm25; do
+  ./venv/Scripts/python.exe -c "import $m,sys;print(f'$m OK', getattr($m,'__version__','?'))" 2>/dev/null || echo "$m MISSING"
+done
+echo "--- clustering field available? ---"
+./venv/Scripts/python.exe -c "
+import sys;sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs
+df=load_logs()
+print('pair_id non-null:', df['pair_id'].notna().sum(), 'of', len(df))
+print(df.groupby('query_set')['pair_id'].nunique().to_string())"
+```
+
+`2026-09-01 13:44:53` · **cmd** — List experiments and results dirs
+```bash
+ls experiments/ results/ 2>&1 | head -50
+```
+
+`2026-09-01 13:45:03` · **cmd** — Read SCHEMA.md
+```bash
+cat experiments/SCHEMA.md
+```
+
+`2026-09-01 13:45:04` · **cmd** — Read metrics_lib.py
+```bash
+cat experiments/metrics_lib.py
+```
+
+`2026-09-01 13:45:15` · **cmd** — Read existing experiment scripts
+```bash
+cat experiments/check03_stage_effect.py; echo "=====EXP08====="; cat experiments/exp08_filter.py
+```
+
+`2026-09-01 13:45:16` · **cmd** — Read EXPLAIN.md
+```bash
+cat results/EXPLAIN.md
+```
+
+`2026-09-01 13:45:21` · **cmd** — List experiments and results dirs
+```bash
+ls -la /c/Users/uniya/legal-mvp/experiments/ /c/Users/uniya/legal-mvp/results/ 2>/dev/null
+```
+
+`2026-09-01 13:45:23` · **cmd** — List runs and scripts
+```bash
+ls -la /c/Users/uniya/legal-mvp/runs/ | head -50; echo ---; ls /c/Users/uniya/legal-mvp/scripts/ | head -50
+```
+
+`2026-09-01 13:45:31` · **cmd** — Read metrics_lib
+```bash
+cat /c/Users/uniya/legal-mvp/experiments/metrics_lib.py
+```
+
+`2026-09-01 13:45:34` · **cmd** — Explore loaded data shape
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import *
+df = load_logs(); st = load_stages()
+print('logs', len(df), 'stages', len(st))
+print(df['query_set'].value_counts(dropna=False))
+print('gold present:', int(df['expected_sections'].apply(lambda x: len(x)>0).sum()))
+print('intervention:', df['intervention'].value_counts().to_dict())
+print('pair_id null by set:')
+print(df.groupby('query_set', dropna=False)['pair_id'].apply(lambda s: s.isna().sum()))
+print('req_id in stages:', df['req_id'].isin(st.keys()).sum())
+"
+```
+
+`2026-09-01 13:45:45` · **cmd** — List experiments and results dirs
+```bash
+ls C:/Users/uniya/legal-mvp/experiments/ && echo "---RESULTS---" && ls C:/Users/uniya/legal-mvp/results/ 2>/dev/null
+```
+
+`2026-09-01 13:45:54` · **cmd** — Peek stages.jsonl
+```bash
+head -c 3000 experiments/stages.jsonl | python -c "import sys; print(sys.stdin.read()[:3000])"
+```
+
+`2026-09-01 13:45:57` · **cmd** — Read SCHEMA.md part 1
+```bash
+sed -n '1,200p' experiments/SCHEMA.md
+```
+
+`2026-09-01 13:46:02` · **cmd** — Read schema and an example experiment
+```bash
+cat experiments/SCHEMA.md && echo "=====EXP08=====" && cat experiments/exp08_filter.py
+```
+
+`2026-09-01 13:46:06` · **cmd** — Check intervention crosstab and pooled recall@15
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import pandas as pd
+from experiments.metrics_lib import *
+df = load_logs(); st = load_stages()
+print(pd.crosstab(df['query_set'].fillna('NONE'), df['intervention']))
+lab = df[df['expected_sections'].apply(len)>0]
+print('labelled', len(lab))
+# recall@15 raw_15 pooled
+for stage in STAGES:
+    k=0
+    for r in lab.to_dict('records'):
+        k += correctness_label({**r,'_stage':stage},'retrieved@k',15,st)
+    print(stage, k, '/', len(lab))
+"
+```
+
+`2026-09-01 13:46:11` · **cmd** — Read SCHEMA.md part 2
+```bash
+sed -n '200,400p' experiments/SCHEMA.md
+```
+
+`2026-09-01 13:46:12` · **cmd** — Read ablate_filter
+```bash
+cat scripts/ablate_filter.py
+```
+
+`2026-09-01 13:46:13` · **cmd** — List experiments and results dirs
+```bash
+ls "C:/Users/uniya/legal-mvp/experiments" "C:/Users/uniya/legal-mvp/results" 2>&1
+```
+
+`2026-09-01 13:46:14` · **cmd** — Read blockers section
+```bash
+sed -n '/^## 6/,/^## 8/p' experiments/SCHEMA.md
+```
+
+`2026-09-01 13:46:21` · **cmd** — Read exp08 head
+```bash
+cat experiments/exp08_filter.py | head -120
+```
+
+`2026-09-01 13:46:23` · **cmd** — Read schema doc
+```bash
+cat experiments/SCHEMA.md
+```
+
+`2026-09-01 13:46:24` · **cmd** — Read example experiment script
+```bash
+sed -n 1,120p experiments/exp08_filter.py
+```
+
+`2026-09-01 13:46:42` · **cmd** — Check gold multiplicity and layman/cited/grounded
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import pandas as pd, collections
+from experiments.metrics_lib import *
+df = load_logs(); st = load_stages()
+lab = df[df['expected_sections'].apply(len)>0]
+print('gold count distribution:', collections.Counter(lab['expected_sections'].apply(len)))
+print(lab.groupby('query_set')['expected_sections'].apply(lambda s: collections.Counter(s.apply(len))))
+lay = lab[lab['query_set']=='layman_situation']
+for stage in STAGES:
+    print('layman',stage, sum(correctness_label({**r,'_stage':stage},'retrieved@k',15,st) for r in lay.to_dict('re
+… [truncated, 208 more chars]
+```
+
+`2026-09-01 13:46:46` · **cmd** — Read rest of exp08
+```bash
+sed -n '120,400p' experiments/exp08_filter.py
+```
+
+`2026-09-01 13:46:47` · **cmd** — 
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import *
+df = load_logs()
+print(len(df))
+print(df['query_set'].value_counts(dropna=False))
+print('---')
+print(df['intervention'].value_counts(dropna=False))
+print('---')
+print(df['filter_applied'].value_counts(dropna=False))
+print('---')
+print(df['expected_corpus'].value_counts(dropna=False))
+" 2>&1 | tail -40
+```
+
+`2026-09-01 13:46:48` · **cmd** — Rest of exp08
+```bash
+sed -n 120,400p experiments/exp08_filter.py
+```
+
+`2026-09-01 13:46:49` · **cmd** — Inspect CSV and check script
+```bash
+head -60 results/filter_analysis.csv; echo ---; sed -n 1,80p experiments/check03_stage_effect.py
+```
+
+`2026-09-01 13:46:50` · **cmd** — Check branch and eval dir
+```bash
+git branch --show-current 2>/dev/null; echo "---"; ls eval/ 2>/dev/null | head -30
+```
+
+`2026-09-01 13:46:52` · **cmd** — List repo structure
+```bash
+ls && echo "---EXPERIMENTS---" && ls experiments/ 2>/dev/null && echo "---RESULTS---" && ls results/ 2>/dev/null && echo "---RUNS---" && ls runs/ 2>/dev/null | head -50
+```
+
+`2026-09-01 13:47:11` · **cmd** — Read SCHEMA.md
+```bash
+cat experiments/SCHEMA.md
+```
+
+`2026-09-01 13:47:12` · **cmd** — Read metrics_lib.py
+```bash
+cat experiments/metrics_lib.py
+```
+
+`2026-09-01 13:47:14` · **cmd** — 
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import pandas as pd
+from experiments.metrics_lib import *
+df = load_logs()
+L = df[df.query_set=='layman_situation']
+print('layman n=',len(L))
+print(L['expected_corpus'].value_counts(dropna=False))
+print('--- filter_applied on layman')
+print(L['filter_applied'].value_counts(dropna=False))
+print('--- decision_path')
+print(L['decision_path'].value_counts(dropna=False))
+print('--- variant')
+print(L['variant'].value_counts(dropna=False))
+print('--- pair_id nunique', L.pair_id.nunique())
+print('--- crosstab expected x filter')
+print(p
+… [truncated, 81 more chars]
+```
+
+`2026-09-01 13:47:20` · **cmd** — Explore data
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import *
+import pandas as pd, numpy as np
+df = load_logs()
+print(len(df), df.attrs)
+print(df['query_set'].value_counts(dropna=False))
+print('gold labelled:', (df['expected_sections'].apply(len)>0).sum())
+print(df[['composite','max_score','top_k_mean','score_gap','entity_coverage']].describe())
+print('nulls comp', df['composite'].isna().sum(), 'maxs', df['max_score'].isna().sum())
+print('pair_id nulls', df['pair_id'].isna().sum())
+print('intervention', df['intervention'].value_counts())
+"
+```
+
+`2026-09-01 13:47:25` · **cmd** — Read gate smoke results
+```bash
+cat results/gate_smoke.json 2>/dev/null | head -100
+```
+
+`2026-09-01 13:47:30` · **cmd** — Read example experiment and check scripts
+```bash
+cat experiments/check03_stage_effect.py 2>/dev/null | head -80; echo "=====EXP08====="; head -60 experiments/exp08_filter.py 2>/dev/null
+```
+
+`2026-09-01 13:47:34` · **cmd** — Check pair_id scope and rerank effect
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import pandas as pd
+from experiments.metrics_lib import *
+df = load_logs(); st = load_stages()
+lab = df[df['expected_sections'].apply(len)>0]
+g = lab.groupby('pair_id')['query_set'].nunique()
+print('pair_ids spanning >1 query_set:', int((g>1).sum()), 'of', len(g))
+print(lab['pair_id'].head(3).tolist())
+print('n unique pair_id per set:'); print(lab.groupby('query_set')['pair_id'].nunique())
+# stage list lengths
+import collections
+c=collections.Counter()
+for rid,s in st.items():
+    c[(len(s['raw_15']),len(s['reranked_15']))]+=1
+p
+… [truncated, 265 more chars]
+```
+
+`2026-09-01 13:47:41` · **cmd** — Verify gate positive counts
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import *
+import pandas as pd, numpy as np
+df = load_logs(); st = load_stages()
+d = df[df['expected_sections'].apply(len)>0].reset_index(drop=True)
+print('n labelled', len(d))
+r15 = [correctness_label({**r,'_stage':'raw_15'},'retrieved@k',15,st) for r in d.to_dict('records')]
+cit = [correctness_label(r,'cited',15,st) for r in d.to_dict('records')]
+gr  = [correctness_label(r,'grounded',15,st) for r in d.to_dict('records')]
+print('raw_15@15', sum(r15), 'cited', sum(cit), 'grounded', sum(gr))
+print('miss
+… [truncated, 83 more chars]
+```
+
+`2026-09-01 13:47:49` · **cmd** — 
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import pandas as pd
+from experiments.metrics_lib import *
+df = load_logs()
+L = df[df.query_set=='layman_situation']
+print(pd.crosstab(L.variant, L.expected_corpus))
+" 2>&1 | tail -20
+echo "=== queryset files ==="
+ls eval/
+echo "=== sample layman rows ==="
+./venv/Scripts/python.exe -c "
+import json
+rows=[json.loads(l) for l in open('eval/layman_queryset.jsonl',encoding='utf-8') if l.strip()]
+print(len(rows)); print(json.dumps(rows[0],indent=1)[:2000])
+" 2>&1 | tail -40
+```
+
+`2026-09-01 13:47:50` · **cmd** — Explore data and time bootstrap
+```bash
+cat > "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/explore.py" <<'EOF'
+import sys, time
+from pathlib import Path
+sys.path.insert(0, r"C:\Users\uniya\legal-mvp")
+import numpy as np, pandas as pd
+from experiments.metrics_lib import (SEED, N_BOOT, load_logs, load_stages,
+                                     correctness_label, auroc, auroc_bootstrap_ci)
+
+df = load_logs()
+st = load_stages()
+print("rows", len(df), "before_dedupe", df.attrs.get("rows_before_dedupe"))
+print("query_set counts:\n", df["query_set"].value_counts(dropna=
+… [truncated, 2121 more chars]
+```
+
+`2026-09-01 13:48:00` · **cmd** — Dump gate_smoke.json fully
+```bash
+python -c "
+import json
+d=json.load(open('results/gate_smoke.json'))
+print(list(d.keys()))
+for k,v in d.items():
+    if k not in ('rows_1b','counts_2','rows_3'):
+        print(k, json.dumps(v)[:2000])
+print('---rows_3 full---')
+for r in d['rows_3']: print(json.dumps(r))
+"
+```
+
+`2026-09-01 13:48:02` · **cmd** — Check lenient cited count
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import *
+import numpy as np
+df = load_logs()
+d = df[df['expected_sections'].apply(len)>0]
+len_cit = sum(int(any(same_section(g,c,lenient=True) for g in r['expected_sections'] for c in (r['cited'] or []))) for r in d.to_dict('records'))
+print('cited lenient', len_cit)
+print('any cited at all', sum(1 for r in d.to_dict('records') if (r['cited'] or [])))
+print('ungrounded_rate null', d['ungrounded_rate'].isna().sum())
+"
+```
+
+`2026-09-01 13:48:09` · **cmd** — Inspect deployed confidence formula
+```bash
+grep -n "composite\|top_k_mean\|score_gap\|entity_coverage\|0.55\|0.15\|0.30" agents/retriever.py | head -60
+```
+
+`2026-09-01 13:48:10` · **cmd** — Read gate_smoke.py
+```bash
+cat experiments/gate_smoke.py
+```
+
+`2026-09-01 13:48:29` · **cmd** — 
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import pandas as pd
+from experiments.metrics_lib import *
+df = load_logs()
+P = df[df.query_set=='paired_recodification']
+print('paired_recod n=',len(P), 'pairs', P.pair_id.nunique())
+print(pd.crosstab(P.variant, P.expected_corpus))
+print('--- variant x filter')
+print(pd.crosstab(P.variant, P.filter_applied.fillna('NONE')))
+print()
+PD = df[df.query_set=='paired_dated_conflict']
+print('paired_dated n=',len(PD),'pairs',PD.pair_id.nunique())
+print(pd.crosstab(PD.variant, PD.expected_corpus))
+print(pd.crosstab(PD.variant, PD.filter_a
+… [truncated, 99 more chars]
+```
+
+`2026-09-01 13:48:30` · **cmd** — Read confidence function
+```bash
+sed -n 60,155p agents/retriever.py
+```
+
+`2026-09-01 13:48:38` · **cmd** — Explore loaded logs
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding='utf-8')
+from experiments.metrics_lib import load_logs, load_stages
+import pandas as pd
+df = load_logs()
+print('total rows', len(df), 'dropped', df.attrs['rows_dropped'])
+lab = df[df['expected_sections'].map(len)>0]
+print('labelled', len(lab))
+print()
+print('--- query_set counts (all rows) ---'); print(df['query_set'].value_counts(dropna=False))
+print()
+print('--- query_set counts (labelled) ---'); print(lab['query_set'].value_counts(dropna=False))
+print()
+print('--- pair_id null (labelled) ---', 
+… [truncated, 258 more chars]
+```
+
+`2026-09-01 13:48:41` · **cmd** — 
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import *
+import collections
+st = load_stages()
+print('stages req_ids', len(st))
+c=collections.Counter()
+n0=collections.Counter()
+for rid,d in st.items():
+    for s in STAGES:
+        n0[s]+= len(d[s])
+        for ch in d[s]:
+            if s=='raw_15': c[ch.get('corpus')]+=1
+print('chunk counts per stage', dict(n0))
+print('raw_15 corpus counts', c)
+" 2>&1 | tail -20
+```
+
+`2026-09-01 13:48:46` · **cmd** — Find ENTITY_NEUTRAL value
+```bash
+grep -rn "ENTITY_NEUTRAL" agents/ core/ 2>/dev/null | head
+```
+
+`2026-09-01 13:48:52` · **cmd** — Time cluster_bootstrap on full data
+```bash
+./venv/Scripts/python.exe -c "
+import sys,time; sys.path.insert(0,'.')
+import pandas as pd, numpy as np
+from experiments.metrics_lib import *
+df = load_logs()
+lab = df[df['expected_sections'].apply(len)>0].copy()
+lab['x']=np.random.default_rng(0).random(len(lab))
+t=time.time(); print(cluster_bootstrap(lab, lambda d: float(d['x'].mean()), 'pair_id', N_BOOT, SEED)); print('secs', time.time()-t)
+"
+```
+
+`2026-09-01 13:48:56` · **cmd** — Time cluster_bootstrap
+```bash
+./venv/Scripts/python.exe -c "
+import sys, time; sys.path.insert(0,'.')
+from experiments.metrics_lib import *
+import pandas as pd, numpy as np
+df = load_logs(); st = load_stages()
+d = df[df['expected_sections'].apply(len)>0].reset_index(drop=True)
+print('pair_id uniq', d['pair_id'].nunique(), 'nulls', d['pair_id'].isna().sum())
+print(d.groupby('query_set')['pair_id'].nunique())
+d['y'] = [correctness_label({**r,'_stage':'raw_15'},'retrieved@k',15,st) for r in d.to_dict('records')]
+d['_row'] = np.arange(len(d))
+t=time.time()
+p,lo,hi = cluster_bootstrap(d, lambda x: ece(x['composite'].values, x['
+… [truncated, 90 more chars]
+```
+
+`2026-09-01 13:49:05` · **cmd** — 
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import collections
+from clients.qdrant_client import COLLECTION, qdrant
+c=qdrant()
+print('collection', COLLECTION)
+info=c.get_collection(COLLECTION)
+print('points', info.points_count)
+counts=collections.Counter(); offset=None
+while True:
+    pts, offset = c.scroll(collection_name=COLLECTION, limit=1000, offset=offset, with_payload=True, with_vectors=False)
+    for p in pts: counts[(p.payload or {}).get('corpus')]+=1
+    if offset is None: break
+print(counts, sum(counts.values()))
+" 2>&1 | tail -20
+```
+
+`2026-09-01 13:49:11` · **cmd** — Examine clustering structure and interventions
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding='utf-8')
+from experiments.metrics_lib import load_logs
+import pandas as pd
+df = load_logs(); lab = df[df['expected_sections'].map(len)>0].copy()
+print('--- intervention x query_set (labelled) ---')
+print(pd.crosstab(lab['query_set'], lab['intervention']))
+print()
+print('--- rows per query_id (labelled) ---')
+print(lab['query_id'].value_counts().value_counts().sort_index())
+print()
+print('--- rows per pair_id (labelled) ---')
+print(lab['pair_id'].value_counts().value_counts().sort_index())
+print()
+
+… [truncated, 324 more chars]
+```
+
+`2026-09-01 13:49:18` · **cmd** — Verify corrected reconstruction
+```bash
+cat > "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/explore2.py" <<'EOF'
+import sys
+sys.path.insert(0, r"C:\Users\uniya\legal-mvp")
+import numpy as np, pandas as pd
+from experiments.metrics_lib import load_logs, load_stages, correctness_label, auroc
+
+df = load_logs(); st = load_stages()
+lab = df[df["expected_sections"].map(lambda x: len(x or []) > 0)].reset_index(drop=True)
+tk = lab["top_k_mean"].astype(float).values
+sg = lab["score_gap"].astype(float).values
+ec = lab["entity_coverage"].astype(float).values
+comp = lab["compos
+… [truncated, 1587 more chars]
+```
+
+`2026-09-01 13:49:39` · **cmd** — 
+```bash
+./venv/Scripts/python.exe -c "
+import sys, collections; sys.path.insert(0,'.')
+import pandas as pd
+from experiments.metrics_lib import *
+df=load_logs(); st=load_stages()
+L=df[df.query_set=='layman_situation']
+for stage in STAGES:
+    c=collections.Counter()
+    for rid in L.req_id:
+        for ch in st[rid][stage]: c[ch.get('corpus')]+=1
+    tot=sum(c.values())
+    print(stage, tot, {k: round(100*v/tot,1) for k,v in c.most_common()})
+print()
+# dominant corpus per query, raw_15
+def dom(chunks):
+    cc=collections.Counter(ch['corpus'] for ch in chunks)
+    if not cc: return None
+    m=max(cc.val
+… [truncated, 475 more chars]
+```
+
+`2026-09-01 13:49:42` · **cmd** — Check pair_id collisions and stability-check subsets
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding='utf-8')
+from experiments.metrics_lib import load_logs
+import pandas as pd
+df = load_logs(); lab = df[df['expected_sections'].map(len)>0].copy()
+g = lab.groupby('pair_id')['query_set'].nunique()
+print('pair_ids spanning >1 query_set:', (g>1).sum())
+print(lab[lab['pair_id'].isin(g[g>1].index)].groupby(['pair_id','query_set']).size().to_string())
+print()
+print('sample pair_id values by set:')
+for qs,sub in lab.groupby('query_set'):
+    print(' ', qs, list(sub['pair_id'].unique()[:4]))
+print()
+print(
+… [truncated, 449 more chars]
+```
+
+`2026-09-01 13:50:21` · **cmd** — Diagnose cited count and anomalous row
+```bash
+cat > "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/explore3.py" <<'EOF'
+import sys
+sys.path.insert(0, r"C:\Users\uniya\legal-mvp")
+import numpy as np, pandas as pd
+from experiments.metrics_lib import load_logs, same_section
+
+df = load_logs()
+lab = df[df["expected_sections"].map(lambda x: len(x or []) > 0)].reset_index(drop=True)
+strict = lab.apply(lambda r: int(any(same_section(g,c) for g in r["expected_sections"] for c in (r["cited"] or []))), axis=1)
+len_ = lab.apply(lambda r: int(any(same_section(g,c,lenient=True) for g i
+… [truncated, 1015 more chars]
+```
+
+`2026-09-01 13:50:25` · **cmd** — Reproduce gate anchor counts
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding='utf-8')
+import json
+from pathlib import Path
+from experiments.metrics_lib import load_logs, load_stages, correctness_label, same_section
+from core.citations import extract_provisions
+df=load_logs(); st=load_stages(); lab=df[df['expected_sections'].map(len)>0].copy()
+texts={}
+for f in Path('runs').rglob('queries.jsonl'):
+    for line in f.read_text(encoding='utf-8').splitlines():
+        if line.strip():
+            r=json.loads(line)
+            if r.get('req_id'): texts[r['req_id']]=(r.get('answ
+… [truncated, 746 more chars]
+```
+
+`2026-09-01 13:50:28` · **cmd** — Time cluster_bootstrap on minimal frame
+```bash
+./venv/Scripts/python.exe -c "
+import sys,time; sys.path.insert(0,'.')
+import pandas as pd, numpy as np
+from experiments.metrics_lib import *
+df = load_logs()
+lab = df[df['expected_sections'].apply(len)>0].copy()
+small = pd.DataFrame({'x': np.random.default_rng(0).random(len(lab)), 'pair_id': lab['pair_id'].values})
+t=time.time(); print(cluster_bootstrap(small, lambda d: float(d['x'].mean()), 'pair_id', N_BOOT, SEED)); print('secs', time.time()-t)
+small2 = small.copy(); small2['x']=small2['x'].astype(float)
+t=time.time()
+r=cluster_bootstrap(small2, lambda d: float(d['x'].values.mean()), 'pair_
+… [truncated, 51 more chars]
+```
+
+`2026-09-01 13:52:21` · **cmd** — Benchmark bootstrap cost
+```bash
+./venv/Scripts/python.exe -c "
+import sys,time; sys.path.insert(0,'.')
+import numpy as np
+from experiments.metrics_lib import load_logs, load_stages, correctness_label, auroc_bootstrap_ci, paired_bootstrap_auroc_diff
+df=load_logs(); st=load_stages(); lab=df[df['expected_sections'].map(len)>0].copy()
+y=np.array([correctness_label({**r,'_stage':'raw_15'},'retrieved@k',k=15,stages=st) for _,r in lab.iterrows()])
+a=lab['composite'].to_numpy(); b=lab['max_score'].to_numpy(); cid=lab['pair_id'].to_numpy()
+t=time.time(); auroc_bootstrap_ci(a,y,n_boot=200,seed=1); print('naive auroc 200 boot: %.2fs'%(
+… [truncated, 283 more chars]
+```
+
+`2026-09-01 13:53:00` · **cmd** — Smoke test exp03 with 300 boots
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import experiments.exp03_calibration as e
+e.N_BOOT = 300
+e.OUT_CSV = e.ROOT/'results'/'_smoke_calibration.csv'
+e.OUT_PNG = e.ROOT/'results'/'_smoke_reliability.png'
+e.main()
+" 2>&1 | tail -70
+```
+
+`2026-09-01 13:54:14` · **cmd** — Remove smoke artifacts from results
+```bash
+rm -f results/_smoke_calibration.csv results/_smoke_reliability.png && ls results/
+```
+
+`2026-09-01 13:55:56` · **cmd** — Run ablation experiment
+```bash
+./venv/Scripts/python.exe experiments/exp04_ablation.py > "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp04_out.txt" 2>&1; echo "EXIT=$?"; tail -5 "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp04_out.txt"
+```
+
+`2026-09-01 13:56:13` · **cmd** — Smoke test build and one bootstrap
+```bash
+./venv/Scripts/python.exe -c "
+import sys,time; sys.path.insert(0,'.')
+from experiments.exp01_retrieval import *
+t=time.time(); df=build(); print('build', time.time()-t, df.shape)
+print(check_anchors(df))
+cols=['%s@%d'%(m,k) for m in METRIC_NOTES for k in KS]
+d=df[(df.query_set=='layman_situation')&(df.stage=='raw_15')]
+t=time.time(); b=harvest_bootstrap(d, cols, 'pair_id'); print('boot secs', time.time()-t)
+for c in ['recall_at_k@15','mrr_at_k@15','ndcg_at_k@15','precision_at_k@15','recall_at_k_fraction_of_gold@15']:
+    print(c, b[c])
+"
+```
+
+`2026-09-01 13:57:34` · **cmd** — Check experiment progress
+```bash
+tail -40 "C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\bd0b7f17u.output" 2>/dev/null || echo "no output yet"
+```
+
+`2026-09-01 13:57:54` · **cmd** — Check experiment output file
+```bash
+P="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp04_out.txt"; if [ -f "$P" ]; then wc -l "$P"; tail -25 "$P"; else echo "not yet"; fi
+```
+
+`2026-09-01 13:58:30` · **cmd** — Run independent check
+```bash
+./venv/Scripts/python.exe experiments/check04_ablation_check.py 2>&1 | tail -45
+```
+
+`2026-09-01 13:58:35` · **cmd** — Run exp03 full bootstrap
+```bash
+./venv/Scripts/python.exe experiments/exp03_calibration.py 2>&1 | tee "$TMPDIR/exp03.log"; echo "EXIT=$?"
+```
+
+`2026-09-01 13:58:45` · **cmd** — Smoke test exp05 with 50 boots
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import experiments.exp05_robustness as e
+e.N_BOOT = 50
+e.OUT = e.ROOT/'results'/'_smoke_robustness.csv'
+e.main()
+" 2>&1 | tail -60
+```
+
+`2026-09-01 13:59:24` · **cmd** — Diagnose cited count difference
+```bash
+cat > "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/diag_cited.py" <<'EOF'
+import sys, json, re
+from pathlib import Path
+sys.path.insert(0, r"C:\Users\uniya\legal-mvp")
+from experiments.check04_ablation_check import load_server_records, load_gold, simple_key
+recs, gold = load_server_records(), load_gold()
+
+def count(keep_last):
+    seen = {}
+    order = list(recs.items())
+    for rid, r in order:
+        g = gold.get(rid)
+        if not g: continue
+        qid = g.get("query_id") or r.get("query_id")
+        inter = g.get("in
+… [truncated, 872 more chars]
+```
+
+`2026-09-01 13:59:27` · **cmd** — Compute Platt parameters and AUROC context
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import numpy as np
+import experiments.exp03_calibration as e
+from experiments.metrics_lib import *
+d = e.build()
+for score in e.SCORES:
+    for definition,k,stage,_ in e.DEFS:
+        y = d[e.ycol(definition)].values; s = d[score].values
+        tr,te = e.stratified_split(y)
+        from scipy.optimize import minimize
+        x=s[tr].astype(float); yy=y[tr].astype(float)
+        def nll(p):
+            z=np.clip(p[0]*x+p[1],-30,30); return float(np.sum(np.log1p(np.exp(z))-yy*z))
+        r=minimize(nll,np.array([1.0,0.0]),method=
+… [truncated, 501 more chars]
+```
+
+`2026-09-01 14:00:07` · **cmd** — Diagnose layman clustered-narrower anomaly
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding='utf-8')
+import numpy as np
+import experiments.exp05_robustness as e
+from experiments.metrics_lib import cluster_bootstrap, SEED
+lab = e.build_frame()
+lay = lab[lab['query_set']=='layman_situation'].copy()
+col='lab_retrieved_raw_15'
+print('layman n', len(lay), 'clusters', lay['pair_id'].nunique())
+print('cluster sizes:', lay['pair_id'].value_counts().unique())
+print('overall rate', lay[col].mean())
+cm = lay.groupby('pair_id')[col].mean()
+print('per-cluster means distribution:'); print(cm.value_cou
+… [truncated, 544 more chars]
+```
+
+`2026-09-01 14:00:21` · **cmd** — Check exp03 progress
+```bash
+cat "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bs3zannq0.output"
+```
+
+`2026-09-01 14:00:53` · **cmd** — Run exp02
+```bash
+./venv/Scripts/python.exe experiments/exp02_routing.py 2>&1 | tail -80
+```
+
+`2026-09-01 14:01:04` · **cmd** — Run exp03 full bootstrap
+```bash
+./venv/Scripts/python.exe experiments/exp03_calibration.py
+```
+
+`2026-09-01 14:01:19` · **cmd** — Retest fixed matcher
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,r'C:\Users\uniya\legal-mvp')
+from experiments.check04_ablation_check import simple_key
+for s in ['BNS Section 351','BNSS Section 173','BNS 351(2)','Section 302','IPC Section 302','CONSTITUTION Article 226','BNS 190','CrPC s. 41']:
+    print(repr(s), simple_key(s))
+"; echo ---; ./venv/Scripts/python.exe "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/diag_cited.py"
+```
+
+`2026-09-01 14:02:03` · **cmd** — Check 620 vs 617 divergence
+```bash
+P="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp04_out.txt"; wc -l "$P"; echo ---; ./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,r'C:\Users\uniya\legal-mvp')
+import json,glob
+from experiments.metrics_lib import load_logs
+srv={}
+for f in glob.glob(r'C:\Users\uniya\legal-mvp\runs\**\queries.jsonl',recursive=True):
+    for l in open(f,encoding='utf-8'):
+        if l.strip():
+            r=json.loads(l)
+            if r.get('req_id'): srv[r['req_id']]=r
+gold={}
+for f in glob.glob(r'C:\Users\uniya\legal-mvp\runs\
+… [truncated, 957 more chars]
+```
+
+`2026-09-01 14:02:20` · **cmd** — Run full exp05 in background
+```bash
+rm -f results/_smoke_robustness.csv && ./venv/Scripts/python.exe experiments/exp05_robustness.py > "$TMPDIR/exp05.log" 2>&1; echo "EXIT=$?"; tail -5 "$TMPDIR/exp05.log"
+```
+
+`2026-09-01 14:02:26` · **cmd** — Bin tables and tier occupancy
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import experiments.exp03_calibration as e
+from experiments.metrics_lib import *
+import pandas as pd
+pd.set_option('display.width',200)
+d = e.build()
+for score in ['composite','max_score']:
+    for definition in ['retrieved@k']:
+        b = reliability_bins(d[score].values, d[e.ycol(definition)].values, 10, 'quantile')
+        print(score, definition); print(b.round(4).to_string(index=False)); print()
+# tier occupancy under deployed thresholds (READ ONLY, not changed)
+d['tier'] = pd.cut(d['composite'], [-1,0.38,0.55,2], labels=['
+… [truncated, 199 more chars]
+```
+
+`2026-09-01 14:02:37` · **cmd** — Poll for completion
+```bash
+ls -la results/ablation.csv 2>/dev/null; wc -c "C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\bd0b7f17u.output" 2>/dev/null; echo "still running?"
+```
+
+`2026-09-01 14:02:57` · **cmd** — Run check02
+```bash
+./venv/Scripts/python.exe experiments/check02_routing_check.py 2>&1 | tail -40
+```
+
+`2026-09-01 14:03:02` · **cmd** — Check progress
+```bash
+cat "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bs9mgbvb5.output"
+```
+
+`2026-09-01 14:03:09` · **cmd** — Run exp01_retrieval.py
+```bash
+./venv/Scripts/python.exe experiments/exp01_retrieval.py
+```
+
+`2026-09-01 14:03:33` · **cmd** — Write CSV summariser
+```bash
+cat > "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/summarise.py" <<'EOF'
+import pandas as pd, sys
+d = pd.read_csv(r"C:\Users\uniya\legal-mvp\results\ablation.csv")
+pd.set_option("display.width", 250); pd.set_option("display.max_colwidth", 90)
+print("TOTAL ROWS", len(d))
+def sig(n):
+    import re
+    m = re.search(r"signal=([a-z_]+)", str(n)); return m.group(1) if m else ""
+def wt(n):
+    import re
+    m = re.search(r"weighting=([0-9./]+)", str(n)); return m.group(1) if m else ""
+a = d[d.metric=="auroc_signal"].copy(); a["sig
+… [truncated, 2033 more chars]
+```
+
+`2026-09-01 14:04:24` · **cmd** — 
+```bash
+./venv/Scripts/python.exe -c "
+import sys,json,collections; sys.path.insert(0,'.')
+from pathlib import Path
+from experiments.metrics_lib import load_logs, load_stages
+df=load_logs(); st=load_stages()
+lay=df[df.query_set=='layman_situation']
+orig={}
+for f in Path('runs').rglob('queries.jsonl'):
+    for l in f.read_text(encoding='utf-8').splitlines():
+        if l.strip():
+            r=json.loads(l)
+            if r.get('req_id'): orig[r['req_id']]=[(c.get('corpus'),c.get('doc'),c.get('page'),round(c.get('score',0),6)) for c in ((r.get('retrieval') or {}).get('chunks') or [])]
+for _,row in lay.
+… [truncated, 563 more chars]
+```
+
+`2026-09-01 14:04:26` · **cmd** — Poll again
+```bash
+P="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp04_out.txt"; wc -c "$P"; ls -la results/ablation.csv 2>/dev/null || echo "csv not yet"
+```
+
+`2026-09-01 14:04:28` · **cmd** — Check background failure output
+```bash
+cat "C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\b3w0ynn9f.output" | tail -20
+```
+
+`2026-09-01 14:04:34` · **cmd** — Check output files
+```bash
+ls -la results/ && ls -la "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/"
+```
+
+`2026-09-01 14:05:30` · **cmd** — 
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/routing_confusion.csv')
+pd.set_option('display.width',200); pd.set_option('display.max_rows',300)
+print(d[d.metric.str.startswith(('over_representation','retrieval_share','index_share'))][['metric','stage','value','n','ci_lo','ci_hi','cluster_ci_lo','cluster_ci_hi']].to_string())
+" 2>&1 | tail -50
+```
+
+`2026-09-01 14:06:00` · **cmd** — Run full exp05 in background, scratchpad log
+```bash
+LOG="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp05.log"; mkdir -p "$(dirname "$LOG")" && ./venv/Scripts/python.exe experiments/exp05_robustness.py > "$LOG" 2>&1; echo "EXIT=$?"; tail -3 "$LOG"
+```
+
+`2026-09-01 14:06:27` · **cmd** — Wait for ablation.csv
+```bash
+P="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp04_out.txt"; until [ -f "C:/Users/uniya/legal-mvp/results/ablation.csv" ]; do sleep 10; done; echo DONE; wc -c "$P"
+```
+
+`2026-09-01 14:08:05` · **cmd** — Idle check
+```bash
+sleep 1; ls -la results/ 2>/dev/null | head
+```
+
+`2026-09-01 14:08:08` · **cmd** — Pull worked example clusters
+```bash
+./venv/Scripts/python.exe -c "
+import sys,json; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding='utf-8')
+from pathlib import Path
+import experiments.exp05_robustness as e
+lab = e.build_frame()
+lay = lab[lab['query_set']=='layman_situation']
+# raw query text
+qt={}
+for f in Path('runs').rglob('queries.jsonl'):
+    for line in f.read_text(encoding='utf-8').splitlines():
+        if line.strip():
+            r=json.loads(line)
+            if r.get('req_id'): qt[r['req_id']]=r.get('query_raw','')
+cm = lay.groupby('pair_id')['lab_retrieved_raw_15'].mean()
+print('clusters all-4-miss:', (cm==0).
+… [truncated, 735 more chars]
+```
+
+`2026-09-01 14:09:04` · **cmd** — Check how many chunks ranked_sections drops
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import *
+st=load_stages()
+import collections
+c=collections.Counter()
+for rid,s in st.items():
+    for stage in ('raw_15',):
+        c[len(ranked_sections(s[stage]))]+=1
+print('len(ranked_sections(raw_15)) distribution:', sorted(c.items()))
+"
+```
+
+`2026-09-01 14:09:19` · **cmd** — Read prior ablation notes
+```bash
+cat results/ablation_rerun_2026-09-01.txt
+```
+
+`2026-09-01 14:09:22` · **cmd** — 
+```bash
+./venv/Scripts/python.exe -c "
+import sys,collections; sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs, load_stages
+df=load_logs(); st=load_stages()
+L=df[df.query_set=='layman_situation']
+c=collections.Counter()
+for r in L.req_id: c.update(ch['corpus'] for ch in st[r]['filtered_n'])
+print('filtered_n counts',c, sum(c.values()))
+import pandas as pd
+d=pd.read_csv('results/routing_confusion.csv')
+print('COLS OK:', list(d.columns)==['metric','query_set','definition','stage','k','value','n','ci_lo','ci_hi','cluster_ci_lo','cluster_ci_hi','notes'])
+print('rows',len(d))
+# 35/46 a
+… [truncated, 466 more chars]
+```
+
+`2026-09-01 14:09:25` · **cmd** — Check if layman variant texts are identical
+```bash
+./venv/Scripts/python.exe -c "
+import sys,json; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding='utf-8')
+from pathlib import Path
+import experiments.exp05_robustness as e
+lab = e.build_frame()
+qt={}
+for f in Path('runs').rglob('queries.jsonl'):
+    for line in f.read_text(encoding='utf-8').splitlines():
+        if line.strip():
+            r=json.loads(line)
+            if r.get('req_id'): qt[r['req_id']]=r.get('query_raw','')
+lay = lab[lab['query_set']=='layman_situation'].copy()
+lay['txt']=lay['req_id'].map(qt)
+ident=0; tot=0
+for pid,sub in lay.groupby('pair_id'):
+    tot+=1
+    if su
+… [truncated, 288 more chars]
+```
+
+`2026-09-01 14:09:42` · **cmd** — Check exp05 progress
+```bash
+L="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp05.log"; wc -l "$L" 2>/dev/null; tail -14 "$L" 2>/dev/null
+```
+
+`2026-09-01 14:09:42` · **cmd** — Risk-coverage operating points
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import experiments.exp03_calibration as e
+from experiments.metrics_lib import *
+d = e.build()
+for score in e.SCORES:
+    for definition,k,st,_ in e.DEFS:
+        s=d[score].values; y=d[e.ycol(definition)].values
+        c=risk_coverage_curve(s,y); ok=c[c['risk']<=0.10]
+        if len(ok):
+            i=ok['coverage'].idxmax()
+            print('%-10s %-12s cov=%.4f (n=%d) thr=%.4f risk=%.4f' % (score,definition,c.loc[i,'coverage'],int(round(c.loc[i,'coverage']*len(s))),c.loc[i,'threshold'],c.loc[i,'risk']))
+        else:
+       
+… [truncated, 175 more chars]
+```
+
+`2026-09-01 14:09:44` · **cmd** — Check python processes
+```bash
+./venv/Scripts/python.exe -c "
+import subprocess,sys
+" ; tasklist 2>/dev/null | grep -i python | head; echo ---; ls results/ablation.csv 2>/dev/null || echo pending
+```
+
+`2026-09-01 14:10:41` · **cmd** — Compute unanimity and design effect by query set
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding='utf-8')
+import numpy as np
+import experiments.exp05_robustness as e
+lab = e.build_frame()
+print('%-24s %6s %8s %10s %10s'%('query_set','n','clusters','unanimous%','designEff*'))
+for qs,sub in lab.groupby('query_set'):
+    cm=sub.groupby('pair_id')['lab_retrieved_raw_15'].mean()
+    sz=sub.groupby('pair_id').size()
+    unan=((cm==0)|(cm==1)).mean()
+    p=sub['lab_retrieved_raw_15'].mean()
+    if p in (0,1) or len(cm)<2: de=float('nan')
+    else:
+        se_n=np.sqrt(p*(1-p)/len(sub)); se_c=cm.std(
+… [truncated, 373 more chars]
+```
+
+`2026-09-01 14:11:15` · **cmd** — Block until CSV appears
+```bash
+./venv/Scripts/python.exe -c "
+import time, os
+p=r'C:\Users\uniya\legal-mvp\results\ablation.csv'
+t0=time.time()
+while not os.path.exists(p) and time.time()-t0 < 560:
+    time.sleep(5)
+print('exists:', os.path.exists(p), 'waited %.0fs'%(time.time()-t0))
+"
+```
+
+`2026-09-01 14:11:31` · **cmd** — Check exp05 log size
+```bash
+L="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp05.log"; wc -c "$L"; tail -6 "$L"
+```
+
+`2026-09-01 14:11:35` · **cmd** — Wait for exp03 output files
+```bash
+until [ -f "C:/Users/uniya/legal-mvp/results/reliability_diagram.png" ]; do sleep 10; done; echo DONE
+```
+
+`2026-09-01 14:11:37` · **cmd** — Read full experiment output
+```bash
+cat "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp04_out.txt"
+```
+
+`2026-09-01 14:12:11` · **cmd** — Run check against CSV and verify schema
+```bash
+./venv/Scripts/python.exe experiments/check04_ablation_check.py 2>&1 | tail -22; echo "=== CSV HEAD ==="; head -3 results/ablation.csv; echo "=== ROWS ==="; ./venv/Scripts/python.exe -c "
+import pandas as pd; d=pd.read_csv(r'C:\Users\uniya\legal-mvp\results\ablation.csv')
+print(len(d), list(d.columns)); print(d.metric.value_counts().to_string())"
+```
+
+`2026-09-01 14:12:20` · **cmd** — Wait for robustness.csv to appear
+```bash
+until [ -f results/robustness.csv ]; do sleep 10; done; echo "CSV READY"; wc -l results/robustness.csv
+```
+
+`2026-09-01 14:12:31` · **cmd** — Check for output files
+```bash
+L="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp05.log"; ls -la results/ 2>/dev/null; echo "---log bytes---"; wc -c "$L"
+```
+
+`2026-09-01 14:12:33` · **cmd** — Poll run
+```bash
+cat "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bs9mgbvb5.output" 2>/dev/null | tail -20; ls -la results/ | grep -i calib
+```
+
+`2026-09-01 14:12:42` · **cmd** — Wait for exp05 log flush
+```bash
+L="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp05.log"; until [ -s "$L" ]; do sleep 15; done; echo "LOG FLUSHED"; tail -3 "$L"
+```
+
+`2026-09-01 14:12:47` · **cmd** — Wait for exp03 stdout to flush
+```bash
+until [ -s "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bs9mgbvb5.output" ]; do sleep 15; done; echo READY
+```
+
+`2026-09-01 14:12:53` · **cmd** — No-op
+```bash
+sleep 1; echo waited
+```
+
+`2026-09-01 14:12:57` · **cmd** — noop
+```bash
+echo waiting
+```
+
+`2026-09-01 14:13:20` · **cmd** — Wait for calibration.csv
+```bash
+until [ -f "C:/Users/uniya/legal-mvp/results/calibration.csv" ]; do sleep 20; done; sleep 5; echo CSV_READY
+```
+
+`2026-09-01 14:13:33` · **cmd** — idle
+```bash
+echo idle
+```
+
+`2026-09-01 14:13:52` · **cmd** — idle
+```bash
+echo idle2
+```
+
+`2026-09-01 14:14:04` · **cmd** — Check for output
+```bash
+ls -la results/ | grep -iE "calib|reliab" ; echo "exit=$?"
+```
+
+`2026-09-01 14:14:18` · **cmd** — Block until calibration.csv exists
+```bash
+until [ -f "C:/Users/uniya/legal-mvp/results/calibration.csv" ]; do sleep 30; done; echo GOT_CSV; ls -la C:/Users/uniya/legal-mvp/results/
+```
+
+`2026-09-01 14:14:33` · **cmd** — idle
+```bash
+echo idle3
+```
+
+`2026-09-01 14:14:46` · **cmd** — idle
+```bash
+echo idle4
+```
+
+`2026-09-01 14:15:02` · **cmd** — Check results and time
+```bash
+ls results/ ; date
+```
+
+`2026-09-01 14:15:27` · **cmd** — Block until calibration.csv exists
+```bash
+until [ -f "C:/Users/uniya/legal-mvp/results/calibration.csv" ]; do sleep 30; done; echo GOT_CSV
+```
+
+`2026-09-01 14:15:41` · **cmd** — idle
+```bash
+echo idle5
+```
+
+`2026-09-01 14:15:49` · **cmd** — Get actual sweep test CIs
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd; d=pd.read_csv(r'C:\Users\uniya\legal-mvp\results\ablation.csv')
+print(d[d.metric.isin(['auroc_sweep_argmax_test','auroc_sweep_argmax','auroc_sweep_argmax_train','auroc_deployed_weighting_test','sweep_argmax_gain_over_deployed_test'])][['metric','definition','value','n','ci_lo','ci_hi']].to_string())"
+```
+
+`2026-09-01 14:16:01` · **cmd** — idle
+```bash
+echo idle6
+```
+
+`2026-09-01 14:16:13` · **cmd** — Poll for csv
+```bash
+ls results/ | grep -i calib; date
+```
+
+`2026-09-01 14:16:17` · **cmd** — Verify headings and deliverables
+```bash
+grep -n "^### [1-8]\.\|^## Confidence ablation" results/_explain_w2_s4.md; echo "--- files I touched ---"; ls -la experiments/exp04_ablation.py experiments/check04_ablation_check.py results/ablation.csv results/_explain_w2_s4.md; echo "--- CSV schema exact? ---"; head -1 results/ablation.csv
+```
+
+`2026-09-01 14:16:28` · **cmd** — Block until CSV then dump run log
+```bash
+until [ -f "C:/Users/uniya/legal-mvp/results/calibration.csv" ]; do sleep 30; done; sleep 10; cat "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bs9mgbvb5.output"
+```
+
+`2026-09-01 14:16:35` · **cmd** — idle
+```bash
+echo idle7
+```
+
+`2026-09-01 14:16:35` · **cmd** — Verify all 8 top-level headings
+```bash
+grep -c "^## " results/_explain_w2_s4.md; grep -n "^## " results/_explain_w2_s4.md
+```
+
+`2026-09-01 14:16:46` · **cmd** — idle
+```bash
+echo idle8
+```
+
+`2026-09-01 14:16:56` · **cmd** — Demote heading levels
+```bash
+python - <<'EOF'
+import io, re
+p = r"C:\Users\uniya\legal-mvp\results\_explain_w2_s4.md"
+s = open(p, encoding="utf-8").read()
+out = []
+fence = False
+for line in s.split("\n"):
+    if line.startswith("```"):
+        fence = not fence
+    if not fence and re.match(r"^#{1,5} ", line):
+        line = "#" + line
+    out.append(line)
+open(p, "w", encoding="utf-8").write("\n".join(out))
+EOF
+grep -n "^#\{1,4\} " results/_explain_w2_s4.md | head -20
+```
+
+`2026-09-01 14:16:57` · **cmd** — Poll for csv
+```bash
+ls results/ | grep -i calib; date
+```
+
+`2026-09-01 14:17:10` · **cmd** — idle
+```bash
+echo idle9
+```
+
+`2026-09-01 14:17:12` · **cmd** — Confirm production files untouched
+```bash
+ls -la agents/retriever.py experiments/metrics_lib.py; echo "--- my 4 deliverables ---"; ls -la experiments/exp04_ablation.py experiments/check04_ablation_check.py results/ablation.csv results/_explain_w2_s4.md
+```
+
+`2026-09-01 14:17:19` · **cmd** — idle
+```bash
+echo idle10
+```
+
+`2026-09-01 14:17:30` · **cmd** — Poll for csv
+```bash
+ls results/ | grep -i calib; date
+```
+
+`2026-09-01 14:17:41` · **cmd** — idle
+```bash
+echo idle11
+```
+
+### 2026-09-01 14:17:58 · prompt
+
+<task-notification>
+<task-id>ab33d751317992465</task-id>
+<tool-use-id>toolu_01J4y64gTybDVTbAfEXsXdau</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\ab33d751317992465.output</output-file>
+<status>completed</status>
+<summary>Agent "Wave 2 S4: confidence ablation" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Done. All four deliverables written; `agents/retriever.py` (26 Aug) and `metrics_lib.py` untouched. Zero API calls, no git.
+
+## HEADLINE: the brief's formula is wrong â€” the paired check caught it
+
+`0.55*top_k_mean + 0.15*score_gap + 0.30*entity_coverage` **does not reproduce any of the 617 logged composites** (max dev 0.148, mean 0.090, 617/617 rows off by &gt;1e-3). The deployed formula (`agents/retriever.py:137-142`) normalises and **inverts** the gap first:
+
+```
+gap_penalty = min(score_gap/0.3, 1.0)
+composite   = 0.55*top_k_mean + 0.15*(1.0 - gap_penalty) + 0.30*entity_coverage
+```
+
+With that, reconstruction agrees to **9.0e-05 on every row** (the 4-dp rounding floor). Confirmed by two independent routes (`load_logs()` and raw `runs/*/queries.jsonl` via `json`, no shared code) â€” **both assert; both pass.** The logged composite IS the deployed formula; the *description* was wrong. So (b) and (c) blend `gap_term`, not `score_gap` â€” only then does 55/15/30 reproduce the deployed score.
+
+## (a) Per-signal AUROC â€” `retrieved@k`/`raw_15`, n=617, 327 pos
+
+| Signal | AUROC | CI (rows) | CI (clustered) | Paired diff vs composite | p |
+|---|---|---|---|---|---|
+| max_score | **0.7837** | [.7470,.8195] | [.7316,.8312] | +0.1207 [+.0798,+.1623] | 0.0000 |
+| top_k_mean | **0.7571** | [.7188,.7939] | [.7024,.8075] | +0.0940 [+.0561,+.1324] | 0.0000 |
+| score_gap (raw) | 0.7298 | [.6893,.7684] | [.6743,.7813] | +0.0667 [+.0128,+.1200] | 0.0184 |
+| **composite** | **0.6631** | [.6172,.7096] | [.6047,.7212] | â€” | â€” |
+| entity_coverage | 0.5806 | [.5376,.6232] | [.5435,.6183] | âˆ’0.0825 [âˆ’.1056,âˆ’.0594] | 0.0000 |
+| **gap_term (deployed)** | **0.2702** | [.2316,.3107] | [.2187,.3257] | âˆ’0.3929 [âˆ’.4604,âˆ’.3239] | 0.0000 |
+
+**The composite is beaten by three of its own inputs**, all significant paired. `cited` (533 pos): comp 0.5911, top_k 0.6749, ec **0.5017**, gap_term 0.3348. `grounded` (27 pos): comp 0.5309, nothing significant â€” underpowered.
+
+Per set (`retrieved@k`): generated 0.873 / recodification **0.353** (below chance) / dated 0.471 / layman 0.571. `entity_coverage` = **exactly 0.500 on all 120 layman rows** (constant â€” no layman names a section) and **0.386 on recodification** (anti-predictive: query names repealed IPC, corpus holds BNS).
+
+## (b) Leave-one-out (renormalised) â€” full 0.6631
+
+| Dropped | Weights | AUROC | Paired diff vs full | p |
+|---|---|---|---|---|
+| top_k_mean | 0/.333/.667 | 0.4860 | âˆ’0.1772 [âˆ’.2092,âˆ’.1465] | 0.0000 |
+| **gap_term** | .647/0/.353 | **0.7047** | **+0.0415** [+.0282,+.0555] | 0.0000 |
+| entity_coverage | .786/.214/0 | 0.6581 | âˆ’0.0050 [âˆ’.0498,+.0383] | 0.8210 |
+
+Under `cited`: dropping gap_term **+0.0207** (p=.043), dropping entity_coverage **+0.0842** (p=.0018). **Removing signals improves the score.** Note (a)/(b) diverge as predicted: raw `score_gap` is informative alone (0.730) yet its deployed form is harmful in combination.
+
+Renormalisation contributes **exactly 0.0** to AUROC (rank statistic, scale-invariant) â€” stated in the block and in the CSV.
+
+## (c) Weight sweep, 231 weightings
+
+| Definition | Argmax (top_k/gap_term/ec) | In-sample | Deployed | Gain | Within .005 of best |
+|---|---|---|---|---|---|
+| retrieved@k | **1.00 / 0.00 / 0.00** | 0.7571 | 0.6631 | +0.0940 | **1 / 231** |
+| cited | **1.00 / 0.00 / 0.00** | 0.6749 | 0.5911 | +0.0838 | 5 / 231 |
+| grounded | **1.00
+… [truncated, 2801 more chars]
+
+`2026-09-01 14:17:59` · **cmd** — idle
+```bash
+echo idle12
+```
+
+`2026-09-01 14:18:11` · **cmd** — Poll for csv
+```bash
+ls results/ | grep -i calib; date
+```
+
+`2026-09-01 14:18:20` · **cmd** — idle
+```bash
+echo idle13
+```
+
+`2026-09-01 14:18:35` · **cmd** — idle
+```bash
+echo idle14
+```
+
+`2026-09-01 14:18:46` · **cmd** — Poll for csv
+```bash
+ls results/ | grep -i calib; date
+```
+
+`2026-09-01 14:18:56` · **cmd** — idle
+```bash
+echo idle15
+```
+
+`2026-09-01 14:19:05` · **cmd** — idle
+```bash
+echo idle16
+```
+
+`2026-09-01 14:19:21` · **cmd** — Poll for csv
+```bash
+ls results/ | grep -i calib; date
+```
+
+`2026-09-01 14:19:46` · **cmd** — Determinism re-run and file check
+```bash
+cp results/routing_confusion.csv "$TMPDIR/rc1.csv" 2>/dev/null || cp results/routing_confusion.csv /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/rc1.csv
+./venv/Scripts/python.exe experiments/exp02_routing.py > /dev/null 2>&1 && echo "exp02 rerun OK"
+diff -q /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/rc1.csv results/routing_confusion.csv && echo "DETERMINISTIC: byte-identical"
+./venv/Scripts/python.exe experiments/check02_routing_check.py 2>&1 | tail -3
+echo
+… [truncated, 154 more chars]
+```
+
+`2026-09-01 14:19:56` · **cmd** — idle
+```bash
+echo idle17
+```
+
+`2026-09-01 14:20:01` · **cmd** — Check background output
+```bash
+cat "C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\b7eguqi2p.output" 2>/dev/null | tail -20
+```
+
+`2026-09-01 14:20:11` · **cmd** — idle
+```bash
+echo idle18
+```
+
+`2026-09-01 14:20:22` · **cmd** — Read task output
+```bash
+cat /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/b7eguqi2p.output
+```
+
+`2026-09-01 14:20:36` · **cmd** — Poll for csv
+```bash
+ls results/ | grep -i calib; date
+```
+
+`2026-09-01 14:20:46` · **cmd** — idle
+```bash
+echo idle19
+```
+
+`2026-09-01 14:21:05` · **cmd** — idle
+```bash
+echo idle20
+```
+
+`2026-09-01 14:21:20` · **cmd** — Poll for csv
+```bash
+ls results/ | grep -i calib; date
+```
+
+`2026-09-01 14:21:29` · **cmd** — Rerun exp01 with positional variants
+```bash
+./venv/Scripts/python.exe experiments/exp01_retrieval.py 2>&1 | tail -60
+```
+
+`2026-09-01 14:21:29` · **cmd** — Inspect the 4 CPA-filtered layman rows
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs
+df=load_logs(); L=df[df.query_set=='layman_situation']
+f=L[L.filter_applied.notna()]
+print(f[['query_id','pair_id','variant','expected_corpus','filter_applied','decision_path']].to_string())
+import json
+qs={r['query_id']:r for r in (json.loads(l) for l in open('eval/layman_queryset.jsonl',encoding='utf-8') if l.strip())}
+for q in f.query_id: print(q, '|', qs[q]['text'][:130])
+" 2>&1 | tail -12
+```
+
+`2026-09-01 14:21:36` · **cmd** — idle
+```bash
+echo idle21
+```
+
+`2026-09-01 14:21:52` · **cmd** — idle
+```bash
+echo idle22
+```
+
+`2026-09-01 14:21:56` · **cmd** — Rerun the paired check
+```bash
+./venv/Scripts/python.exe experiments/check01_retrieval_check.py 2>&1 | tail -40
+```
+
+`2026-09-01 14:22:42` · **cmd** — Verify all eight headings present
+```bash
+wc -l results/_explain_w2_s2.md; grep -c '^### ' results/_explain_w2_s2.md; grep '^### ' results/_explain_w2_s2.md
+```
+
+`2026-09-01 14:22:43` · **cmd** — Poll for csv
+```bash
+ls results/ | grep -i calib; date
+```
+
+### 2026-09-01 14:22:49 · prompt
+
+how long will it take? just telll me the time relatvely dont intergere with theri work
+
+`2026-09-01 14:22:58` · **cmd** — Verify CSV schema
+```bash
+head -1 results/retrieval_metrics.csv; echo "---"; ./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/retrieval_metrics.csv')
+print(list(d.columns)); print('rows', len(d))
+print(d['metric'].value_counts().to_dict())
+print('--- cited/grounded rows (stage & k must be blank) ---')
+print(d[d.metric=='positive_rate'][['query_set','definition','stage','k','value','n','ci_lo','ci_hi','cluster_ci_lo','cluster_ci_hi']].to_string(index=False))
+"
+```
+
+`2026-09-01 14:23:08` · **cmd** — Block until robustness.csv written
+```bash
+until [ -f results/robustness.csv ]; do sleep 20; done; sleep 3; echo READY; tail -30 "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp05.log"
+```
+
+`2026-09-01 14:23:16` · **cmd** — Read full background output
+```bash
+cat /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/b7eguqi2p.output
+```
+
+`2026-09-01 14:23:41` · **cmd** — Run test suite
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -5
+```
+
+`2026-09-01 14:23:47` · **cmd** — Block until calibration.csv appears
+```bash
+until [ -f "C:/Users/uniya/legal-mvp/results/calibration.csv" ]; do sleep 60; done; echo GOT_CSV
+```
+
+### 2026-09-01 14:24:19 · prompt
+
+<task-notification>
+<task-id>a640a7c001a54e26f</task-id>
+<tool-use-id>toolu_0114CeXtaQqf5Q4nMJxeC7Jr</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\a640a7c001a54e26f.output</output-file>
+<status>completed</status>
+<summary>Agent "Wave 2 S2: routing analysis" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Done. All four owned files written; nothing else touched; no git run; zero API calls.
+
+## Files
+- `C:\Users\uniya\legal-mvp\experiments\exp02_routing.py` â€” 109-row CSV, deterministic (re-ran, byte-identical)
+- `C:\Users\uniya\legal-mvp\experiments\check02_routing_check.py` â€” **ALL CHECKS PASSED**
+- `C:\Users\uniya\legal-mvp\results\routing_confusion.csv` â€” exact schema, columns verified
+- `C:\Users\uniya\legal-mvp\results\_explain_w2_s2.md` â€” all 8 headings present
+
+Regenerate: `./venv/Scripts/python.exe experiments/exp02_routing.py` Â· Verify: `./venv/Scripts/python.exe experiments/check02_routing_check.py`
+
+## (a) 4Ã—4 routing confusion, layman, `raw_15` (primary)
+"Went to" = **dominant corpus among retrieved chunks** (ties â†’ highest-scoring chunk among tied books). Chosen over top-1 because the prompt is built from the whole set; 0 ties fired at either stage.
+
+| gold â†“ / got â†’ | IPC | BNS | CRPC | CPA | n | acc | naive 95% | clustered 95% |
+|---|---|---|---|---|---|---|---|---|
+| IPC | **3** | 2 | 17 | 1 | 23 | 13.0% | [4.5, 32.1] | [0.0, 26.1] |
+| BNS | 3 | **1** | 18 | 1 | 23 | 4.3% | [0.8, 21.0] | [0.0, 13.0] |
+| CRPC | 0 | 0 | **5** | 0 | 5 | 100% | [56.6, 100] | [100, 100] |
+| CPA | 0 | 0 | 0 | **8** | 8 | 100% | [67.6, 100] | [100, 100] |
+
+At `filtered_n`: IPC row 3/3/16/1 (13.0%), BNS row 4/**4**/14/1 (17.4%), CRPC and CPA unchanged. **Picture does not change qualitatively** â€” stages agree on the dominant book for 93/120 (77.5%). 35 of the 46 substantive-law queries go to the CrPC at `raw_15`, 30 at `filtered_n`.
+
+Rows the 4Ã—4 cannot hold (in CSV as `confusionSUPP_*`): `EITHER` n=56 (no date â†’ IPC or BNS both correct) went IPC 6 / BNS 2 / **CRPC 46** / CPA 2; `BNSS` n=5 â†’ CRPC 5, **BNSS is not in the index at all**, unroutable by construction.
+
+## (b) 2Ã—2 IPC/BNS, `paired_recodification`, corpus filter AS RECORDED
+Labelled `filter_as_recorded` throughout. **Not** a reproduction of `ablate_filter.py` (filter DISABLED).
+
+| gold | IPC | BNS | CRPC | CPA | acc | naive 95% |
+|---|---|---|---|---|---|---|
+| IPC-named | **33** | 0 | 0 | 0 | 33/33 = 100% | [89.6, 100] |
+| BNS-named | 0 | **33** | 0 | 0 | 33/33 = 100% | [89.6, 100] |
+
+Identical at both stages. Filter fired IPC on all 33 ipc_numbered, BNS on all 33 bns_numbered â€” the diagonal was guaranteed before an embedding was compared. Usable only as the contrast to the filter-off condition (BNS 100% â†’ 51.5%).
+
+## (c) BASE-RATE CONTROL â€” **the 1.8Ã— survives**
+Index share source: **Qdrant read-only scroll, `legal_mvp`, 1,899 points** (not `stages.jsonl`, which holds only retrieved chunks and would make the control circular). CRPC 742, IPC 595, BNS 424, CPA 138.
+
+| Book | index | `raw_15` retr | ratio | clustered 95% | `filtered_n` retr | ratio | clustered 95% |
+|---|---|---|---|---|---|---|---|
+| **CRPC** | 39.07% | 58.22% | **1.49Ã—** | [1.22, 1.75] | **70.23%** | **1.80Ã—** | **[1.47, 2.04]** |
+| IPC | 31.33% | 18.50% | 0.59Ã— | [0.43, 0.76] | 14.97% | 0.48Ã— | [0.29, 0.71] |
+| BNS | 22.33% | 13.00% | 0.58Ã— | [0.37, 0.81] | 7.57% | 0.34Ã— | [0.18, 0.55] |
+| CPA | 7.27% | 10.28% | 1.41Ã— | [0.31, 2.82] | 7.24% | 1.00Ã— | [0.24, 2.20] |
+
+`reranked_15` identical to `raw_15` to 4 dp. Sensitivity (116 rows with `filter_applied=None`): CRPC 1.54Ã— [1.28, 1.79] raw, 1.83Ã— [1.52, 2.06] filtered.
+
+**Verdict: verified, not refuted.** Previously recorded 70.4% / 39.1% / 1.8Ã— â
+… [truncated, 2416 more chars]
+
+`2026-09-01 14:24:25` · **cmd** — Pull key CI values
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/retrieval_metrics.csv')
+def show(m,qs=None,stage=None,k=None):
+    x=d[d.metric==m]
+    if qs: x=x[x.query_set==qs]
+    if stage: x=x[x.stage==stage]
+    if k is not None: x=x[x.k==k]
+    print(x[['metric','query_set','stage','k','value','n','ci_lo','ci_hi','cluster_ci_lo','cluster_ci_hi']].to_string(index=False))
+show('recall_at_k',stage='raw_15',k=15)
+print()
+show('recall_at_k',qs='layman_situation')
+print()
+show('mrr_at_k',k=15)
+print()
+show('ndcg_at_k',k=15,stage='raw_15')
+print()
+show('precision_at_k',k=15,stage='ra
+… [truncated, 73 more chars]
+```
+
+`2026-09-01 14:24:29` · **cmd** — idle
+```bash
+echo w1
+```
+
+`2026-09-01 14:24:48` · **cmd** — idle
+```bash
+echo w2
+```
+
+`2026-09-01 14:25:18` · **cmd** — 
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import numpy as np, pandas as pd
+from experiments.exp01_retrieval import build, KS
+df=build()
+s=df[df.n_gold==1]; m=df[df.n_gold>1]
+for k in KS:
+    a=s['precision_at_k@%d'%k].values; b=s['recall_at_k@%d'%k].values/k
+    print('single gold k=%2d  max|P - R/k| = %.2e' % (k, np.abs(a-b).max()))
+for k in KS:
+    a=m['precision_at_k@%d'%k].values; b=m['recall_at_k@%d'%k].values/k
+    print('MULTI  gold k=%2d  max|P - R/k| = %.4f  n=%d' % (k, np.abs(a-b).max(), len(m)))
+# ndcg vs rr monotone on all rows
+rr=df['mrr_at_k@15'].values; n
+… [truncated, 274 more chars]
+```
+
+`2026-09-01 14:25:19` · **cmd** — Poll
+```bash
+ls results/ | grep -i calib; date
+```
+
+`2026-09-01 14:25:37` · **cmd** — Check identities and split rows
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/retrieval_metrics.csv')
+print(d[d.metric.str.contains('_rows')][['metric','query_set','stage','k','value','n','ci_lo','ci_hi']].to_string(index=False))
+print()
+print(d[d.metric.isin(['rows_analysed','rows_excluded','gold_single_section','gold_multi_section','chunks_all_carry_section_number'])][['metric','value','n']].to_string(index=False))
+print()
+print(d[(d.metric=='recall_at_k_positional')&(d.stage=='raw_15')][['query_set','k','value','ci_lo','ci_hi']].to_string(index=False))
+"
+```
+
+`2026-09-01 14:25:55` · **cmd** — Wait for second run process to exit
+```bash
+until [ ! -e "/proc/46052" ] && ! (tasklist //FI "PID eq 46052" 2>/dev/null | grep -q 46052); do sleep 20; done; echo RUN2_DONE; date
+```
+
+`2026-09-01 14:26:11` · **cmd** — Quantify the precision identity
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import numpy as np, collections
+from experiments.exp01_retrieval import build, KS
+from experiments.metrics_lib import *
+df=build(); s=df[(df.n_gold==1)&(df.stage=='raw_15')]
+for k in KS:
+    a=s['precision_at_k@%d'%k].values; b=s['recall_at_k@%d'%k].values/k
+    eq=(np.abs(a-b)<1e-12).mean()
+    print('single-gold raw_15 k=%2d : P@k == R@k/k on %.1f%% of rows' % (k, 100*eq))
+# how many chunks carry the gold section
+st=load_stages(); logs=load_logs()
+c=collections.Counter()
+for r in logs.to_dict('records'):
+    g=r.get('expected_
+… [truncated, 235 more chars]
+```
+
+`2026-09-01 14:26:12` · **cmd** — idle
+```bash
+echo w
+```
+
+`2026-09-01 14:26:38` · **cmd** — Check second run status
+```bash
+cat "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/c8aaaee6-3806-45fb-84f3-d19ddd3bbdce/tasks/bs9mgbvb5.output" | tail -8; echo "---"; ls -la results/calibration.csv results/reliability_diagram.png 2>&1; date
+```
+
+`2026-09-01 14:26:49` · **cmd** — Identity holding rate per stage
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+import numpy as np
+from experiments.exp01_retrieval import build, KS
+df=build()
+for stage in ('raw_15','reranked_15','filtered_n'):
+    s=df[(df.n_gold==1)&(df.stage==stage)]
+    r=[ '%d:%.1f%%'%(k,100*(np.abs(s['precision_at_k@%d'%k].values - s['recall_at_k@%d'%k].values/k)<1e-12).mean()) for k in KS]
+    print(stage, ' '.join(r), ' n=%d'%len(s))
+"
+```
+
+`2026-09-01 14:27:28` · **cmd** — Wait for run 2 exit
+```bash
+until ! (tasklist //FI "PID eq 46052" //NH 2>/dev/null | grep -q 46052); do sleep 20; done; echo RUN2_DONE; date; ls -la C:/Users/uniya/legal-mvp/results/calibration.csv
+```
+
+`2026-09-01 14:28:24` · **cmd** — Run paired check
+```bash
+./venv/Scripts/python.exe experiments/check03_calibration_check.py; echo "EXIT=$?"
+```
+
+`2026-09-01 14:29:23` · **cmd** — Print summary tables from CSV
+```bash
+./venv/Scripts/python.exe "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/tables.py"
+```
+
+`2026-09-01 14:29:43` · **cmd** — Sample generated queries and check headings
+```bash
+./venv/Scripts/python.exe -c "
+import json,glob
+n=0
+for f in glob.glob('eval/*generated*'):
+    print('FILE',f)
+    for l in open(f,encoding='utf-8'):
+        r=json.loads(l); print(' ', r.get('query_id'), '|', str(r.get('query') or r.get('query_raw'))[:90]); n+=1
+        if n>=6: break
+    break
+"; grep -c '^### ' results/_explain_w2_s1.md; grep '^### \|^## ' results/_explain_w2_s1.md
+```
+
+`2026-09-01 14:30:39` · **cmd** — Inspect generated queryset fields
+```bash
+./venv/Scripts/python.exe -c "
+import json
+l=open('eval/generated_queryset.jsonl',encoding='utf-8').readline()
+r=json.loads(l); print(list(r.keys()))
+for k in ('query_text','text','question','prompt','variant','numbering_scheme'):
+    if k in r: print(k,'=',str(r[k])[:120])
+"
+```
+
+`2026-09-01 14:31:17` · **cmd** — Check variant composition of both sets
+```bash
+./venv/Scripts/python.exe -c "
+import json,collections
+c=collections.Counter(); ex={}
+for l in open('eval/generated_queryset.jsonl',encoding='utf-8'):
+    r=json.loads(l); c[r['variant']]+=1; ex.setdefault(r['variant'], r['text'])
+print(c); [print(' ',k,'|',v[:100]) for k,v in ex.items()]
+c2=collections.Counter(); ex2={}
+for l in open('eval/layman_queryset.jsonl',encoding='utf-8'):
+    r=json.loads(l); c2[r.get('variant')]+=1; ex2.setdefault(r.get('variant'), r.get('text'))
+print(c2); [print(' ',k,'|',str(v)[:100]) for k,v in ex2.items()]
+"
+```
+
+`2026-09-01 14:33:33` · **cmd** — Block until robustness.csv written
+```bash
+until [ -f results/robustness.csv ]; do sleep 20; done; sleep 3; echo READY
+```
+
+`2026-09-01 14:33:40` · **cmd** — Fix bin count and verify CSV schema
+```bash
+cd C:/Users/uniya/legal-mvp && sed -i 's/\*\*Now bin 5\.\*\* 62-ish queries claiming/**Now bin 5.** 61 queries claiming/' results/_explain_w2_s3.md && grep -n "Now bin 5" results/_explain_w2_s3.md && echo "--- CSV HEADER ---" && head -1 results/calibration.csv && echo "--- rows ---" && wc -l results/calibration.csv && echo "--- metric counts ---" && ./venv/Scripts/python.exe -c "
+import pandas as pd
+c=pd.read_csv('results/calibration.csv')
+print(list(c.columns))
+print(c['metric'].value_counts().to_string())
+"
+```
+
+### 2026-09-01 14:34:34 · prompt
+
+<task-notification>
+<task-id>a2c222e089c319a68</task-id>
+<tool-use-id>toolu_01SnZURL9JwyMomhASC4q5AW</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\a2c222e089c319a68.output</output-file>
+<status>completed</status>
+<summary>Agent "Wave 2 S3: calibration" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Done. All five owned files written and verified.
+
+## Results â€” n=617 gold-labelled, quantile (equal-mass) binning, 10 bins, SEED=20260901, N_BOOT=10000
+
+**ECE** (CI = `pair_id`-clustered, the one to quote)
+
+| score | definition | stage | ECE | 95% CI clustered | 95% CI iid |
+|---|---|---|---|---|---|
+| composite | retrieved@15 | raw_15 | 0.2410 | [0.1983, 0.2737] | [0.2016, 0.2695] |
+| composite | cited | answer | 0.2697 | [0.2361, 0.3025] | [0.2421, 0.2973] |
+| composite | grounded | answer | 0.5504 | [0.5242, 0.5750] | [0.5305, 0.5694] |
+| max_score | retrieved@15 | raw_15 | **0.1270** | [0.0991, 0.1724] | [0.1065, 0.1681] |
+| max_score | cited | answer | 0.2309 | [0.1981, 0.2621] | [0.2041, 0.2567] |
+| max_score | grounded | answer | 0.5892 | [0.5587, 0.6187] | [0.5692, 0.6082] |
+
+**Brier** â€” composite: 0.2326 / 0.1977 / 0.3622; max_score: 0.2113 / 0.1632 / 0.4081 (retrieved@15 / cited / grounded). Clustered CIs in the CSV.
+
+**Coverage at 10% risk** (AURC in brackets)
+
+| | retrieved@15 | cited | grounded |
+|---|---|---|---|
+| composite | **0.0000** [0.398] | 0.6483 [0.112] | **0.0000** [0.961] |
+| max_score | 0.0486 [0.271] | **0.8768** [0.087] | **0.0000** [0.947] |
+
+The 0.0000 values are measured, not missing: for composite/retrieved@15 no threshold anywhere on the curve reaches 10% risk (curve minimum 0.2685 at 59.2% coverage).
+
+**Platt, 60/40 stratified, ECE on TEST half only (n=247)**
+
+| score | definition | pre | post | fitted prob. range |
+|---|---|---|---|---|
+| composite | retrieved@15 | 0.2198 | 0.2014 | 0.253â€“0.783 |
+| composite | cited | 0.2752 | 0.0746 | 0.798â€“0.912 |
+| composite | grounded | 0.5496 | 0.0375 | **0.037â€“0.049** |
+| max_score | retrieved@15 | 0.1233 | 0.0760 | 0.051â€“0.869 |
+| max_score | cited | 0.2272 | 0.0639 | 0.573â€“0.961 |
+| max_score | grounded | 0.5851 | 0.0157 | **0.009â€“0.088** |
+
+**Paired check: AGREED.** All 5 checks pass â€” ECE re-derived by hand from the bin table (`Î£ (n_bin/n)Â·|accâˆ’mean_score|`) matches `ece()` to &lt;1e-12 for all 6 cells; bin `n` sums to exactly 617 in all 6; Brier by pure-Python loop matches; coverage@10% by brute-force thresholding matches; 24 CSV headline values re-read from disk and matched.
+
+## Surprises
+
+1. **The raw cosine similarity beats the engineered composite on every axis, every definition.** ECE 0.127 vs 0.241, AURC 0.271 vs 0.398, AUROC 0.784 vs 0.663, coverage@10%-risk on cited 0.877 vs 0.648. The 55/15/30 blend *destroys* information `max_score` already had â€” independent measured evidence for the `entity_coverage` defect in GAPS.md, priced at 12 AUROC points.
+2. **The composite reliability curve is non-monotone.** Accuracy by bin: 0.35, 0.16, 0.15, 0.28, 0.95, **1.00**, 0.79, 0.51, 0.56, 0.55. It peaks at compositeâ‰ˆ0.62 and falls back to the base rate (0.53) at the top. The single ECE number hides this entirely. max_score is monotone throughout.
+3. **Platt's biggest "win" is a degenerate constant.** composite/grounded ECE 0.550â†’0.037 (93% cut) is achieved by fitting a near-constant equal to the base rate â€” AUROC there is 0.524, i.e. no information. Reported as such, not as a success. Platt is monotone so it cannot fix (2) either: it moves the deployed configuration only 0.220â†’0.201.
+
+## Two things needing attention
+
+- **`cited` positive count disagrees with the brief.** Brief says 538; `correctness_label(..., "cited")` gives **533** on the 617 rows to
+… [truncated, 1229 more chars]
+
+`2026-09-01 14:37:21` · **cmd** — Clean rerun of both scripts and tests
+```bash
+./venv/Scripts/python.exe experiments/exp01_retrieval.py > /tmp/e1.txt 2>&1; echo "exp01 exit=$?"; md5sum results/retrieval_metrics.csv; ./venv/Scripts/python.exe experiments/check01_retrieval_check.py 2>&1 | tail -4; echo "check exit=$?"; ./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -2
+```
+
+### 2026-09-01 14:38:02 · prompt
+
+<task-notification>
+<task-id>abd13b247f4aa28c4</task-id>
+<tool-use-id>toolu_01D7xsL6JfbnJhkXnTYxU2wv</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\abd13b247f4aa28c4.output</output-file>
+<status>completed</status>
+<summary>Agent "Wave 2 S1: retrieval metrics" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>All green. Only my four files were written.
+
+## Result
+
+**`results/retrieval_metrics.csv`** â€” 623 rows, schema exact (`metric, query_set, definition, stage, k, value, n, ci_lo, ci_hi, cluster_ci_lo, cluster_ci_hi, notes`), no renamed or added columns. 237 tests still passing.
+
+### Headline â€” Recall@15, definition `retrieved@k` (Wilson)
+
+| Query set | n | raw_15 | reranked_15 | filtered_n |
+|---|---:|---|---|---|
+| `generated_retrieval` | 198 | 0.692 [0.624, 0.752] | 0.692 | 0.677 [0.609, 0.738] |
+| `paired_recodification` | 99 | 0.737 [0.643, 0.814] | 0.737 | 0.707 [0.611, 0.788] |
+| `paired_dated_conflict` | 197 | 0.492 [0.423, 0.562] | 0.492 | 0.452 [0.384, 0.522] |
+| `layman_situation` | 120 | 0.150 [0.097, 0.225] | 0.150 | **0.075 [0.040, 0.136]** |
+| **ALL** | **617** | **0.530 [0.491, 0.569]** | 0.530 | 0.493 [0.453, 0.532] |
+
+Pooled MRR@15 (cluster CI): raw_15 **0.418** [0.372, 0.464] Â· reranked **0.467** Â· filtered **0.444**. `cited` 0.864 [0.835, 0.889], `grounded` 0.044 [0.030, 0.063] â€” both with `stage` and `k` EMPTY, as instructed.
+
+### Paired check: AGREED
+Both anchors reproduced exactly by a route that does not import `metrics_lib` (own parser, own Wilson algebra): layman `filtered_n` **9/120**, pooled `raw_15` **327/617**. 2,306 comparisons pass.
+
+### Surprises â€” four, one of which affects other agents
+
+1. **`ranked_sections()` silently compresses rank, inflating every k&lt;15 number.** It drops chunks with no `section_number`; only 118 of 617 `raw_15` lists have one on all 15 chunks. A gold chunk at retrieved position 5 is reported at rank 3. Identical at k=15 (which is why the anchors held), but on `layman` at k=5 it is **0.100 vs 0.050 â€” a factor of two**. Neither route was wrong, so neither was adjusted: both conventions are in the CSV (`recall_at_k` vs `recall_at_k_positional`, same for mrr/ndcg) and every row's `notes` names its convention. **Cross-agent: anyone calling `correctness_label(..., k)` with k&lt;15 has inherited this.**
+
+2. **The mandated Precision identity is right in spirit, wrong in the third decimal.** Gold is a *section*; retrieval returns *chunks*; a long section spans several. P@k = R@k/k holds on 99.2â€“100% of the 525 single-gold rows, breaking on **4 queries** where the gold section occupies two retrieved chunks. nDCG confirmed exactly â€” 14 distinct RR values map one-to-one onto 14 distinct nDCG values, zero monotonicity violations. Both stated plainly in the block.
+
+3. **Gold is not always one section.** 525 single, **88 double, 4 triple** â€” the pre-registered "single binary gold" assumption is false for 92 rows. Both recalls are reported; they diverge where it matters (`paired_recodification` k=15: **0.737** binary vs **0.616** fraction-of-gold, because finding one side of an IPCâ†”BNS pair is not finding both).
+
+4. **The rerank moves gold *up*, not down** â€” pooled MRR 0.418 â†’ 0.467. Cluster intervals overlap, so flagged as a candidate needing a paired test, **not claimed**.
+
+### Two things to not quote
+- `paired_dated_conflict`'s 197 rows are 99 baseline + 98 of the *same* queries under `intervention=both`. Its 0.492 averages **0.293 and 0.694**. Split is in the CSV as `recall_at_k_baseline_rows` / `recall_at_k_both_rows`.
+- `ALL` n=617 vs the four sets summing to 614: the 3 legacy `criminal_*` rows carry gold and sit inside pooled but get no set row. Recorded in `rows_analysed`.</result
+… [truncated, 138 more chars]
+
+`2026-09-01 14:43:44` · **cmd** — Block until robustness.csv written
+```bash
+until [ -f results/robustness.csv ]; do sleep 20; done; sleep 3; echo READY
+```
+
+`2026-09-01 14:49:53` · **cmd** — Block until robustness.csv written
+```bash
+until [ -f results/robustness.csv ]; do sleep 20; done; sleep 3; echo READY
+```
+
+`2026-09-01 14:50:06` · **cmd** — Read exp05 log head
+```bash
+L="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp05.log"; sed -n '1,40p' "$L"
+```
+
+`2026-09-01 14:50:29` · **cmd** — Read exp05 log tail
+```bash
+L="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/exp05.log"; sed -n '40,200p' "$L"
+```
+
+`2026-09-01 14:50:50` · **cmd** — Extract headline naive vs clustered table
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd, numpy as np
+pd.set_option('display.width',250); pd.set_option('display.max_colwidth',40)
+d=pd.read_csv('results/robustness.csv')
+d['restriction']=d['notes'].fillna('').str.extract(r'restriction=([A-Za-z_]+)')
+d['wr']=d['notes'].fillna('').str.extract(r'width_ratio=([0-9.]+)').astype(float)
+d['de']=d['notes'].fillna('').str.extract(r'design_effect=([0-9.]+)').astype(float)
+def show(m,res='none'):
+    s=d[(d['metric']==m)&(d['restriction']==res)]
+    for _,r in s.iterrows():
+        print('  %-12s %-12s n=%-4s v=%8.4f  naive[%7.4f,%7.4f]  clust
+… [truncated, 440 more chars]
+```
+
+`2026-09-01 14:51:28` · **cmd** — Extract stability restriction results
+```bash
+./venv/Scripts/python.exe -c "
+import pandas as pd, numpy as np
+d=pd.read_csv('results/robustness.csv')
+d['restriction']=d['notes'].fillna('').str.extract(r'restriction=([A-Za-z_]+)')
+print('=== n after restriction ===')
+for _,r in d[d['metric']=='n_rows_after_restriction'].iterrows(): print(' ',r['notes'])
+print()
+for m in ['paired_gap_ipc_minus_bns','layman_rate','auroc_diff_composite_minus_max']:
+    print('===',m)
+    s=d[d['metric']==m]
+    for _,r in s.iterrows():
+        if pd.isna(r['ci_lo']): 
+            print('  %-28s %-12s %-11s NOT MEASURED'%(r['restriction'],r['definition'],r['st
+… [truncated, 379 more chars]
+```
+
+`2026-09-01 14:51:57` · **cmd** — Verify why restrictions gut the layman set
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding='utf-8')
+import pandas as pd
+import experiments.exp05_robustness as e
+lab=e.build_frame()
+print('entity_default_used=True by query_set:')
+print(pd.crosstab(lab['query_set'],lab['entity_default_used']))
+print()
+print('filter_applied IS NULL by query_set:')
+print(pd.crosstab(lab['query_set'],lab['filter_applied'].isna()))
+"
+```
+
+`2026-09-01 14:52:12` · **cmd** — Run check05 paired check
+```bash
+./venv/Scripts/python.exe experiments/check05_robustness_check.py 2>&1 | tail -70
+```
+
+`2026-09-01 14:52:36` · **cmd** — Re-run check05
+```bash
+./venv/Scripts/python.exe experiments/check05_robustness_check.py 2>&1 | tail -75
+```
+
+`2026-09-01 14:53:54` · **cmd** — Re-run check05 with corrected check2
+```bash
+./venv/Scripts/python.exe experiments/check05_robustness_check.py 2>&1 | sed -n '1,35p'
+```
+
+`2026-09-01 14:56:14` · **cmd** — Test seed sensitivity of narrowing
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding='utf-8')
+import numpy as np
+import experiments.exp05_robustness as e
+from experiments.metrics_lib import auroc_bootstrap_ci
+lab=e.build_frame()
+sub=lab[lab['entity_default_used']!=True]
+y=sub['lab_retrieved_raw_15'].to_numpy(); a=sub['composite'].to_numpy(); cid=sub['pair_id'].to_numpy()
+print('n=%d clusters=%d positives=%d'%(len(y),len(np.unique(cid)),y.sum()))
+print('%8s %10s %10s %8s'%('seed','naive_w','clust_w','ratio'))
+for sd in [20260901, 7, 12345, 999, 2024]:
+    _,nl,nh=auroc_bootstrap_ci
+… [truncated, 171 more chars]
+```
+
+### 2026-09-01 14:56:36 · prompt
+
+bro see s5 is  how far
+
+`2026-09-01 14:56:58` · **cmd** — Check S5 progress via its output files
+```bash
+cd /c/Users/uniya/legal-mvp
+date "+now: %H:%M:%S"
+echo "=== S5 files ==="
+for f in experiments/exp05_robustness.py experiments/check05_robustness_check.py results/robustness.csv results/_explain_w2_s5.md; do
+  if [ -f "$f" ]; then printf "%-45s %8s bytes  modified %s\n" "$f" "$(stat -c%s "$f")" "$(stat -c%y "$f" | cut -d. -f1)"; else printf "%-45s not yet\n" "$f"; fi
+done
+echo
+echo "=== the other four, for comparison ==="
+ls -la results/*.csv results/_explain_w2_*.md 2>/dev/null | awk '{print $5, $9, $6, $7, $8}'
+```
+
+`2026-09-01 14:57:55` · **cmd** — Test narrowing mechanism by correlation structure
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding='utf-8')
+import numpy as np
+import experiments.exp05_robustness as e
+from experiments.metrics_lib import auroc_bootstrap_ci
+lab=e.build_frame()
+POS=['generated_retrieval','layman_situation']      # positive within-situation corr
+NEG=['paired_dated_conflict','paired_recodification'] # contrastive, negative corr
+for name,sets in [('POSITIVE-corr sets (generated+layman)',POS),('CONTRASTIVE sets (dated+recodification)',NEG),('ALL 617',None)]:
+    s=lab if sets is None else lab[lab['query_set'].isin(se
+… [truncated, 505 more chars]
+```
+
+`2026-09-01 14:59:02` · **cmd** — Re-run check05 with corrected explanation statistic
+```bash
+./venv/Scripts/python.exe experiments/check05_robustness_check.py 2>&1 | sed -n '10,30p'; echo "...."; ./venv/Scripts/python.exe experiments/check05_robustness_check.py 2>&1 | tail -8
+```
+
+`2026-09-01 14:59:46` · **cmd** — Final check05 run
+```bash
+./venv/Scripts/python.exe experiments/check05_robustness_check.py > "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/check05.log" 2>&1; echo "EXIT=$?"; sed -n '28,60p' "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/check05.log"
+```
+
+`2026-09-01 15:02:15` · **cmd** — Verify doc claims and CSV schema
+```bash
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding='utf-8')
+import pandas as pd
+import experiments.exp05_robustness as e
+lab=e.build_frame(); lay=lab[lab['query_set']=='layman_situation']
+cm=lay.groupby('pair_id')['lab_retrieved_filtered_n'].sum()
+print('layman filtered_n: total hits',int(lay['lab_retrieved_filtered_n'].sum()),'in',int((cm>0).sum()),'situations of',len(cm))
+print('per-situation hit counts:',dict(cm[cm>0]))
+print()
+d=pd.read_csv('results/robustness.csv')
+print('CSV columns:',list(d.columns))
+exp=['metric','query_set','definition','
+… [truncated, 307 more chars]
+```
+
+`2026-09-01 15:02:31` · **cmd** — Verify code predates CSV
+```bash
+stat -c '%y  %n' experiments/exp05_robustness.py results/robustness.csv experiments/check05_robustness_check.py results/_explain_w2_s5.md 2>/dev/null
+```
+
+### 2026-09-01 15:03:06 · prompt
+
+<task-notification>
+<task-id>a71a44f94b1edd6f7</task-id>
+<tool-use-id>toolu_01DZZQqBYwudsD4Q1ymexKDu</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\a71a44f94b1edd6f7.output</output-file>
+<status>completed</status>
+<summary>Agent "Wave 2 S5: robustness and clustering" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>All four owned files complete; `exp05` (14:01) predates the CSV (14:49), so no code/results drift.
+
+## Report â€” Wave 2 Subagent 5
+
+**Files written (only my four):** `experiments/exp05_robustness.py`, `experiments/check05_robustness_check.py`, `results/robustness.csv` (125 rows, schema exact, 110 rows carry `cluster_ci_*`), `results/_explain_w2_s5.md` (all 8 headings).
+
+**Gate anchors reproduced exactly:** 327 / 538 / 27 positives at n=617; paired 87.9% / 33.3%; AUROC 0.663 / 0.784, diff âˆ’0.121.
+
+### Naive vs clustered (restriction=none)
+
+| value | defnÂ·stage | point | naive CI | clustered CI | width_ratio | design eff |
+|---|---|---|---|---|---|---|
+| paired gap IPCâˆ’BNS | ret@15Â·raw_15 | +0.545 | [0.348,0.737] | [0.303,0.758] | 0.856 | 1.17 |
+| paired gap IPCâˆ’BNS | cited | âˆ’0.030 | [âˆ’0.160,0.096] | [âˆ’0.121,0.061] | 1.406 | 0.71 |
+| layman rate | ret@15Â·raw_15 | 0.150 | [0.092,0.217] | [0.033,0.275] | **0.517** | **1.93** |
+| layman rate | ret@15Â·filtered_n | 0.075 | [0.033,0.125] | **[0.000,0.167]** | 0.550 | 1.82 |
+| layman rate | cited | 0.667 | [0.583,0.750] | [0.542,0.783] | 0.690 | 1.45 |
+| AUROC composite | ret@15Â·raw_15 | 0.663 | [0.617,0.710] | [0.605,0.721] | 0.793 | 1.26 |
+| AUROC max_score | ret@15Â·raw_15 | 0.784 | [0.747,0.820] | [0.732,0.831] | 0.728 | 1.37 |
+| AUROC diff | ret@15Â·raw_15 | âˆ’0.121 | [âˆ’0.162,âˆ’0.080] | [âˆ’0.166,âˆ’0.075] | 0.909 | 1.10 |
+
+`width_ratio` = naive/clustered, so **&lt;1 = clustering widened** (healthy).
+
+### Claims that fail
+
+1. **Recodification gap dies under 2 of 3 definitions.** Holds under `retrieved@15` (all stages, all restrictions). Under `cited` it is âˆ’0.030 [âˆ’0.121,0.061] and under `grounded` âˆ’0.030 [âˆ’0.091,0.000] â€” both contain 0, sign flipped. Cause: IPC arm cites gold 90.9%, BNS arm 93.9%; the generator cites correct sections regardless of retrieval. **The gap is invisible in the answer text.**
+2. **Layman rate at `filtered_n` dies under clustering** â€” the one threshold crossing. Naive [0.033,0.125] excludes 0; clustered **[0.000,0.167]** does not. Lower bound moves 3.3pp; 9 hits sit in only 3 of 30 situations.
+3. **"Composite worse than max_score" survives only under `retrieved@15`.** Under `cited` it holds unrestricted but dies under all 3 real restrictions; under `grounded` it never holds (once flips to +0.219).
+
+### Stability restrictions
+`exclude_legacy_criminal` (614), `exclude_entity_default_used` (349), `exclude_filter_applied_null` (409), `one_variant_per_pair_id` (177). Claim 1 survives all four under `retrieved@15`; claim 3 survives all four under `retrieved@15` only.
+
+### Check assertions
+- CHECK 1 **PASS** â€” layman rate re-derived from raw JSONL without metrics_lib: 18/120 = 0.150000, agrees to 1e-9.
+- CHECK 3 **PASS** â€” analytic design effect 1.932 vs bootstrap 1.933.
+- CHECK 4 **PASS** â€” Wilson vs naive bootstrap ratio 0.979.
+- CHECK 2 **FAILS**, deliberately left failing: 8 AUROC values narrowed under clustering; 4 explained by measured *negative* within-situation correlation, **4 unresolved** (`cited`/`grounded`, ratios 1.043â€“1.121). Ruled out resampler bug and MC noise (stable across 5 seeds). Not ruled out: AUROC is a rank statistic and the mean-based design-effect argument doesn't transfer. **Do not rely on clustered AUROC intervals for those two restricted subsets**; `restriction=none` is unaffected.
+
+### Corrections to the br
+… [truncated, 1148 more chars]
+
+`2026-09-01 15:04:18` · **cmd** — Verify all Wave 2 outputs before committing
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== all five CSVs share the exact schema? ==="
+EXPECT="metric,query_set,definition,stage,k,value,n,ci_lo,ci_hi,cluster_ci_lo,cluster_ci_hi,notes"
+for f in results/retrieval_metrics.csv results/routing_confusion.csv results/calibration.csv results/ablation.csv results/robustness.csv results/filter_analysis.csv; do
+  H=$(head -1 "$f")
+  if [ "$H" = "$EXPECT" ]; then printf "  OK   %-34s %5s rows\n" "$(basename $f)" "$(($(wc -l < $f)-1))"
+  else printf "  BAD  %-34s\n       %s\n" "$(basename $f)" "$H"; fi
+done
+echo
+echo "=== explanation blocks: 8 headings each ==
+… [truncated, 460 more chars]
+```

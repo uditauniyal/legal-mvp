@@ -1093,3 +1093,1758 @@ The three gate numbers and their full explanation blocks live in
 `results/smoke_test.md` rather than here, because the GATE prompt in
 `docs/PLAN.md` section 5 names that file specifically. Three blocks, eight
 headings each.
+
+---
+
+## Retrieval metrics
+Output file: `results/retrieval_metrics.csv`
+Regenerate with:
+
+```
+./venv/Scripts/python.exe experiments/exp01_retrieval.py        # writes the CSV
+./venv/Scripts/python.exe experiments/check01_retrieval_check.py  # verifies it
+```
+
+Owner: Wave 2 Subagent 1
+
+---
+
+### 1. ELI5 — what does this measure?
+
+You ask the system a legal question. Before it writes a word of answer, it goes to the shelf and pulls **15 passages** out of the corpus. Somebody has already written down, by hand, **which section of which Act is the right one** for that question — that is the *gold* answer.
+
+This file asks one question, over and over, from different angles:
+
+> **Did the right section come off the shelf at all — and how near the top?**
+
+That is all. It says nothing about whether the final answer was any good. It only grades the fetching.
+
+Four ways of grading the same fetch:
+
+| Name | Plain English | Worked on one real query |
+|---|---|---|
+| **Recall@k** | Of all the questions, what share had the right section somewhere in the top *k* passages? | On the 120 layman questions, the right section was in the top 5 for **12** of them. 12/120 = **Recall@5 = 0.100** |
+| **Precision@k** | Of the *k* passages you pulled, what share were the right one? | If 1 of 15 passages is the gold one, Precision@15 = 1/15 = 0.067 |
+| **MRR** | *Mean Reciprocal Rank.* If the right section was 1st, score 1; 2nd, score ½; 3rd, ⅓; never, 0. Average that over all questions. | Rewards being near the top, not merely present |
+| **nDCG@k** | Same idea as MRR but the penalty for being lower down falls more gently: 1/log₂(rank+1) | 1st = 1.00, 2nd = 0.63, 3rd = 0.50 |
+
+And a **confidence interval** (CI). Measuring 120 questions is a sample, not the whole world. The 95% CI is the honest range the true value plausibly sits in. `0.150 [0.097, 0.225]` means: *measured 15.0%; the truth is plausibly anywhere from 9.7% to 22.5%.* **A number without its interval is not a result.** If two intervals overlap heavily, you have not shown a difference.
+
+---
+
+### 2. Technically
+
+Everything is imported from `experiments/metrics_lib.py`. Nothing is reimplemented.
+
+| Thing | How |
+|---|---|
+| Rows | `load_logs()` → 621 deduplicated rows, **617 carrying gold** |
+| Ranked list | `load_stages()` → `ranked_sections()`, using the **authoritative `section_number`** from the Qdrant payload |
+| Section identity | `same_section()` / `normalise_section()` — the one comparison rule |
+| Recall@k | `correctness_label(row, "retrieved@k", k, stages)` — binary per query |
+| Precision@k, MRR, nDCG@k | `precision_at_k`, `reciprocal_rank`, `ndcg_at_k` |
+| Intervals, proportions | `wilson(k, n)` → `ci_lo` / `ci_hi` |
+| Intervals, means | `cluster_bootstrap(..., "pair_id", 10000, 20260901)` → `cluster_ci_lo` / `cluster_ci_hi` |
+
+**Why two interval methods.** Wilson is exact for a *proportion of queries* — "84 out of 120 succeeded". MRR and nDCG are not proportions; they are averages of numbers like 0.5 and 0.33, so Wilson does not apply and their `ci_lo`/`ci_hi` are deliberately **EMPTY**. For those, the bootstrap resamples the data 10,000 times and reads off the middle 95%.
+
+**Why *cluster* bootstrap.** The query sets are 30–80 real-world *situations*, each rephrased 2–4 ways. Three phrasings of one situation are not three independent facts. Resampling rows would pretend there are 617 independent observations and report an interval that is **too narrow**. `cluster_bootstrap` resamples **situations** (`pair_id`). You can see the cost: layman Recall@15 is `0.150`, Wilson `[0.097, 0.225]`, cluster `[0.033, 0.275]` — the honest interval is roughly **twice as wide**.
+
+Every row's `notes` column states which method produced its interval.
+
+**Three stages.** `raw_15` = Qdrant score order. `reranked_15` = the same 15 reordered by entity match. `filtered_n` = what survived `max(top−0.15, 0.35)` and reached the language model. **`raw_15` is primary for MRR and nDCG**, because reranking deliberately overwrites score order, so a rank measured after it grades the rerank policy, not the retriever.
+
+---
+
+### 3. What the number came out as
+
+**Headline — Recall@15**, share of queries with the gold section retrieved. Definition `retrieved@k`. Wilson interval; cluster interval in the last column.
+
+| Query set | n | raw_15 | reranked_15 | filtered_n | cluster CI (raw_15) |
+|---|---:|---|---|---|---|
+| `generated_retrieval` | 198 | **0.692** [0.624, 0.752] | 0.692 [0.624, 0.752] | 0.677 [0.609, 0.738] | [0.647, 0.735] |
+| `paired_recodification` | 99 | **0.737** [0.643, 0.814] | 0.737 [0.643, 0.814] | 0.707 [0.611, 0.788] | [0.687, 0.798] |
+| `paired_dated_conflict` | 197 | **0.492** [0.423, 0.562] | 0.492 [0.423, 0.562] | 0.452 [0.384, 0.522] | [0.437, 0.543] |
+| `layman_situation` | 120 | **0.150** [0.097, 0.225] | 0.150 [0.097, 0.225] | 0.075 [0.040, 0.136] | [0.033, 0.275] |
+| **ALL (pooled)** | **617** | **0.530** [0.491, 0.569] | 0.530 [0.491, 0.569] | 0.493 [0.453, 0.532] | [0.483, 0.576] |
+
+**Recall@k at `raw_15`**, definition `retrieved@k`, Wilson intervals in the CSV:
+
+| Query set | n | k=1 | k=3 | k=5 | k=10 | k=15 |
+|---|---:|---:|---:|---:|---:|---:|
+| `generated_retrieval` | 198 | 0.545 | 0.626 | 0.636 | 0.687 | 0.692 |
+| `paired_recodification` | 99 | 0.495 | 0.646 | 0.677 | 0.737 | 0.737 |
+| `paired_dated_conflict` | 197 | 0.325 | 0.431 | 0.452 | 0.487 | 0.492 |
+| `layman_situation` | 120 | 0.025 | 0.058 | 0.100 | 0.133 | 0.150 |
+| **ALL** | **617** | 0.366 | 0.457 | 0.480 | 0.524 | **0.530** |
+
+**MRR@15**, definition `retrieved@k`, cluster-bootstrap intervals:
+
+| Query set | n | raw_15 (PRIMARY) | reranked_15 | filtered_n |
+|---|---:|---|---|---|
+| `generated_retrieval` | 198 | 0.595 [0.551, 0.637] | 0.643 [0.598, 0.686] | 0.628 [0.581, 0.672] |
+| `paired_recodification` | 99 | 0.573 [0.469, 0.678] | 0.650 [0.571, 0.729] | 0.620 [0.525, 0.712] |
+| `paired_dated_conflict` | 197 | 0.381 [0.305, 0.456] | 0.447 [0.388, 0.502] | 0.416 [0.341, 0.484] |
+| `layman_situation` | 120 | 0.051 [0.008, 0.115] | 0.051 [0.008, 0.115] | 0.038 [0.000, 0.100] |
+| **ALL** | **617** | **0.418 [0.372, 0.464]** | 0.467 [0.421, 0.510] | 0.444 [0.396, 0.491] |
+
+**nDCG@15 and Precision@15 at `raw_15`**, definition `retrieved@k`, cluster intervals:
+
+| Query set | n | nDCG@15 | Precision@15 |
+|---|---:|---|---|
+| `generated_retrieval` | 198 | 0.618 [0.577, 0.657] | 0.046 [0.043, 0.049] |
+| `paired_recodification` | 99 | 0.612 [0.523, 0.702] | 0.057 [0.050, 0.064] |
+| `paired_dated_conflict` | 197 | 0.408 [0.338, 0.475] | 0.034 [0.030, 0.038] |
+| `layman_situation` | 120 | 0.074 [0.019, 0.147] | 0.012 [0.003, 0.023] |
+| **ALL** | **617** | 0.445 [0.400, 0.489] | 0.037 [0.034, 0.041] |
+
+**The other two correctness definitions — no stage, no k.** `cited` and `grounded` are properties of the **answer**, not of the ranked list. They do not change when k changes and they do not change between stages. Their `stage` and `k` cells in the CSV are **EMPTY on purpose**. Reporting them at 3 stages × 5 k values would put 15 copies of one measurement into the table and invite a reviewer to read them as 15 measurements.
+
+| Query set | n | `cited` (Wilson) | `grounded` (Wilson) |
+|---|---:|---|---|
+| `generated_retrieval` | 198 | 0.960 [0.922, 0.979] | 0.126 [0.087, 0.180] |
+| `paired_recodification` | 99 | 0.949 [0.887, 0.978] | 0.020 [0.006, 0.071] |
+| `paired_dated_conflict` | 197 | 0.868 [0.814, 0.908] | **0.000** [0.000, 0.019] |
+| `layman_situation` | 120 | 0.633 [0.544, 0.714] | **0.000** [0.000, 0.031] |
+| **ALL** | **617** | 0.864 [0.835, 0.889] | 0.044 [0.030, 0.063] |
+
+---
+
+### 4. How to read it
+
+**Read the interval, not the point.** `layman_situation` Recall@15 is `0.150`, but the cluster interval is `[0.033, 0.275]`. On 30 situations you have established *"low"*, not *"15%"*.
+
+**Read the stage.** `layman_situation` Recall@15 is **0.150 at `raw_15`** and **0.075 at `filtered_n`** — the same measurement, two stages, a factor of two apart. This is exactly the confusion `metrics_lib` was built to end. **Never quote either without naming the stage.**
+
+**Read the definition.** Pooled, the gold section is *retrieved* 53.0% of the time but *cited* 86.4% of the time. The answer cites the right law more often than the system finds it — those citations come from the model's own knowledge, not the corpus.
+
+**Do not read four independent metrics into this table.** See §8 — Precision@k and nDCG@k are, on this data, near-deterministic functions of Recall@k and rank. They agree because they are algebraically bound to agree, not because four instruments converged.
+
+**Two things not to read as differences:**
+
+- `raw_15` and `reranked_15` have **identical Recall@15 in every row**. That is arithmetic, not a finding: reranking reorders the same 15 chunks, and membership of a 15-item list cannot change when you shuffle it.
+- `paired_dated_conflict` pools **two experimental conditions** — 99 rows at `intervention=baseline` and 98 of the *same* queries at `intervention=both`. Its 0.492 is an average of 0.293 and 0.694. The split is in the CSV as `recall_at_k_baseline_rows` / `recall_at_k_both_rows`. **Do not quote 0.492 as a system property.**
+
+---
+
+### 5. What this means for the paper
+
+**(a) The layman result survives full measurement, and gets worse the closer you look.** For questions a real person would ask — no section number, no Act name — the gold provision reaches the model **7.5%** of the time [0.040, 0.136], with MRR **0.038**. Meanwhile the answer *cites* the gold provision 63.3% of the time and is fully grounded **0.0%** of the time [0.000, 0.031]. The pipeline is barely retrieval-augmented on exactly the queries it exists for. Recall@k and MRR now put numbers with intervals on a claim that was previously one figure without a stage.
+
+**(b) Statutory vocabulary is worth about 4.6× the recall.** `generated_retrieval` 0.692 [0.624, 0.752] vs `layman_situation` 0.150 [0.097, 0.225] at `raw_15`, same index, non-overlapping intervals — the strongest clean contrast in the table.
+
+State the contrast carefully, because the two sets differ in more than one way. `generated_retrieval` is built **from the corpus's own section titles**: 80 of 198 queries name the section outright (`variant=numbered`), 60 name the Act and paraphrase the title (`topic_code`), 60 give the title language alone (`topic_only`). Even the hardest third therefore shares vocabulary with the target chunk. `layman_situation` is first-person narrative with no statutory vocabulary at all. So this is **"query written in the language of the statute" vs "query written in the language of the person"**, not purely "numbered vs unnumbered". A per-variant breakdown would separate the two and is **not computed here** — it belongs with the routing analysis.
+
+**(c) The adaptive filter is a real, quantified cost.** Pooled Recall@15 falls 0.530 → 0.493 between `raw_15` and `filtered_n`. On layman queries it **halves**, 0.150 → 0.075. The retriever had the answer and the threshold threw it away. This is Subagent 5's territory but it is visible here.
+
+**(d) Entity reranking helps rank order — the opposite of the pre-registered expectation.** Pooled MRR rises 0.418 → 0.467 and nDCG 0.445 → 0.482 from `raw_15` to `reranked_15`. The rerank was described as "destroying score order"; it does, but it moves the *gold* chunk **up**. Cluster intervals overlap, so this is **not established** — it needs the paired bootstrap, not two intervals compared by eye. Flag as a candidate, do not claim it.
+
+**(e) Anything at k < 15 must name its rank convention.** See §6.
+
+---
+
+### 6. What broke while computing this
+
+**One thing broke, and it was worth breaking.**
+
+The first run of `check01_retrieval_check.py` **failed on 108 of 110 comparisons** — every k < 15 cell disagreed with `exp01`, while k = 15 and both external anchors agreed exactly. That pattern (agree at the top, disagree everywhere below) is a rank-alignment signature, not an arithmetic error.
+
+**Cause.** `metrics_lib.ranked_sections()` **drops** chunks with no `section_number` — preamble, split continuations, demoted footnotes. Only **118 of 617** `raw_15` lists have a section number on all 15 chunks; the rest lose between 1 and 14. Dropping them **compresses rank positions**: a gold chunk sitting at retrieved position 5 is reported at rank 3.
+
+So "rank" has two meanings:
+
+| | What "top k" means |
+|---|---|
+| `recall_at_k`, `mrr_at_k`, `ndcg_at_k` | rank among chunks that **have** a section number (the `metrics_lib` convention) |
+| `recall_at_k_positional`, `mrr_at_k_positional`, `ndcg_at_k_positional` | rank among chunks **as retrieved** — section-less chunks keep their slot |
+
+At k = 15 the two are identical by construction, which is why both anchors held. Below k = 15 the `metrics_lib` convention is **optimistic**:
+
+| Recall@k at `raw_15` | k=1 | k=3 | k=5 | k=10 | k=15 |
+|---|---|---|---|---|---|
+| ALL, `metrics_lib` | 0.366 | 0.457 | 0.480 | 0.524 | 0.530 |
+| ALL, positional | 0.353 | 0.447 | 0.467 | 0.514 | 0.530 |
+| `layman`, `metrics_lib` | 0.025 | **0.058** | **0.100** | 0.133 | 0.150 |
+| `layman`, positional | 0.025 | **0.033** | **0.050** | 0.108 | 0.150 |
+
+**On the layman set at k=5 the two differ by a factor of two.** A reader who is shown 5 passages and told "the right section was in the top 5" means the positional number.
+
+**Resolution.** Neither route was wrong, so neither was adjusted. **Both are in the CSV**, both are independently reproduced by `check01`, and every row's `notes` names its convention. The `metrics_lib` series stays primary because it is the shared ruler every other Wave-2 agent is using and the one the anchors were set under. **This matters beyond this file:** any other agent calling `correctness_label(..., k)` with k < 15 has inherited the same optimism.
+
+`check01` now also asserts two structural invariants that would have caught this immediately: compressed rank ≤ positional rank on every hit, and the two conventions must agree on *whether* gold was found.
+
+Nothing else broke. The test suite is at **237 passing**, unchanged.
+
+---
+
+### 7. What I could not compute, and why
+
+| Not computed | Why |
+|---|---|
+| `cited` and `grounded` per (stage, k) | **Not a limitation — a refusal.** They are properties of the answer text. They do not vary with k or stage. Producing 15 identical rows each would manufacture apparent variation. `stage` and `k` are EMPTY by design |
+| Wilson intervals on MRR, nDCG, Precision, fraction-of-gold recall | They are means, not proportions of queries. Wilson does not apply. `ci_lo`/`ci_hi` are EMPTY; `cluster_ci_lo`/`cluster_ci_hi` carry the interval |
+| A per-set row for the 3 legacy `criminal_*` queries | Excluded per the wave brief. They *do* carry gold, so they sit inside pooled `ALL`. **This is why `ALL` n=617 while the four sets sum to 614.** Recorded in `rows_analysed` |
+| Anything for the 4 SMOKE rows | No gold label. Dropped, and the drop is recorded |
+| Recall broken down by query **variant** (`numbered` / `topic_code` / `topic_only`, or `ipc_era` / `bns_era` / `vague` / `no_date`) | The field is on every query set and the split is worth having — but it is a routing question, not a retrieval-metrics one, and the wave brief scopes this file to per-set and pooled. See §5(b) for why it would sharpen the headline contrast |
+| Whether the rerank's MRR gain is real | Needs `paired_bootstrap_auroc_diff`-style paired testing on the *same* queries, not two overlapping intervals. Out of this file's scope |
+| Graded relevance for nDCG | Gold is binary — a section is right or it is not. There is no 3-point relevance judgement in this project, so IDCG = 1 and nDCG collapses (see §8) |
+
+---
+
+### 8. What surprised me
+
+**(a) Three of the four metrics carry almost no information beyond the first.** This is the point a reviewer must not be allowed to miss.
+
+The pre-registered statement was:
+
+> *With a single binary gold section per query, Precision@k equals Recall@k / k exactly, and nDCG@k is a monotone function of reciprocal rank. Both are therefore reported for completeness rather than for information.*
+
+**I measured both halves rather than asserting them.**
+
+*nDCG — confirmed exactly.* Gold is binary and there is one relevant item, so IDCG = 1 and nDCG@k = 1/log₂(rank+1), a strictly increasing function of 1/rank. Across all 1,851 (query × stage) rows there are **14 distinct reciprocal-rank values and exactly 14 distinct (RR, nDCG) pairs** — a perfect one-to-one map. nDCG@15 is monotone non-decreasing in RR@15 with zero violations. **nDCG adds nothing to MRR here.**
+
+*Precision — very nearly, but not exactly, and the exception is instructive.* Gold is a **section**; retrieval returns **chunks**; a long section is split across several chunks. When two chunks of the same gold section both land in the top k, Precision@k = 2/k while Recall@k/k = 1/k.
+
+| Stage (single-gold rows, n=525) | k=1 | k=3 | k=5 | k=10 | k=15 |
+|---|---|---|---|---|---|
+| `raw_15` | 100.0% | 100.0% | 99.2% | 99.2% | 99.2% |
+| `reranked_15` | 100.0% | 99.4% | 99.2% | 99.2% | 99.2% |
+| `filtered_n` | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% |
+
+*(share of rows where P@k = R@k/k holds exactly)*
+
+It breaks on **4 queries out of 525**, where the gold section spans two retrieved chunks. So the statement is right in spirit and wrong in the third decimal — **report Precision for completeness, never as corroboration.**
+
+**Say this plainly in the paper: these are not four instruments agreeing. Recall is the measurement. MRR adds rank. Precision and nDCG are algebra.**
+
+**(b) Gold is not always one section, which the pre-registered statement assumed.** 525 of 617 queries have one gold section; **88 have two and 4 have three** (`layman_situation` and `paired_recodification`). Two defensible recalls therefore exist, and both are in the CSV: `recall_at_k` (did **any** gold section arrive — the binary definition `correctness_label` uses, the one the 327/617 anchor was set under) and `recall_at_k_fraction_of_gold` (**what share** of a query's gold sections arrived, `metrics_lib.recall_at_k` verbatim). They differ where it matters: `paired_recodification` at `raw_15`, k=15 is **0.737** binary but **0.616** by fraction — the set is IPC↔BNS pairs, and finding one side of a pair is not finding both.
+
+**(c) The rerank moves gold up, not down.** Discussed in §5(d). I expected `reranked_15` MRR to fall.
+
+**(d) The independent route agreed on 2,306 comparisons using a *naive* matcher.** `check01` matches gold to chunk by exact uppercased Act + exact uppercased number — no `normalise_section()`, no `same_section()`. It reproduced every cell. Defect E2 in this project was caused by exactly this comparison being wrong, so the agreement is reassuring: on *this* data the canonicaliser is doing nothing a naive matcher would not do. It earns its place on the messy inputs (`Section 302`, `318(4)`, `CONSTITUTION Article 226`), not on these.
+
+---
+
+### Paired check
+
+`experiments/check01_retrieval_check.py` recomputes the headline values **without importing `metrics_lib` at all** — its own JSON loading, its own section parser, its own Wilson algebra, its own recall / RR / nDCG arithmetic — then asserts against the CSV.
+
+```
+ANCHOR 1 OK  layman filtered_n Recall@15 =   9/120 = 0.0750  (Wave 1: 9/120 = 0.0750)
+ANCHOR 2 OK  pooled raw_15     Recall@15 = 327/617 = 0.5300  (GATE:  327/617)
+checks run: 2306
+PAIRED CHECK PASSED
+```
+
+Both externally established anchors reproduced **exactly**. All 2,306 comparisons pass: every Recall@k / MRR@k / nDCG@k cell in both rank conventions, across 5 query sets × 3 stages × 5 values of k, plus the two structural invariants and the cited/grounded emptiness check.
+
+---
+
+## Routing analysis
+
+Output file: `results/routing_confusion.csv`
+Regenerate with: `./venv/Scripts/python.exe experiments/exp02_routing.py`
+Verify with: `./venv/Scripts/python.exe experiments/check02_routing_check.py`
+Owner: Wave 2 Subagent 2
+
+---
+
+### 1. ELI5 — what does this measure?
+
+The corpus is four law books:
+
+| Book | What it is |
+|---|---|
+| **IPC** | Indian Penal Code 1860 — the old list of crimes and punishments |
+| **BNS** | Bharatiya Nyaya Sanhita 2023 — the new list, replaced the IPC on 1 July 2024 |
+| **CrPC** | Code of Criminal Procedure 1973 — the old *procedure* book: arrest, bail, FIR |
+| **CPA** | Consumer Protection Act 2019 — refunds, defective goods, complaints |
+
+When someone types a question, the system picks passages out of these four books
+and hands them to the language model. **This experiment asks: does it pick from
+the right book?**
+
+Three plain-English questions:
+
+**(a)** If the right answer lives in the IPC, does the system read the IPC?
+A **confusion matrix** is just a table that answers this. Rows = the book that
+*should* have been read. Columns = the book that *was* read. The diagonal
+(IPC→IPC, BNS→BNS, …) is where it got it right. Everything off the diagonal is a
+mistake, and the table shows you *which* mistake.
+
+**(b)** When the question literally says the word "IPC", does it go to the IPC?
+
+**(c)** This is the important one. Suppose I told you the system reads the CrPC
+70% of the time and you thought "wow, it is obsessed with the CrPC". Before you
+believe that, you have to ask: **how much of the library is CrPC in the first
+place?** If 39% of all the pages in the library are CrPC pages, then picking
+CrPC 39% of the time is not obsession — it is just what randomly grabbing pages
+would give you. That 39% is called the **base rate**: the share you would get by
+pure chance.
+
+Divide the two and you get the **over-representation ratio**:
+
+```
+                          how often it actually read CrPC
+over-representation  =  ---------------------------------
+                          how much of the library is CrPC
+```
+
+- **1.0** = exactly chance. Nothing to explain.
+- **1.8** = it read CrPC almost twice as often as its share of the shelf.
+- **0.5** = it read that book only half as often as its share.
+
+Without this control, "70% CrPC" is an unfalsifiable claim. With it, the claim
+becomes testable — and it can fail.
+
+A **confidence interval** is the honesty margin. "1.80x [1.47, 2.04]" means: the
+best estimate is 1.80, and if we re-ran this with a fresh sample of similar
+questions, we would expect the answer to land between 1.47 and 2.04 about 95
+times out of 100. Since 1.47 is still above 1.00, the over-representation is not
+a fluke of which questions we happened to pick.
+
+A **cluster** is a group of answers that are not really independent. The layman
+set is **30 real-life situations × 4 date phrasings** = 120 queries. The four
+phrasings of "my landlord kept my deposit" are the *same situation* asked four
+ways — they will mostly retrieve the same passages, so they are not four
+independent pieces of evidence, they are closer to one. Treating them as four
+makes the confidence interval look narrower than the data deserves. The
+**clustered** interval resamples whole *situations* instead of individual
+queries, which is the honest version. Both are reported side by side below so
+the difference is visible.
+
+---
+
+### 2. Technically
+
+**Two filters exist and are never conflated in this analysis.**
+
+| Filter | When | What it does | Logged as |
+|---|---|---|---|
+| **CORPUS filter** | *before* Qdrant search | restricts the search to one statute | `retrieval.filter_applied` |
+| **ADAPTIVE SCORE filter** | *after* retrieval | drops chunks below `max(top_score − 0.15, 0.35)` | the `raw_15` → `filtered_n` step |
+
+`experiments/stages.jsonl` replays the **recorded** corpus filter, so all three
+of its stages are already corpus-restricted. On the layman set this hardly
+matters: 116 of 120 rows recorded `filter_applied = None`, and the 4 that fired
+were all CPA. A sensitivity run dropping those 4 is reported in §3.
+
+**Three stages, and the stage is always stated.**
+
+| Stage | Meaning | Layman chunks |
+|---|---|---|
+| `raw_15` | what Qdrant returned, score order | 1,800 (= 120 × 15) |
+| `reranked_15` | the same 15, reordered by entity match | 1,800 |
+| `filtered_n` | survivors of the adaptive score filter, what the model read | 608 |
+
+**Definition of "which book the system went to": the DOMINANT corpus** — the
+book supplying the most chunks at that stage.
+
+*Why dominance and not the top-1 chunk.* The single top-scoring hit is one
+embedding coin-flip; it is not what the model reads. The answer prompt is built
+from the whole retrieved set, so the book that supplies most of that set is the
+book that actually shapes the answer. Dominance is also more stable: it takes
+eight chunks changing to flip it, versus one.
+
+*Ties.* When two books supply an equal number of chunks the tie is broken by the
+highest-scoring chunk among the tied books. The number of ties is written to the
+CSV (`confusion_ties_broken_by_top_score`) so the rule can be audited rather
+than trusted.
+
+**Index share source: Qdrant, read-only scroll of the `legal_mvp` collection,
+1,899 points.** *Not* derived from `stages.jsonl`, because `stages.jsonl`
+contains only chunks that were *retrieved* — using it as the chance baseline
+would compare retrieval against itself and drive every ratio toward 1.0 by
+construction. The index is a **census**, not a sample, so its shares carry no
+sampling error; all the uncertainty in the ratio comes from the retrieval side,
+and the denominator is held fixed in the bootstrap.
+
+**Intervals.** Wilson intervals (`wilson()`) for proportions; percentile
+bootstrap with `N_BOOT = 10000`, `SEED = 20260901` (`cluster_bootstrap()`) for
+shares and ratios. "Naive" resamples individual queries; "clustered" resamples
+whole `pair_id` situations. Every statistic is imported from
+`experiments/metrics_lib.py`; nothing is reimplemented.
+
+---
+
+### 3. What the number came out as
+
+#### (a) 4×4 routing confusion, layman set, stage `raw_15` (primary)
+
+Rows = book the gold answer lives in. Columns = dominant book actually retrieved.
+Diagonal in **bold**.
+
+| gold ↓ / went to → | IPC | BNS | CrPC | CPA | row n |
+|---|---|---|---|---|---|
+| **IPC** | **3** | 2 | 17 | 1 | 23 |
+| **BNS** | 3 | **1** | 18 | 1 | 23 |
+| **CrPC** | 0 | 0 | **5** | 0 | 5 |
+| **CPA** | 0 | 0 | 0 | **8** | 8 |
+
+Per-row accuracy (diagonal ÷ row total), `raw_15`:
+
+| gold book | correct | accuracy | naive 95% | clustered 95% |
+|---|---|---|---|---|
+| IPC | 3/23 | 13.0% | [4.5, 32.1] | [0.0, 26.1] |
+| BNS | 1/23 | 4.3% | [0.8, 21.0] | [0.0, 13.0] |
+| CrPC | 5/5 | 100.0% | [56.6, 100.0] | [100.0, 100.0] |
+| CPA | 8/8 | 100.0% | [67.6, 100.0] | [100.0, 100.0] |
+
+**The dominant failure mode is a single cell pair: 17 of 23 IPC questions and 18
+of 23 BNS questions were answered predominantly out of the CrPC.** A question
+about *what crime was committed* is being answered from the *procedure* book.
+CrPC and CPA score 100% but on tiny n (5 and 8) — their intervals are wide
+([56.6, 100.0] and [67.6, 100.0]) and carry no weight. Worth stating precisely:
+all 8 CPA-gold rows recorded `filter_applied = None`, so that 8/8 is genuinely
+the retriever, not the corpus filter. (The 4 layman rows where the CPA corpus
+filter *did* fire have gold IPC 1, BNS 1, EITHER 2 — it fired on the wrong
+queries, and all 4 are the *same situation*, `pair_id = L024`: a builder who took
+18 lakh and abandoned the site, where the gold answer is criminal cheating. The
+router's `act_map_single` path locked all four phrasings of that one situation to
+the Consumer Protection Act. One clustered mistake, counted four times if you
+forget to cluster.)
+
+#### Same matrix at `filtered_n` — does the picture change?
+
+| gold ↓ / went to → | IPC | BNS | CrPC | CPA | row n |
+|---|---|---|---|---|---|
+| **IPC** | **3** | 3 | 16 | 1 | 23 |
+| **BNS** | 4 | **4** | 14 | 1 | 23 |
+| **CrPC** | 0 | 0 | **5** | 0 | 5 |
+| **CPA** | 0 | 0 | 0 | **8** | 8 |
+
+**The picture does not change qualitatively.** BNS accuracy rises 4.3% → 17.4%
+(1/23 → 4/23) and IPC is unchanged at 13.0%. CrPC still takes 16 + 14 = 30 of
+the 46 substantive-law queries. The two stages agree on the dominant book for
+**93 of 120 queries (77.5%)** — so the stage label matters for the exact cell
+counts and must always be stated, but not for the conclusion.
+
+#### Rows the 4×4 cannot hold (in the CSV as `confusionSUPP_*`)
+
+| gold | n | why it is not a matrix row | where it went (`raw_15`) |
+|---|---|---|---|
+| `EITHER` | 56 | no date stated, so IPC *or* BNS is acceptable — there is no single correct column | IPC 6, BNS 2, **CrPC 46**, CPA 2 |
+| `BNSS` | 5 | **BNSS is not in the 1,899-chunk index at all** — unroutable by construction | CrPC 5 |
+
+The `EITHER` rows reproduce the same pattern even more starkly: 46 of 56 went to
+the CrPC. The 5 `BNSS` rows landing in the CrPC is arguably the *least* wrong
+available answer (BNSS is the successor to the CrPC), but the corpus cannot
+supply the governing text at all.
+
+#### (b) 2×2 IPC/BNS, paired recodification set — **CORPUS FILTER AS RECORDED**
+
+> **Read this before the table.** These are **not** a reproduction of
+> `scripts/ablate_filter.py`. That script *disables* the corpus filter and asks
+> whether the embeddings alone can tell the two codes apart, getting IPC 32/1 =
+> 97.0% [84.7, 99.5] and BNS 16/17 = 51.5% [35.2, 67.5]. The figures below come
+> from the **logged runs with the corpus filter exactly as it fired**, and they
+> answer a **different question**. They are labelled `filter_as_recorded`
+> throughout the CSV.
+
+Filter as recorded on these 66 queries: `ipc_numbered` → filter `IPC` (33),
+`bns_numbered` → filter `BNS` (33). Zero unfiltered.
+
+| gold ↓ / went to → | IPC | BNS | CrPC | CPA | accuracy | naive 95% | clustered 95% |
+|---|---|---|---|---|---|---|---|
+| **IPC-named** | **33** | 0 | 0 | 0 | 33/33 = 100.0% | [89.6, 100.0] | [100.0, 100.0] |
+| **BNS-named** | 0 | **33** | 0 | 0 | 33/33 = 100.0% | [89.6, 100.0] | [100.0, 100.0] |
+
+Identical at `raw_15` and `filtered_n`.
+
+**This perfect diagonal is not a retrieval result.** The router read the Act name
+out of the query string and applied a hard Qdrant filter, so an IPC-named query
+*could not* have returned a BNS chunk. The matrix measures a keyword lookup; the
+diagonal was guaranteed before a single embedding was compared. Its only
+legitimate use in the paper is as the *contrast* that makes the filter-off
+ablation meaningful — 100% → 51.5% for BNS-named queries is the size of the
+crutch.
+
+#### (c) THE BASE-RATE CONTROL
+
+Index shares (Qdrant census, 1,899 points):
+
+| Book | chunks | index share |
+|---|---|---|
+| CrPC | 742 | 39.07% |
+| IPC | 595 | 31.33% |
+| BNS | 424 | 22.33% |
+| CPA | 138 | 7.27% |
+
+**Stage `filtered_n` — the stage the previously recorded 70.4% figure was
+measured at** (120 queries, 608 chunks):
+
+| Book | index share | retrieval share | **ratio** | naive 95% | clustered 95% |
+|---|---|---|---|---|---|
+| **CrPC** | 39.07% | **70.23%** | **1.80×** | [1.65, 1.93] | **[1.47, 2.04]** |
+| IPC | 31.33% | 14.97% | 0.48× | [0.37, 0.59] | [0.29, 0.71] |
+| BNS | 22.33% | 7.57% | 0.34× | [0.25, 0.44] | [0.18, 0.55] |
+| CPA | 7.27% | 7.24% | 1.00× | [0.57, 1.54] | [0.24, 2.20] |
+
+**Stage `raw_15` — primary, pre-adaptive-filter** (120 queries, 1,800 chunks):
+
+| Book | index share | retrieval share | **ratio** | naive 95% | clustered 95% |
+|---|---|---|---|---|---|
+| **CrPC** | 39.07% | **58.22%** | **1.49×** | [1.36, 1.62] | **[1.22, 1.75]** |
+| IPC | 31.33% | 18.50% | 0.59× | [0.51, 0.68] | [0.43, 0.76] |
+| BNS | 22.33% | 13.00% | 0.58× | [0.47, 0.69] | [0.37, 0.81] |
+| CPA | 7.27% | 10.28% | 1.41× | [0.82, 2.09] | [0.31, 2.82] |
+
+`reranked_15` is **identical to `raw_15` to four decimals** on every book — the
+entity reranker reorders the 15 but never changes which 15, so it cannot move a
+corpus share.
+
+Sensitivity — dropping the 4 layman rows whose corpus filter fired (116 rows,
+`filter_applied = None` only):
+
+| Stage | CrPC ratio | clustered 95% |
+|---|---|---|
+| `raw_15` | 1.54× | [1.28, 1.79] |
+| `filtered_n` | 1.83× | [1.52, 2.06] |
+
+The control does not depend on those 4 rows.
+
+**Worked example, with the real numbers, so the arithmetic is checkable by hand:**
+
+```
+Stage filtered_n, layman set.
+  Total chunks the model actually read across 120 queries : 608
+  Of those, chunks from the CrPC                          : 427
+  Retrieval share  = 427 / 608                            = 0.7023  (70.23%)
+
+  CrPC points in the Qdrant index                         : 742
+  Total points in the index                               : 1899
+  Index share (the base rate) = 742 / 1899                = 0.3907  (39.07%)
+
+  Over-representation ratio = 0.7023 / 0.3907             = 1.797x
+```
+
+So: the CrPC occupies **39%** of the shelf and supplied **70%** of what the model
+read — **1.80 times its fair share.** The clustered interval [1.47, 2.04] does
+not contain 1.00, so this is not chance.
+
+---
+
+### 4. How to read it
+
+**Read a confusion-matrix row left to right.** Row "IPC", `raw_15`, reads
+3 · 2 · 17 · 1: of the 23 layman queries whose answer is in the IPC, 3 went to
+the IPC, 2 to the BNS, **17 to the CrPC**, 1 to the CPA. Row totals are the
+number of queries with that gold book; column totals tell you which book is
+absorbing traffic.
+
+**Never quote a share without its stage.** 58.2% (`raw_15`) and 70.2%
+(`filtered_n`) are the *same measurement of the same queries* at two points in
+the pipeline. Quoting one as if it were the other is exactly the error that
+`metrics_lib.py` warns about in its header, and it is what happened to the
+earlier "70.4%" figure — it was a `filtered_n` number reported without the
+label.
+
+**Read a ratio against 1.0, and read its interval against 1.0.**
+
+| If the interval… | then… |
+|---|---|
+| lies entirely above 1.0 | over-represented beyond chance — a real effect |
+| lies entirely below 1.0 | under-represented beyond chance |
+| straddles 1.0 | indistinguishable from chance — **claim nothing** |
+
+CPA at `filtered_n` is 1.00× [0.24, 2.20]. That interval straddles 1.0 and is
+enormous, because only 8 layman situations are consumer matters. **CPA is not
+evidence of anything and must not be reported as "correctly proportioned".**
+
+**Read the naive and clustered intervals together.** The clustered one is always
+the wider and always the one to quote. For CrPC at `filtered_n` the naive
+interval is [1.65, 1.93] and the clustered is [1.47, 2.04] — about 60% wider.
+Quoting the naive interval would overstate precision by claiming 120 independent
+observations where there are really 30.
+
+Where the two coincide (e.g. the per-row accuracies in the 4×4), the reason is
+mechanical, not lucky: only one of the four date variants of each situation has
+gold book "IPC", so within that row each situation contributes exactly one row
+and there is nothing to cluster.
+
+**Do not read the (b) table as a retrieval result at all.** See the warning box.
+
+---
+
+### 5. What this means for the paper
+
+**Does the base-rate control survive the Wave 1 fixes? Yes — at the stage it was
+originally measured, essentially unmoved.**
+
+| | Previously recorded | Recomputed here | Δ |
+|---|---|---|---|
+| CrPC layman retrieval share | 70.4% | **70.23%** (`filtered_n`) | −0.17 pp |
+| CrPC index base rate | 39.1% | **39.07%** (742/1899) | −0.03 pp |
+| Over-representation ratio | 1.8× | **1.80×** | none |
+| 95% CI | not reported | **[1.47, 2.04]** clustered | new |
+
+The claim is now falsifiable *and* it survived: the clustered interval excludes
+1.0 with room to spare, and the sensitivity run without the 4 corpus-filtered
+rows gives 1.83× [1.52, 2.06].
+
+**But the paper must now report a stage, and it must report both.** The 1.80×
+figure is a `filtered_n` number. At `raw_15` — before the adaptive score filter
+— the same queries give **1.49× [1.22, 1.75]**. Both exceed chance, so the
+direction of the claim is unaffected, but the magnitudes differ by a third and
+they are not interchangeable. The honest sentence is:
+
+> On plain-language queries the CrPC supplied 58.2% of raw retrieved chunks
+> against a 39.1% index base rate (1.49×, 95% CI [1.22, 1.75] clustered on 30
+> situations), rising to 70.2% (1.80×, [1.47, 2.04]) among the chunks that
+> survive the adaptive score filter and reach the model.
+
+**The adaptive score filter makes the skew worse, and that is a finding in its
+own right.** Going from `raw_15` to `filtered_n`, CrPC rises 1.49× → 1.80×,
+while IPC falls 0.59× → 0.48× and BNS falls 0.58× → 0.34×. The filter keeps
+chunks within 0.15 of the top score; because the CrPC chunks tend to *be* the
+top scorers on these queries, the filter preferentially deletes the substantive-
+law chunks. **A mechanism intended to remove noise is amplifying a corpus bias.**
+The BNS is hit hardest — it ends up at barely a third of its fair share of what
+the model actually reads.
+
+**The headline framing for the layman set.** Of 46 layman queries whose gold
+answer is substantive criminal law (23 IPC + 23 BNS), **35 at `raw_15` (30 at
+`filtered_n`) were answered predominantly out of the procedure code.** Diagonal
+accuracy is 13.0% for IPC and 4.3% for BNS. This is the paper's central
+negative result about plain-language legal retrieval, and it is now stated as a
+matrix with a chance baseline rather than as an unanchored percentage.
+
+**The `EITHER` and `BNSS` rows are a coverage story, not a routing story.** 56 of
+120 layman queries state no date, so no single correct book exists — the system
+cannot be scored, and 46 of those 56 went to the CrPC anyway. A further 5 expect
+the BNSS, which is **absent from the index entirely**. Together that is 61 of 120
+plain-language queries the corpus is structurally unable to answer correctly.
+That belongs in the limitations section as a corpus-coverage claim.
+
+**On (b): report it only as the contrast.** 33/33 and 33/33 with the corpus
+filter on is a keyword lookup, not evidence about embeddings. Its value is that
+it sets up `ablate_filter.py`'s 51.5% for BNS-named queries: turning the filter
+off costs nearly half the BNS routing accuracy, which quantifies exactly how
+much of the system's apparent statute-discrimination is the router's regex and
+how much is the retriever.
+
+---
+
+### 6. What broke while computing this
+
+**A one-chunk disagreement between the replay and the original logs — found,
+traced, and it does not move the result.**
+
+`check02_routing_check.py` re-derives the CrPC layman share from a source
+`exp02` never touches: `runs/*/queries.jsonl`, field
+`retrieval.chunks[*].corpus`. The two routes agreed on total chunk count (608 vs
+608), on per-query chunk counts (0 mismatches in 120), and exactly on IPC and
+BNS — but differed by **one chunk** on CrPC and CPA:
+
+| Book | `stages.jsonl` | original logs | Δ |
+|---|---|---|---|
+| IPC | 0.1497 | 0.1497 | 0.0000 |
+| BNS | 0.0757 | 0.0757 | 0.0000 |
+| CrPC | 0.7023 | 0.7039 | −0.0016 |
+| CPA | 0.0724 | 0.0707 | +0.0016 |
+
+Traced to a single query, `L0089` (`no_date` variant, `filter_applied = None`):
+
+```
+replay  : CPA 0.259167, CPA 0.257375, CPA  0.248857
+original: CPA 0.259176, CPA 0.257364, CRPC 0.249097
+```
+
+The two runs' cosine scores differ in the **fifth decimal place** — ordinary
+floating-point non-determinism in the embedding/search path. Both runs kept only
+3 chunks (the "≥3 forced through" rule), and the third slot was a near-tie
+between a CPA chunk at 0.2489 and a CrPC chunk at 0.2491. The jitter flipped it.
+
+Effect on the headline: 1.7974× vs 1.8016×, a difference of 0.004×, against a
+clustered interval half-width of about 0.28×. The assertion tolerance is 0.005
+on a share and 0.02 on the ratio; both passed. **Reported rather than smoothed
+over, because "the replay is byte-identical to the logs" would have been a false
+claim.**
+
+**Nothing else broke.** No metric was missing from `metrics_lib.py`. No API
+calls were made. Qdrant was read only via `scroll(..., with_vectors=False)`.
+
+---
+
+### 7. What I could not compute, and why
+
+| Not computed | Why |
+|---|---|
+| A confusion row for the 56 `EITHER` layman queries | No date is stated, so IPC *and* BNS are both correct. A confusion matrix needs exactly one correct column per row. Reported as `confusionSUPP_*` rows with the counts, but no accuracy figure and no interval. |
+| A confusion row for the 5 `BNSS` layman queries | **BNSS is not in the 1,899-chunk index.** Every one of these is unroutable by construction — there is no column that could be correct. Counts reported, accuracy is undefined, not zero. |
+| An independent check of the `raw_15` stage | The original server logs stored **only post-adaptive-filter survivors** (`SCHEMA.md` §4b: `len(chunks) < len(scores_raw)` on 467 of 859 rows). There is no second source for the pre-filter 15. `stages.jsonl` is the sole source and its `raw_15` numbers rest on the replay being faithful — which §6 establishes only at `filtered_n`. |
+| A filter-**off** condition on the layman set | Would require fresh embedding calls. **Zero API calls** was a hard constraint. It matters less here than elsewhere: 116 of 120 layman rows already recorded `filter_applied = None`, so the layman set is already close to unfiltered, and the sensitivity run confirms the 4 filtered rows change nothing. |
+| A statistical test that the CrPC ratio *changed* between `raw_15` and `filtered_n` | The two stages are nested measurements of the same 120 queries and the correct instrument is a paired bootstrap on the difference. `metrics_lib` exposes `paired_bootstrap_auroc_diff`, which is specific to AUROC and does not apply to a share difference. Rather than reimplement a metric — explicitly forbidden — the two intervals are reported separately and no claim of a *significant* difference is made. **NOT MEASURED.** |
+| Per-row confusion accuracy for CrPC and CPA with usable precision | n = 5 and n = 8. Both read 100%, and their intervals ([56.6, 100.0] and [67.6, 100.0]) are too wide to support any claim. The numbers are in the CSV; they should not carry a sentence in the paper. |
+
+---
+
+### 8. What surprised me
+
+**1. The 70.4% and the 58.2% are the same measurement.** I expected to either
+confirm or refute a single number. Instead the previously recorded figure turned
+out to be a `filtered_n` number quoted without its stage, and the pre-filter
+value on the identical queries is 58.2%. Nothing was *wrong* — 1.80× reproduced
+to two decimals — but the claim was underspecified in a way that could have
+been read as a 12-point discrepancy by anyone recomputing it at the other stage.
+This is the exact failure mode `metrics_lib.py`'s header warns about, met in the
+wild within an hour of looking.
+
+**2. The adaptive score filter is a bias amplifier, not a bias-neutral cleanup.**
+I assumed a score threshold would be roughly corpus-agnostic — it looks only at
+scores. It is not: CrPC goes 1.49× → 1.80× while BNS goes 0.58× → 0.34×. The
+filter strips out precisely the substantive-law chunks. That is a mechanism
+finding nobody was looking for, and it makes the pipeline's *last* retrieval
+step complicit in the *first* step's failure.
+
+**3. The BNS row is worse than the IPC row.** IPC 3/23, BNS 1/23 at `raw_15`.
+The BNS is the **currently governing** criminal code — the one a user in 2026
+actually needs — and it is the book the system finds least often. It has the
+second-smallest index share (22.3%) and the worst ratio at `filtered_n` (0.34×).
+A system that answers today's criminal-law questions out of a 1973 procedure
+manual is failing in the most legally consequential direction available.
+
+**4. The paired set's perfect diagonal is genuinely 33/33 — and genuinely
+worthless as retrieval evidence.** I half-expected the corpus filter to leak
+somewhere. It does not: zero off-diagonal, both stages, all 66 queries. Seeing a
+completely clean 2×2 and having to write "this proves nothing about the
+retriever" was a useful lesson in how a good-looking table can be an artefact of
+the experimental design rather than a property of the system.
+
+**5. Non-determinism is real at the fifth decimal, and the "≥3 forced through"
+rule is where it becomes visible.** One chunk in 608 flipped between two runs of
+the same query against the same index. It was harmless here, but it means any
+future metric that depends on the exact identity of the marginal chunk — a
+precision@3, say — carries a small irreducible jitter that has to be disclosed.
+
+---
+
+## Calibration
+
+Output file: `results/calibration.csv`, `results/reliability_diagram.png`
+Regenerate with: `./venv/Scripts/python.exe experiments/exp03_calibration.py`
+Verify with: `./venv/Scripts/python.exe experiments/check03_calibration_check.py`
+Owner: Wave 2 Subagent 3
+
+---
+
+### 1. ELI5 — what does this measure?
+
+Imagine a weather app. Look at every day it said **"70% chance of rain."** If it rained on
+about 70 of every 100 such days, the app is **calibrated** — its numbers mean what they say.
+If it rained on only 40 of them, the app is **overconfident**: it claims more certainty than
+it earns.
+
+**Calibration** is exactly that comparison, for this system. Every answer this system produces
+carries a confidence number. Collect all the queries where it said roughly 0.79, and ask: how
+often was it actually right?
+
+That is what the picture in `results/reliability_diagram.png` shows. It is called a
+**reliability diagram**:
+
+- the **x-axis** is what the system claimed ("claimed confidence")
+- the **y-axis** is how often it was actually right ("observed accuracy")
+- the **dashed diagonal** is where a perfectly honest system would sit — claim 0.7, be right 70% of the time
+- **above the diagonal** = underconfident (better than it says)
+- **below the diagonal** = overconfident (worse than it says) — the dangerous direction for legal advice
+
+Two summary numbers compress that picture:
+
+- **ECE (Expected Calibration Error)** — the average size of the vertical gap between the
+  curve and the diagonal. 0.00 = perfect. **0.24 means the confidence number is off by about
+  24 percentage points on average.**
+- **Brier score** — the average squared error between the number and the outcome (outcome is
+  1 if right, 0 if wrong). Lower is better. It punishes being confidently wrong harder than
+  being unsure.
+
+And two numbers about *using* confidence to decide when to shut up:
+
+- **Coverage** — the fraction of questions the system chooses to answer.
+- **Risk** — the error rate among only the ones it chose to answer.
+- **Risk-coverage curve** — answer only your most confident queries first, then loosen. Plot
+  risk against coverage. **AURC** is the area under that curve; lower is better.
+- **"Coverage at 10% risk"** — the largest share of questions you can answer while keeping
+  your error rate at or below 10%.
+
+Finally, **Platt scaling**: a small repair. Fit a two-parameter S-curve (a logistic) that maps
+the raw score onto a genuine 0–1 probability. Fitted on 60% of the data, tested on the other
+40% — a **stratified split**, meaning the positives and negatives are each divided 60/40
+separately so both halves have the same proportion of correct answers.
+
+**⚠ The catch, stated up front because it is the whole point.**
+This system's `composite` score is
+
+```
+composite = 0.55 * top_k_mean + 0.15 * score_gap + 0.30 * entity_coverage
+```
+
+It is a weighted blend of **cosine similarities** and a coverage ratio. Nothing in that formula
+estimates a probability. So when ECE says "off by 0.24", the score is not breaking a promise —
+**it never made the promise.** Section 4 and section 5 explain how to say that honestly without
+using it as an excuse.
+
+---
+
+### 2. Technically
+
+**Sample.** n = 617 gold-labelled queries from `load_logs()` (621 rows, 4 without gold
+sections), already deduplicated by the loader on `(query_id, intervention)`. These 617 rows
+cover **177 distinct `pair_id` clusters** — the same underlying legal situation appears under
+several phrasings and under two date conditions, so the rows are *not* independent.
+
+**Two scores compared, so the blend can be judged against a baseline.**
+
+| Score | What it is |
+|---|---|
+| `composite` | the deployed blend, `0.55·top_k_mean + 0.15·score_gap + 0.30·entity_coverage` |
+| `max_score` | the raw top cosine similarity from Qdrant — the simplest possible baseline |
+
+**Three correctness definitions, all from `metrics_lib.correctness_label()`.**
+
+| Definition | Stage | Positives / 617 | Base rate |
+|---|---|---|---|
+| `retrieved@k`, k=15 | `raw_15` | 327 | 0.5300 |
+| `cited` | answer | **533** | 0.8639 |
+| `grounded` | answer | 27 | 0.0438 |
+
+> **⚠ DISCREPANCY, REPORTED NOT SILENCED.** The Wave-2 task brief states the gate established
+> **538** positives under `cited`. Running `metrics_lib.correctness_label(row, "cited")` over
+> the 617 rows today gives **533**. Lenient sub-section matching gives 587, so 538 is neither
+> the strict nor the lenient value. Every `cited` number in this file uses the library's 533
+> and inherits the difference. This must be reconciled before the paper quotes either. It is
+> a 5-row difference (0.8%) and does not change any conclusion here, but it is exactly the
+> kind of drift that produced defect E2.
+
+**Binning: QUANTILE (equal-mass), 10 bins.** Each bin holds ~62 queries. This is deliberate:
+the scores live in roughly 0.35–0.87, so equal-width bins over [0,1] would leave most bins
+empty and one bin holding almost everything, and ECE would be dominated by a single bin's
+sampling noise. Equal-mass binning is stated in the figure caption and in every `notes` field.
+
+**Bootstrap.** 95% percentile bootstrap, `N_BOOT = 10000`, `SEED = 20260901`, using
+`metrics_lib.cluster_bootstrap()` in two modes:
+
+- `ci_lo` / `ci_hi` — a unique-per-row cluster id, which makes it the ordinary **iid row**
+  bootstrap.
+- `cluster_ci_lo` / `cluster_ci_hi` — resampling **`pair_id`**, i.e. resampling *situations*
+  rather than *phrasings*. **Quote this one.** Treating three phrasings of one situation as
+  three independent observations reports an interval narrower than the data supports.
+
+**Platt.** 60/40 stratified split (train 370, test 247), fitted with
+`metrics_lib.platt_scale()` (scipy BFGS on the logistic negative log-likelihood; scikit-learn
+is deliberately absent from this venv). **ECE before and after is reported on the TEST half
+only.** Reporting post-scaling ECE on the training data would be circular — the fit minimises
+exactly the miscalibration you would then report.
+
+**Not touched.** The 55/15/30 weights and the 0.55/0.38 tier thresholds are read only. They
+were fixed in February 2026, before a single retrieval score had been logged, which is why
+these numbers measure the system rather than the result of tuning on the evaluation set.
+Nothing here writes to any production path, and no API call was made.
+
+---
+
+### 3. What the number came out as
+
+**ECE — lower is better; 0.00 is perfect.** n = 617.
+
+| Score | Definition | Stage | ECE | 95% CI (clustered by `pair_id`) | 95% CI (iid rows) |
+|---|---|---|---|---|---|
+| `composite` | retrieved@15 | `raw_15` | **0.2410** | [0.1983, 0.2737] | [0.2016, 0.2695] |
+| `composite` | cited | answer | 0.2697 | [0.2361, 0.3025] | [0.2421, 0.2973] |
+| `composite` | grounded | answer | 0.5504 | [0.5242, 0.5750] | [0.5305, 0.5694] |
+| `max_score` | retrieved@15 | `raw_15` | **0.1270** | [0.0991, 0.1724] | [0.1065, 0.1681] |
+| `max_score` | cited | answer | 0.2309 | [0.1981, 0.2621] | [0.2041, 0.2567] |
+| `max_score` | grounded | answer | 0.5892 | [0.5587, 0.6187] | [0.5692, 0.6082] |
+
+**Brier — lower is better.** n = 617.
+
+| Score | Definition | Brier | 95% CI (clustered) |
+|---|---|---|---|
+| `composite` | retrieved@15 | 0.2326 | [0.2207, 0.2441] |
+| `composite` | cited | 0.1977 | [0.1862, 0.2091] |
+| `composite` | grounded | 0.3622 | [0.3439, 0.3803] |
+| `max_score` | retrieved@15 | 0.2113 | [0.1966, 0.2264] |
+| `max_score` | cited | 0.1632 | [0.1466, 0.1801] |
+| `max_score` | grounded | 0.4081 | [0.3813, 0.4338] |
+
+**Risk-coverage.** `risk@full coverage` = the error rate if you answer everything = 1 − base
+rate. It is the number selective prediction has to beat.
+
+| Score | Definition | AURC ↓ | Coverage at 10% risk | risk @ full coverage |
+|---|---|---|---|---|
+| `composite` | retrieved@15 | 0.3980 | **0.0000** | 0.4700 |
+| `composite` | cited | 0.1120 | 0.6483 (400 queries, threshold 0.4819) | 0.1361 |
+| `composite` | grounded | 0.9610 | **0.0000** | 0.9562 |
+| `max_score` | retrieved@15 | 0.2705 | 0.0486 (30 queries, threshold 0.8102) | 0.4700 |
+| `max_score` | cited | 0.0868 | **0.8768** (541 queries, threshold 0.3619) | 0.1361 |
+| `max_score` | grounded | 0.9474 | **0.0000** | 0.9562 |
+
+**`0.0000` is a real measured value, not a missing one.** For `composite` at `retrieved@15`
+there is *no* confidence threshold, however strict, at which the system can answer even one
+query while keeping retrieval failure at or below 10%. The lowest risk anywhere on that curve
+is 0.2685, reached at 59.2% coverage.
+
+**Platt scaling — ECE on the TEST half only (n = 247; train n = 370).**
+
+| Score | Definition | ECE before | ECE after | Change | Fitted probability range on test |
+|---|---|---|---|---|---|
+| `composite` | retrieved@15 | 0.2198 | 0.2014 | −0.018 | 0.253 – 0.783 |
+| `composite` | cited | 0.2752 | 0.0746 | −0.201 | 0.798 – 0.912 ⚠ |
+| `composite` | grounded | 0.5496 | 0.0375 | −0.512 | 0.037 – 0.049 ⚠⚠ |
+| `max_score` | retrieved@15 | 0.1233 | 0.0760 | −0.047 | 0.051 – 0.869 |
+| `max_score` | cited | 0.2272 | 0.0639 | −0.163 | 0.573 – 0.961 |
+| `max_score` | grounded | 0.5851 | 0.0157 | −0.569 | 0.009 – 0.088 ⚠⚠ |
+
+The ⚠ marks are section 4's most important paragraph. **Do not quote the `grounded` row as a
+success.**
+
+**Supplementary — ECE by query set** (no CI computed; in the CSV with
+`query_set != "ALL"`):
+
+| Query set | Score | retrieved@15 | cited | grounded |
+|---|---|---|---|---|
+| generated_retrieval | composite | 0.3279 | 0.3871 | 0.4462 |
+| generated_retrieval | max_score | 0.2322 | 0.2850 | 0.5484 |
+| layman_situation | composite | 0.3139 | 0.1694 | 0.4639 |
+| layman_situation | max_score | 0.2052 | 0.2869 | 0.3465 |
+| paired_dated_conflict | composite | 0.2206 | 0.2287 | 0.6410 |
+| paired_dated_conflict | max_score | 0.2245 | 0.1641 | 0.7169 |
+| paired_recodification | composite | 0.2151 | 0.2615 | 0.6785 |
+| paired_recodification | max_score | 0.1017 | 0.2177 | 0.7116 |
+
+---
+
+### 4. How to read it
+
+#### 4a. A worked example, with the real bin table
+
+Here is the actual reliability table for `composite` at `retrieved@15`. Read it row by row
+before reading any formula.
+
+| bin | score range | n | mean claimed score | observed accuracy | gap = claimed − observed | weight `n/617` | contribution |
+|---|---|---|---|---|---|---|---|
+| 0 | 0.3455 – 0.4371 | 62 | 0.4064 | 0.3548 | +0.0515 | 0.1005 | 0.0052 |
+| 1 | 0.4371 – 0.4538 | 62 | 0.4460 | 0.1613 | +0.2847 | 0.1005 | 0.0286 |
+| 2 | 0.4538 – 0.4714 | 62 | 0.4633 | 0.1452 | +0.3181 | 0.1005 | 0.0320 |
+| 3 | 0.4714 – 0.5109 | 61 | 0.4874 | 0.2787 | +0.2087 | 0.0989 | 0.0206 |
+| 4 | 0.5109 – 0.5977 | 62 | 0.5596 | 0.9516 | **−0.3920** | 0.1005 | 0.0394 |
+| 5 | 0.5977 – 0.6355 | 61 | 0.6187 | **1.0000** | **−0.3813** | 0.0989 | 0.0377 |
+| 6 | 0.6355 – 0.7210 | 62 | 0.6776 | 0.7903 | −0.1127 | 0.1005 | 0.0113 |
+| 7 | 0.7210 – 0.7475 | 61 | 0.7356 | 0.5082 | +0.2274 | 0.0989 | 0.0225 |
+| 8 | 0.7475 – 0.7698 | 62 | 0.7573 | 0.5645 | +0.1928 | 0.1005 | 0.0194 |
+| 9 | 0.7698 – 0.8339 | 62 | 0.7906 | 0.5484 | +0.2422 | 0.1005 | 0.0243 |
+
+**Take bin 9 on its own.** 62 queries where the system claimed about **0.79** confidence. It
+actually found the right statutory section in the top 15 for **54.8%** of them. It said 79,
+it delivered 55. That single bin is 24 percentage points overconfident.
+
+**Now bin 5.** 61 queries claiming about **0.62** — and the gold section was in the top 15
+for **every single one**. Claimed 62, delivered 100. That bin is 38 points *under*confident.
+
+ECE is just the weighted average of the absolute gaps:
+
+```
+ECE = Σ over bins  (n_bin / n) · |accuracy_bin − mean_score_bin|
+    = (62·0.0515 + 62·0.2847 + 62·0.3181 + 61·0.2087 + 62·0.3920
+       + 61·0.3813 + 62·0.1127 + 61·0.2274 + 62·0.1928 + 62·0.2422) / 617
+    = 148.6894 / 617
+    = 0.2410
+```
+
+`check03_calibration_check.py` computes exactly this sum, by hand, from the bin table, and
+asserts it equals `metrics_lib.ece()`. It does.
+
+#### 4b. The finding that the average hides
+
+**The `composite` curve is not monotone.** Look at the accuracy column going down: 0.35, 0.16,
+0.15, 0.28, **0.95, 1.00, 0.79**, 0.51, 0.56, 0.55. It climbs to a perfect 1.00 in the middle
+of the score range and then **falls back to the base rate at the top.**
+
+A single ECE of 0.241 makes this look like "the score is about 24 points off." It is worse
+than that, and differently wrong: **at the top of its own range, `composite` carries almost no
+information about whether retrieval worked.** The most confident queries are no more likely to
+be right than a coin weighted at the base rate (0.53).
+
+Compare `max_score` in the row below it: 0.13, 0.21, 0.31, 0.35, 0.58, 0.56, 0.71, 0.80, 0.81,
+0.84 — monotone increasing all the way. It is systematically *underconfident* (the curve sits
+above the diagonal at the top), which is a far more benign failure and a far easier one to fix.
+
+#### 4c. **What ECE on this score does and does not tell you**
+
+**It DOES tell you:**
+- How far the displayed number is from the frequency a user would infer from it. Users
+  *do* read 0.79 as "probably right." Measuring that gap is legitimate and necessary,
+  because the number is shown and is thresholded into HIGH / MEDIUM / LOW tiers.
+- Which score is better *as a confidence signal*, since both are measured identically.
+- Where the miscalibration lives (section 4b), which the single number cannot.
+
+**It does NOT tell you:**
+- **That the formula is "broken."** ECE presupposes the number is a probability estimate.
+  `composite` is a weighted sum of cosine similarities. Comparing it to a probability is
+  comparing two different kinds of quantity, and a large ECE is the expected result, not a
+  bug report. Do not write "the confidence score is badly calibrated" as though calibration
+  were ever attempted.
+- **Anything about ranking quality.** ECE is invariant to nothing useful here: a score can
+  have terrible ECE and perfect ranking (add 0.3 to every value), or excellent ECE and zero
+  ranking ability (predict the base rate for everyone — see below). For "does high
+  confidence mean more likely correct," use AUROC or the risk-coverage curve, not ECE.
+- **Anything on its own about the `grounded` definition.** With a base rate of 0.0438, a
+  score that lives in 0.35–0.87 has ECE ≈ 0.55 for the trivial reason that 0.55 ≈ mean score
+  − base rate. That number is measuring the mismatch of *scales*, not of *information*.
+
+#### 4d. **Does Platt scaling make it usable AS a probability? Mostly no — and the table above is a trap**
+
+Platt scaling puts the score on the right scale. That is all it does. It is a two-parameter
+monotone S-curve: it can stretch, shift and squash, but it **cannot reorder anything.** Two
+queries ranked (A above B) by the raw score stay ranked (A above B) after Platt. So it adds
+exactly zero discriminative information.
+
+That matters here because of what the fitted outputs look like:
+
+| Score | Definition | Fitted probabilities span | Test base rate | Raw AUROC (test) |
+|---|---|---|---|---|
+| `composite` | grounded | **0.037 – 0.049** | 0.0445 | 0.524 |
+| `max_score` | grounded | 0.009 – 0.088 | 0.0445 | 0.566 |
+| `composite` | cited | 0.798 – 0.912 | 0.8623 | 0.617 |
+| `max_score` | cited | 0.573 – 0.961 | 0.8623 | 0.689 |
+| `composite` | retrieved@15 | 0.253 – 0.783 | 0.5304 | 0.652 |
+| `max_score` | retrieved@15 | 0.051 – 0.869 | 0.5304 | 0.781 |
+
+Read the top row. Platt cut `composite`/`grounded` ECE from 0.550 to 0.037 — a 93% reduction,
+the single most impressive number in this whole experiment — **by learning to output a
+constant equal to the base rate.** Every query gets "about a 4% chance of being fully
+grounded." That is perfectly calibrated and completely useless: it distinguishes nothing, and
+it is what a model with AUROC 0.524 (0.5 = no information) *should* be forced to output.
+
+**This is the reviewer's question, and the honest answer is:**
+
+- For `grounded`, Platt does **not** make the score usable as a probability. It makes the
+  score *honest about having nothing to say*. Report the 0.037 next to the AUROC of 0.524 or
+  it will be read as a success.
+- For `composite`/`cited`, the fitted range 0.798–0.912 is a 11-point band around an 86%
+  base rate. Calibrated, near-constant, barely actionable.
+- For `max_score`/`retrieved@15`, Platt is genuinely doing something: the fitted range spans
+  0.051–0.869 and the underlying AUROC is 0.781. **This is the one cell in the table where a
+  calibrated probability would be worth deploying.**
+- For `composite`/`retrieved@15` — the currently deployed configuration — Platt moves ECE only
+  0.220 → 0.201. It cannot fix the non-monotonicity in section 4b, because monotone maps
+  cannot reorder. **The deployed score is the one Platt helps least.**
+
+#### 4e. **What would have to be true for a calibrated score to be trustworthy in deployment**
+
+Four conditions. None of them currently hold.
+
+1. **The score must rank before it can be calibrated.** Calibration is a monotone
+   transformation; it inherits whatever ordering it is given. `composite` at AUROC 0.663
+   (retrieved@15) is weakly informative; at 0.531 (grounded) it is not informative at all.
+   **Fix the ranking first, calibrate second.** Calibrating a score that cannot rank produces
+   a well-behaved constant.
+2. **The calibration set must resemble deployment.** These 617 queries are 4 statutory PDFs,
+   1,011 chunks, 4 query sets built for this project. The per-query-set ECE table in section 3
+   already shows the fit moving — `max_score`/`retrieved@15` is 0.102 on `paired_recodification`
+   and 0.232 on `generated_retrieval`, a factor of 2.3 across sets drawn from the *same*
+   corpus. A real user's question distribution is a further shift, and the Platt parameters
+   fitted here would not transfer.
+3. **The calibration must be fitted and tested on disjoint data, and re-fitted whenever the
+   pipeline changes.** Done here (60/40 stratified, test-only reporting). But the Platt
+   parameters are a function of the retriever, the corpus, the chunker and the prompt. Every
+   pending fix in `docs/GAPS.md` — the `entity_coverage` defect, the corpus mis-tagging, the
+   stale `ACT_MAP` — invalidates them. **These numbers calibrate the system as it is broken
+   today.**
+4. **The deployment decision must actually use it.** A calibrated probability is only
+   trustworthy if it is wired to an abstention rule with a stated risk budget. The
+   risk-coverage table is where that lives, and it currently says: at a 10% error budget on
+   retrieval, `composite` supports **zero** coverage. A number nobody can act on cannot be
+   trusted or distrusted; it is decoration.
+
+---
+
+### 5. What this means for the paper
+
+**Claim 1 — the honest framing, and it must come first.**
+> The system's confidence score is a weighted blend of cosine similarities, not a probability
+> estimate. We nonetheless evaluate it with ECE and Brier because it is displayed to users and
+> thresholded into HIGH/MEDIUM/LOW advisory tiers, so users read it as a likelihood. ECE here
+> measures the gap between the number as read and the frequency it corresponds to; it does not
+> imply that a probabilistic interpretation was ever intended.
+
+Put that sentence in the paper before any calibration number. A reviewer who reaches
+ECE = 0.241 without it will (correctly) object that the metric presupposes a probability.
+
+**Claim 2 — the headline finding, and it is a negative result worth publishing.**
+The engineered `composite` score is **worse than the raw cosine similarity it is built from**,
+on every axis, under every definition:
+
+| | `composite` | `max_score` | |
+|---|---|---|---|
+| ECE, retrieved@15 | 0.2410 | **0.1270** | max_score 47% lower |
+| Brier, retrieved@15 | 0.2326 | **0.2113** | |
+| AURC, retrieved@15 | 0.3980 | **0.2705** | |
+| AUROC, retrieved@15 | 0.663 | **0.784** | |
+| Coverage at 10% risk, cited | 0.6483 | **0.8768** | +23 points of answerable queries |
+
+Blending in `score_gap` and `entity_coverage` **destroys** information that `max_score` already
+had. This is consistent with, and independent evidence for, the `entity_coverage` defect in
+`docs/GAPS.md` (chunks divided by entities; neutral default granting 0.30 free). It is a
+concrete, measured cost of that bug — 12 AUROC points and 11 ECE points — rather than a
+code-reading argument.
+
+**Claim 3 — the average hides a worse shape.** Report the non-monotonicity of section 4b, not
+just ECE. "Confidence above 0.72 is no more accurate than the base rate" is a stronger and more
+useful statement to a practitioner than "ECE = 0.24."
+
+**Claim 4 — report Platt with its AUROC beside it, always.** The `grounded` improvement
+(0.550 → 0.037) is a degenerate constant fit and will be caught by any competent reviewer if
+presented as a success. Presenting it *as* a degenerate fit, deliberately, is a genuine
+contribution: it is a clean worked demonstration that ECE alone cannot detect an uninformative
+model.
+
+**Claim 5 — the methodological strength, stated explicitly.** The 55/15/30 weights and the
+0.55/0.38 tier thresholds were frozen in February 2026, before any retrieval score had ever
+been logged. **No hyperparameter in this confidence system was tuned on the evaluation data.**
+Say this in the paper. It converts "our confidence score is poorly calibrated" from an
+embarrassment into a clean, unbiased measurement — which is precisely what makes the negative
+result in Claim 2 credible.
+
+**Caveat to carry into every table.** These are pre-fix numbers, on the pipeline as it stands
+today, with the defects listed in `docs/GAPS.md` present. They are a **baseline**, not a
+result. Every number here carries the git SHA of the commit that produced it.
+
+---
+
+### 6. What broke while computing this
+
+1. **`tee` failed on the first launch.** `./venv/Scripts/python.exe experiments/exp03_calibration.py | tee "$TMPDIR/exp03.log"` — `$TMPDIR` was unset in the Bash tool's environment, so the path became `/exp03.log` and `tee` exited with `Permission denied`. Rerun without the pipe. **Unexpected consequence:** Python did not die on the broken pipe (its stdout was buffered and never flushed until exit), so that run completed normally and wrote both output files. A second run had already been launched, so the experiment ran **twice, concurrently, three minutes apart**, and both wrote to the same two paths.
+2. **That accident produced a free determinism check.** Both runs emitted byte-identical values across all 24 bootstrap intervals — for example `composite`/`retrieved@15` ECE = 0.2410 with clustered CI [0.1983, 0.2737] from both. `SEED = 20260901` is doing its job. No torn file: the writes were ~3 minutes apart and the second completed last. Recorded here because a reader inspecting file timestamps would otherwise see two writes and reasonably suspect a race.
+3. **The `cited` positive count does not match the brief.** Brief says 538; `correctness_label(..., "cited")` gives **533** on the 617 gold-labelled rows today. Lenient matching gives 587, so 538 is neither. Documented in section 2, unresolved, and it needs an `OPEN_QUESTIONS.md` entry.
+4. **The run is slow and it is the bootstrap, not the metric.** 24 bootstraps × 10,000 resamples ≈ 24 minutes wall clock (with four other subagents competing for cores). The cost is `cluster_bootstrap`'s index construction — `np.flatnonzero(ids == c)` once per cluster per resample. Not a defect; just budget ~25 minutes for a rerun and do not assume it has hung.
+5. **A first draft wrote smoke-test artifacts into `results/`.** `results/_smoke_calibration.csv` and `results/_smoke_reliability.png` were created during a 300-resample trial run, in a directory this subagent does not own. Both were deleted; subsequent trial work went to the scratchpad. Flagged because four subagents were writing to `results/` concurrently.
+
+**Nothing broke in the metrics themselves.** All five paired checks passed on the first run.
+
+---
+
+### 7. What I could not compute, and why
+
+| Not computed | Why |
+|---|---|
+| Calibration at `reranked_15` or `filtered_n` | The gate established the `retrieved@k` positives at `raw_15` (327/617) and this experiment was scoped to that stage so the label counts stay comparable across Wave 2. The other two stages are available in `experiments/stages.jsonl`; recomputing there is a one-line change to `DEFS` and roughly 25 more minutes of bootstrap. Not run, so **NOT MEASURED**. |
+| Bootstrap CIs on AURC and coverage-at-risk | Not requested by the task brief, and coverage-at-risk is a discontinuous step function of the data whose percentile bootstrap needs a stated justification I did not have room to give. **NOT MEASURED**, deliberately, rather than reported without one. |
+| Bootstrap CIs on Platt before/after ECE | Would require re-splitting inside every resample (otherwise the interval is conditional on one arbitrary split and is too narrow). That is a nested bootstrap and roughly 10× the runtime. **NOT MEASURED.** The point estimates in section 3 have no uncertainty attached and must not be quoted as if they did. |
+| Per-query-set CIs | The supplementary per-set ECE/Brier rows carry no CI — at n≈99–198 per set with only 30–80 clusters, the bootstrap would be dominated by cluster resampling noise. Reported as point estimates, labelled SUPPLEMENTARY in the CSV. |
+| Whether calibration improves after the `docs/GAPS.md` fixes | Requires re-running retrieval on fixed code. Out of scope, zero API budget, and mixing pre-fix and post-fix numbers is forbidden. This whole file is a **pre-fix baseline**. |
+| A recalibration that could actually be deployed | Would need conditions 1–4 of section 4e satisfied. Condition 1 fails today. Fitting one now would produce a well-calibrated constant and a false sense of progress. |
+
+---
+
+### 8. What surprised me
+
+**1. The raw cosine similarity beats the engineered score. Every time.**
+I expected the blend to help at least somewhere — three signals should carry more than one.
+`max_score` won on ECE, Brier, AURC, AUROC and coverage-at-risk, under all three definitions
+where the comparison is meaningful. The 30% `entity_coverage` term is not neutral; it is
+actively destroying signal that was already there. The known defect has a measurable price:
+**12 AUROC points.**
+
+**2. The composite curve turns around.** I expected monotone overconfidence — a curve below the
+diagonal, sagging further as it rises. Instead accuracy climbs to a *perfect* 1.00 at
+`composite` ≈ 0.62, then **falls back to the base rate** by 0.79. The system's most confident
+predictions are its least informative ones. A single ECE number conceals this completely,
+which is a small lesson about ECE itself.
+
+**3. Coverage at 10% risk is exactly zero, and I had to check it three times.**
+For `composite` at `retrieved@15`, no threshold anywhere on the curve achieves 10% risk. The
+brute-force route in `check03` — try every distinct score as an explicit cutoff, measure the
+error rate among the answered — agrees to 1e-12. It is a real 0.0, and it means the deployed
+confidence score currently cannot support *any* abstention policy at that risk budget.
+
+**4. Platt's biggest "win" is its most worthless output.** Cutting ECE by 93% on `grounded`
+looked like the best result in the experiment for about ten minutes, until I printed the fitted
+range: 0.037–0.049. The scaler had learned to say "4%" to everything. That is the cleanest
+demonstration I have seen of why ECE must never be reported without a discrimination metric
+beside it — and it came out of this project's own data rather than a textbook.
+
+**5. The accident that ran the experiment twice was more reassuring than annoying.** Two
+independent processes, started three minutes apart, on a loaded machine, produced identical
+values to every printed digit across 240,000 bootstrap resamples.
+
+---
+
+## Confidence ablation
+
+Output file: `results/ablation.csv` (133 rows)
+Regenerate with: `./venv/Scripts/python.exe experiments/exp04_ablation.py`
+Verify with: `./venv/Scripts/python.exe experiments/check04_ablation_check.py`
+Owner: Wave 2 Subagent 4
+Data: `load_logs()` → 621 deduplicated rows, **617 with a gold section**. SEED = 20260901, N_BOOT = 10000.
+
+---
+
+### 1. ELI5 — what does this measure?
+
+Every time the system answers a question it also prints a number between 0 and 1 called **confidence**: "how sure am I that I found the right law?" That number is a recipe. It stirs together three ingredients:
+
+| Ingredient | Plain English | Recipe share |
+|---|---|---|
+| `top_k_mean` | how similar the five best-matching chunks of statute were to the question | 55% |
+| the gap term | how *evenly* good those five were — did quality fall off a cliff after the first one? | 15% |
+| `entity_coverage` | if the question named a section ("Section 302"), did the retrieved text actually mention it? | 30% |
+
+An **ablation** is the cooking equivalent of removing one ingredient at a time to find out which one the dish actually needs. Nobody changes the restaurant's recipe while doing this — you cook extra portions on the side and taste them. That is exactly what this file does: the deployed recipe (55/15/30) is untouched; alternative recipes are recomputed offline from numbers that were already written down for all 617 queries. **No API calls, no re-running the system, no change to any production file.**
+
+The question being answered is: *is this three-ingredient confidence score actually better than any one of its ingredients alone?*
+
+The short answer, which you should brace for: **no.** The blended score is worse at telling right from wrong than the single simplest ingredient in it. One ingredient is not merely useless — it is wired in backwards, and it is actively dragging the score down.
+
+---
+
+### 2. Technically
+
+#### 2.1 AUROC — the yardstick
+
+**AUROC** (Area Under the Receiver Operating Characteristic curve) answers one question in one number:
+
+> Pick one query the system got right and one it got wrong, at random. How often does the confidence score give the right one a higher number?
+
+- **1.0** = always. Perfect separation.
+- **0.5** = a coin flip. The score carries **no information**.
+- **below 0.5** = the score is *anti*-predictive — it is confident exactly when it is wrong. A score of 0.27 is not "bad"; it is *informative with the sign flipped*. Multiply it by −1 and you get 0.73, a genuinely useful signal.
+
+AUROC is a **rank statistic**: it only looks at the *order* the scores put the queries in, never at the actual values. This has one consequence that matters below — multiplying every score by the same positive number cannot change the AUROC, because it cannot change the order.
+
+It comes from `metrics_lib.auroc()` (Mann–Whitney U with average ranks, so ties count as half). Nothing was reimplemented here.
+
+#### 2.2 Bootstrap confidence intervals
+
+We have 617 queries, not all queries that exist. A **bootstrap** asks "if I had drawn a different 617, how much would this number have moved?" by resampling the 617 rows *with replacement* 10,000 times and recomputing the AUROC each time. The 2.5th and 97.5th percentiles of those 10,000 values are the **95% confidence interval**. Two versions are reported:
+
+- `ci_lo`/`ci_hi` — resamples **rows**.
+- `cluster_ci_lo`/`cluster_ci_hi` — resamples **situations** (`pair_id`, 177 of them). Three rephrasings of one legal situation are not three independent observations, so the row bootstrap reports an interval that is narrower than the data deserves. The cluster interval is the honest one. It is computed for the headline `retrieved@k` rows.
+
+#### 2.3 Paired comparison — why two intervals side by side is not a test
+
+`entity_coverage` scores 0.581 [0.538, 0.623] and the composite 0.663 [0.617, 0.710]. Those intervals overlap. It is tempting to conclude "no real difference". **That reasoning is wrong**, and this is one of the easiest ways to lose a paper in review.
+
+Both scores are measured on **the same 617 queries**. So instead of comparing two independent intervals by eye, bootstrap the **difference** directly: resample the 617 rows, recompute *both* AUROCs on the *same* resample, take the difference, repeat 10,000 times. The queries that are hard for one score are hard for the other, and the pairing cancels that shared noise out.
+
+`paired_bootstrap_auroc_diff()` does exactly this, and here it returns a difference of **−0.0825 [−0.1056, −0.0594], p = 0.0000** — an interval nowhere near zero. The eyeball test said "maybe the same". The correct test says "definitely not". Always use the paired one.
+
+---
+
+### 3. What the number came out as
+
+#### 3.0 FIRST — the deployed formula is not the formula the task brief described
+
+The task brief (and, informally, the project notes) describe the composite as:
+
+```
+composite = 0.55*top_k_mean + 0.15*score_gap + 0.30*entity_coverage
+```
+
+**That formula does not reproduce a single one of the 617 logged confidence values.** It is off by up to 0.148, and by 0.090 on average, on 617 of 617 rows.
+
+The formula actually in `agents/retriever.py:137–142` is:
+
+```python
+gap_penalty = min(score_gap / 0.3, 1.0)
+confidence  = 0.55*top_k_mean + 0.15*(1.0 - gap_penalty) + 0.30*entity_coverage
+```
+
+The gap is **normalised and inverted** before it is used. With that transform, the reconstruction matches the logged composite to **9.0 × 10⁻⁵ on every row**, which is exactly the rounding floor you get when four quantities are each stored to four decimal places. Two independent implementations (`exp04_ablation.py` via `load_logs()`; `check04_ablation_check.py` reading `runs/*/queries.jsonl` with the `json` module and no shared code) both confirm it and both `assert` it.
+
+**Worked example, a real row** — `req_id = 6b7aabdef03c`, the single worst-agreeing row of all 617:
+
+| Step | Arithmetic | Value |
+|---|---|---|
+| logged `top_k_mean` | — | 0.4043 |
+| logged `score_gap` | — | 0.0216 |
+| logged `entity_coverage` | — | 0.5000 |
+| gap_penalty | `min(0.0216 / 0.3, 1.0)` | 0.0720 |
+| **gap_term** | `1 − 0.0720` | **0.9280** |
+| term 1 | `0.55 × 0.4043` | 0.222365 |
+| term 2 | `0.15 × 0.9280` | 0.139200 |
+| term 3 | `0.30 × 0.5000` | 0.150000 |
+| reconstructed | sum | **0.511565** |
+| **logged composite** | — | **0.5115** |
+
+Off by 0.000065 — pure 4-decimal rounding. Under the brief's formula the same row would give `0.55×0.4043 + 0.15×0.0216 + 0.30×0.5 = 0.3756`, which is 0.136 away from what the system actually logged.
+
+**Why this matters more than a typo.** `1 − gap/0.3` means the deployed system pays out the full 0.15 when the gap is **small** — it treats "all five chunks were about equally good" as a sign of confidence (the source comment says *"small gap = consistent relevance"*). Everything below shows the data says the opposite. So the quantity that actually enters the blend is `gap_term`, and that is what parts (b) and (c) manipulate — only then does the weighting (0.55, 0.15, 0.30) reproduce the deployed composite exactly, which is the whole point of comparing against it.
+
+#### 3.1 (a) Per-signal AUROC — does each signal carry information *on its own*?
+
+**Definition `retrieved@k`, stage `raw_15`, k = 15, n = 617, 327 positives** — "the gold section was among the 15 chunks Qdrant returned".
+
+| Signal | AUROC | 95% CI (rows) | 95% CI (clustered) | Paired diff vs composite | p |
+|---|---|---|---|---|---|
+| `max_score` | **0.7837** | [0.7470, 0.8195] | [0.7316, 0.8312] | **+0.1207** [+0.0798, +0.1623] | 0.0000 |
+| `top_k_mean` | **0.7571** | [0.7188, 0.7939] | [0.7024, 0.8075] | **+0.0940** [+0.0561, +0.1324] | 0.0000 |
+| `score_gap` (raw) | **0.7298** | [0.6893, 0.7684] | [0.6743, 0.7813] | **+0.0667** [+0.0128, +0.1200] | 0.0184 |
+| **`composite` (deployed)** | **0.6631** | [0.6172, 0.7096] | [0.6047, 0.7212] | — | — |
+| `entity_coverage` | 0.5806 | [0.5376, 0.6232] | [0.5435, 0.6183] | −0.0825 [−0.1056, −0.0594] | 0.0000 |
+| `gap_term` (as deployed) | **0.2702** | [0.2316, 0.3107] | [0.2187, 0.3257] | −0.3929 [−0.4604, −0.3239] | 0.0000 |
+
+**Read the ordering.** The deployed composite sits **below three of its own inputs**, and every one of those three gaps is significant under the paired test. Blending made the signal worse.
+
+**Definition `cited`, n = 617, 533 positives** — "the gold section appears in the answer's citations".
+
+| Signal | AUROC | 95% CI | Paired diff vs composite | p |
+|---|---|---|---|---|
+| `max_score` | 0.6895 | [0.6195, 0.7551] | +0.0984 [+0.0441, +0.1523] | 0.0006 |
+| `top_k_mean` | 0.6749 | [0.6057, 0.7419] | +0.0838 [+0.0345, +0.1317] | 0.0020 |
+| `score_gap` | 0.6652 | [0.5985, 0.7298] | +0.0741 [+0.0020, +0.1457] | 0.0454 |
+| **`composite`** | **0.5911** | [0.5206, 0.6602] | — | — |
+| `entity_coverage` | 0.5017 | [0.4460, 0.5577] | −0.0894 [−0.1262, −0.0528] | 0.0000 |
+| `gap_term` | 0.3348 | [0.2702, 0.4015] | −0.2563 [−0.3680, −0.1404] | 0.0000 |
+
+`entity_coverage` at **0.5017** is a coin flip to four decimals.
+
+**Definition `grounded`, n = 617, only 27 positives** — "every citation in the answer was supported".
+
+| Signal | AUROC | 95% CI | Paired diff vs composite | p |
+|---|---|---|---|---|
+| `top_k_mean` | 0.5930 | [0.4931, 0.6884] | +0.0621 [−0.0387, +0.1561] | 0.2190 |
+| `max_score` | 0.5888 | [0.4886, 0.6864] | +0.0579 [−0.0560, +0.1687] | 0.3154 |
+| `score_gap` | 0.5695 | [0.4719, 0.6670] | +0.0386 [−0.1070, +0.1826] | 0.5864 |
+| **`composite`** | **0.5309** | [0.4486, 0.6075] | — | — |
+| `entity_coverage` | 0.4554 | [0.3867, 0.5273] | −0.0754 [−0.1116, −0.0383] | 0.0000 |
+| `gap_term` | 0.4305 | [0.3330, 0.5281] | −0.1003 [−0.2027, +0.0040] | 0.0586 |
+
+With 27 positives every interval is wide and every interval crosses 0.5 except `entity_coverage`'s difference. **Nothing here separates grounded answers from ungrounded ones.** Report it as "no signal detected at n=27", not as a ranking.
+
+**Per query set** (`retrieved@k`, `raw_15`, k=15) — the aggregate hides a large amount:
+
+| Query set | n | pos | `top_k_mean` | `score_gap` | `entity_coverage` | `composite` | `max_score` |
+|---|---|---|---|---|---|---|---|
+| `generated_retrieval` | 198 | 137 | 0.805 | 0.755 | **0.880** | **0.873** | 0.880 |
+| `paired_recodification` | 99 | 73 | 0.692 | 0.668 | **0.386** | **0.353** | 0.735 |
+| `paired_dated_conflict` | 197 | 97 | 0.623 | 0.629 | 0.474 | 0.471 | 0.656 |
+| `layman_situation` | 120 | 18 | 0.569 | 0.521 | **0.500** | 0.571 | 0.552 |
+
+Three things jump out:
+
+1. On `generated_retrieval` the composite looks excellent (0.873) — but only because those queries were built by naming a section, so `entity_coverage` is nearly a direct label leak (0.880).
+2. On `paired_recodification` the composite is **0.353, well below chance** — it is confident precisely when it is wrong, driven by `entity_coverage` at 0.386. These are the IPC→BNS recodification queries: the query names an old section, the corpus holds the new one, so "the entity appears in the text" fires for the *wrong* statute.
+3. On `layman_situation` — the queries this project exists for — `entity_coverage` is **exactly 0.500**, because a layman never names a section, so the signal is the constant 0.5 for all 120 rows. A constant has no ranking information by definition.
+
+#### 3.2 (b) Leave-one-out — does *removing* a signal hurt the blend?
+
+**This is a different question from 3.1, and the difference is the point of doing both.**
+
+- (a) asks: *does this signal carry information on its own?*
+- (b) asks: *does removing it hurt the combination?*
+
+These can disagree in both directions. A signal can be worthless alone yet valuable in combination — it might be noise except on exactly the queries where the other signals fail, correcting them. And a signal can look informative alone yet be dead weight in combination — if it is redundant with a stronger signal already in the blend, deleting it costs nothing. **Neither result implies the other.** You need both tables.
+
+**Leave-one-out** means: zero one weight, then **renormalise** the survivors — rescale them so they still sum to 1.0. Worked example, the one from the brief: dropping `gap_term` leaves 0.55 and 0.30, which sum to 0.85, so `0.55/0.85 = 0.647` and `0.30/0.85 = 0.353`. Applied to our real row above: `0.647 × 0.4043 + 0.353 × 0.5000 = 0.4381`.
+
+> **An honest footnote about renormalisation.** Because AUROC is a rank statistic (§2.1), rescaling every score by the same positive constant *cannot change the AUROC at all* — the reduced composite would rank the 617 queries identically at 0.55/0.30 and at 0.647/0.353. So renormalisation contributes exactly **0.0** to every AUROC below. It is done because the brief specifies it, and because it keeps the reduced score on a 0–1 scale comparable with the deployed one — which genuinely does matter for the tier thresholds (HIGH ≥ 0.55, MEDIUM ≥ 0.38), just not for AUROC. What moves the numbers below is the **removal of the term**, never the rescaling. This is recorded in `ablation.csv` as `loo_renormalisation_effect_on_auroc = 0.0`.
+
+**Definition `retrieved@k`** — full deployed composite AUROC **0.6631**:
+
+| Dropped | Remaining weights | AUROC | 95% CI | Clustered CI | Paired diff vs full | p |
+|---|---|---|---|---|---|---|
+| `top_k_mean` | 0.000 / 0.333 / 0.667 | 0.4860 | [0.4391, 0.5334] | — | **−0.1772** [−0.2092, −0.1465] | 0.0000 |
+| `gap_term` | 0.647 / 0.000 / 0.353 | **0.7047** | [0.6602, 0.7493] | — | **+0.0415** [+0.0282, +0.0555] | 0.0000 |
+| `entity_coverage` | 0.786 / 0.214 / 0.000 | 0.6581 | [0.6150, 0.7010] | — | −0.0050 [−0.0498, +0.0383] | 0.8210 |
+
+**Definition `cited`** — full composite 0.5911:
+
+| Dropped | AUROC | Paired diff vs full | p |
+|---|---|---|---|
+| `top_k_mean` | 0.4346 | −0.1565 [−0.2068, −0.1069] | 0.0000 |
+| `gap_term` | 0.6118 | **+0.0207** [+0.0010, +0.0403] | 0.0426 |
+| `entity_coverage` | 0.6754 | **+0.0842** [+0.0328, +0.1327] | 0.0018 |
+
+**Definition `grounded`** — full composite 0.5308 (27 positives, nothing is significant except the first row):
+
+| Dropped | AUROC | Paired diff vs full | p |
+|---|---|---|---|
+| `top_k_mean` | 0.3953 | −0.1355 [−0.1869, −0.0829] | 0.0000 |
+| `gap_term` | 0.5173 | −0.0135 [−0.0446, +0.0163] | 0.3662 |
+| `entity_coverage` | 0.5901 | +0.0593 [−0.0249, +0.1446] | 0.1658 |
+
+**Summary of (b):** removing `top_k_mean` collapses the score toward chance under all three definitions — it is the only ingredient carrying the dish. Removing `gap_term` **improves** the score significantly under `retrieved@k` and `cited`. Removing `entity_coverage` is neutral under `retrieved@k` and **improves** the score under `cited`.
+
+And note the (a)/(b) divergence in action: `score_gap` looked *informative alone* (0.730) yet its deployed form is *harmful in combination* (+0.0415 from deleting it) — because what is blended is the inverted `gap_term`, not the raw gap.
+
+#### 3.3 (c) Weight sweep — what would other recipes have scored?
+
+**This is analysis, not tuning. The deployed weighting stays 0.55 / 0.15 / 0.30, and no production file was touched.** The sweep tries every weighting `(w1, w2, w3)` where each is a multiple of 0.05 and the three sum to 1.0 — **231 weightings**, built in exact integer units of 0.05 so no floating-point sum ever fails the `== 1.0` test. **Argmax** just means "the input that maximises the output" — here, the weighting with the highest AUROC.
+
+| Definition | Argmax weighting (top_k_mean / gap_term / entity_coverage) | AUROC (in-sample) | Deployed 55/15/30 | Gain | Weightings within 0.005 of best |
+|---|---|---|---|---|---|
+| `retrieved@k` | **1.00 / 0.00 / 0.00** | 0.7571 | 0.6631 | **+0.0940** | **1 of 231** |
+| `cited` | **1.00 / 0.00 / 0.00** | 0.6749 | 0.5911 | +0.0838 | 5 of 231 |
+| `grounded` | **1.00 / 0.00 / 0.00** | 0.5930 | 0.5308 | +0.0622 | 5 of 231 |
+
+**Does the argmax put any signal at or near zero? Yes — it puts BOTH other signals at exactly zero, under all three definitions.** The best of 231 weightings is the degenerate corner that throws away `gap_term` and `entity_coverage` entirely and keeps only `top_k_mean`. This is the strongest single result in this file.
+
+And the surface is **not** flat: for `retrieved@k`, exactly **1** of 231 weightings lands within 0.005 AUROC of the winner. The peak is sharp, so the argmax is not an arbitrary pick among near-ties.
+
+##### Overfitting, and the honest number
+
+**Overfitting** here means: the sweep tried 231 candidates and reported the best one *on the same 617 rows it used to choose it*. Even pure noise gives one of 231 candidates a lucky high score, so the winning AUROC is **optimistically biased** — it is an upper bound, not an estimate.
+
+The fix is a **stratified split**: cut the 617 rows into a 60% train half and a 40% test half, *separately within the positives and within the negatives* so both halves carry the same proportion of correct queries (unstratified, `grounded`'s 27 positives could land almost entirely in one half and leave AUROC undefined in the other). Choose the weighting on train; **report the AUROC on test only**, where those rows played no part in the choice.
+
+| Definition | Train argmax (n=370) | **Test AUROC (n=247), 95% CI** | Deployed on the same test half | **Test gain** | In-sample gain |
+|---|---|---|---|---|---|
+| `retrieved@k` | 1.00 / 0.00 / 0.00 | **0.7436** [0.6780, 0.8027] | 0.6519 | **+0.0918** | +0.0940 |
+| `cited` | 1.00 / 0.00 / 0.00 | **0.6738** [0.5653, 0.7780] | 0.6174 | **+0.0564** | +0.0838 |
+| `grounded` | 0.75 / 0.25 / 0.00 | **0.5535** [0.3961, 0.7203] | 0.5239 | **+0.0297** | +0.0622 |
+
+The test-half intervals are wide because 247 rows is not many — the point of the table is the *shrinkage of the gain*, not the precision of any single cell.
+
+**Both numbers must be stated together, and this table is why.** For `retrieved@k` the gain barely shrinks (+0.0940 → +0.0918), so the finding survives held-out evaluation. For `cited` it shrinks by a third and for `grounded` by half — those two are partly the selection artefact. Quote the test column.
+
+Note that under all three definitions the train half independently chose weight **0.00** for `entity_coverage`, and 0.00 for `gap_term` in two of three.
+
+##### Secondary sweep: what if the gap were not inverted?
+
+Because §3.0 found the gap enters the blend sign-flipped, the sweep was repeated with the **raw** `score_gap` in place of `gap_term` (in-sample, reported for contrast only):
+
+| Definition | Argmax (top_k_mean / raw score_gap / entity_coverage) | AUROC |
+|---|---|---|
+| `retrieved@k` | 0.55 / 0.45 / 0.00 | **0.7850** |
+| `cited` | 0.20 / 0.80 / 0.00 | 0.6925 |
+| `grounded` | 0.95 / 0.05 / 0.00 | 0.5930 |
+
+With the sign the right way round, the gap becomes the **second most valuable ingredient** (0.45 weight) and the blend reaches 0.7850 — edging past `max_score`'s 0.7837. `entity_coverage` still gets weight 0.00 under all three definitions.
+
+#### 3.4 Provenance and data quirks
+
+| | |
+|---|---|
+| `load_logs()` rows | 621 (859 before dedupe) |
+| Rows with a gold section | **617** |
+| Clusters (`pair_id`) | 177 |
+| `entity_coverage` fell back to its neutral constant | **268 / 617 = 43.4%** |
+| Distinct values of `entity_coverage` on this data | **only 0.00, 0.50, 1.00** |
+| Values of `entity_coverage` above 1.0 | **0** |
+
+`entity_coverage` is not a continuous signal on this data — it is a **three-level flag**: 0.0 (entity named, not found), 0.5 (`ENTITY_NEUTRAL`, no entity named — 43.4% of all queries), 1.0 (entity named and found). Almost every query names at most one entity, so "fraction of entities found" can only be 0 or 1.
+
+---
+
+### 4. How to read it
+
+**Reading `ablation.csv`.** Twelve fixed columns. `metric` names the quantity; `notes` carries the signal name, the weighting, and the train/test role, because the schema is shared with four other subagents and columns cannot be added. The metrics you want:
+
+| `metric` | What it is |
+|---|---|
+| `auroc_signal` | part (a): one signal alone. `notes` has `signal=...` |
+| `auroc_diff_vs_composite` | part (a): paired difference, that signal minus the composite |
+| `auroc_loo` | part (b): composite with one signal removed. `notes` has `drop=...` |
+| `auroc_diff_loo_vs_full` | part (b): paired difference. **Positive means dropping the signal HELPED** |
+| `auroc_sweep_argmax` | part (c): best of 231, in-sample. **Optimistically biased** |
+| `auroc_sweep_argmax_test` | part (c): **the honest number** — chosen on train, measured on test |
+| `sweep_argmax_weight` | the weight the argmax gives one signal. **0.0 means the sweep deleted it** |
+| `composite_reconstruction_max_abs_dev` | the paired check |
+
+**Rules for reading the numbers themselves:**
+
+1. **Always read the `definition` column.** `retrieved@k` (327 positives) is the load-bearing one. `grounded` has 27 positives and its intervals are so wide that essentially nothing is distinguishable; do not build an argument on it.
+2. **Prefer the clustered interval where one is present.** The row interval is too narrow because three phrasings of one situation are not three independent facts.
+3. **Prefer the paired difference to comparing two intervals by eye.** §2.3.
+4. **AUROC below 0.5 is not "bad", it is backwards.** `gap_term` at 0.2702 is a *strong* signal pointed the wrong way.
+5. **Quote the test-half gain, not the in-sample gain**, whenever you say what a different weighting would have bought.
+6. **A blank cell means not applicable, never zero.** `cluster_ci_*` is blank outside the `retrieved@k` headline rows; `ci_*` is blank on rows that are counts rather than estimates.
+7. **Nothing in this file changed the system.** The deployed weights are still 55/15/30 and the tiers are still 0.55/0.38.
+
+---
+
+### 5. What this means for the paper
+
+**Write this up as a negative result about your own design, stated plainly. It is a contribution, not an embarrassment.** A paper that measures its own confidence score, finds it does not work, and shows exactly which component fails and why, is more useful to a reader than one that reports a number and moves on. Reviewers reward this; the alternative — quietly dropping the component — is the thing that gets caught.
+
+Five claims the data supports, strongest first.
+
+**1. The blended confidence score is worse than the simplest signal available.**
+Composite 0.663 [0.605, 0.721 clustered] vs `max_score` 0.784 [0.732, 0.831], paired difference **+0.1207 [+0.0798, +0.1623], p < 0.0001**. Even `top_k_mean` alone — an ingredient already inside the composite — beats the composite by +0.0940. Three signals were combined and the result discriminates worse than one of them. That is the headline.
+
+**2. The gap component is wired in backwards, and this is the mechanism.**
+The raw gap is genuinely informative (AUROC 0.730): a **large** gap between the best chunk and the fifth means retrieval found one clearly-best match, which is good. The deployed system computes `1 − min(gap/0.3, 1)` and therefore rewards a **small** gap, on the stated theory that a small gap means "consistent relevance". As deployed, that term has AUROC **0.2702** — the most anti-predictive quantity anywhere in this analysis. Removing it *raises* the composite by +0.0415 (p < 0.0001). Flipping it instead lifts the best achievable blend to 0.7850, above `max_score`.
+This is a clean, mechanistic finding with a one-line cause, and it is the most citable thing in the file. **Do not fix it before the paper reports the baseline** — it is the measured behaviour of the frozen configuration.
+
+**3. `entity_coverage` is worthless in combination, and worse than worthless on the queries that matter.**
+- Alone: 0.5806 under `retrieved@k`, **0.5017 under `cited`** — a coin flip.
+- In combination: dropping it changes nothing under `retrieved@k` (−0.0050, p = 0.82) and **improves** the score under `cited` (+0.0842, p = 0.0018).
+- The weight sweep assigns it **0.00 under all three definitions**, in-sample and on the train half.
+- On `layman_situation` it is the constant 0.5 for all 120 rows, because laymen do not cite sections. On `paired_recodification` it is 0.386 — *anti*-predictive, because the query names the repealed IPC section while the corpus holds the BNS successor.
+Note it is worth reporting that this is measured on the **corrected** implementation: the logged `entity_coverage` never exceeds 1.0 and takes only {0.0, 0.5, 1.0}, so the divide-chunks-by-entities defect and the free-1.0 default are *not* present in this data. The signal is not broken here. It is simply uninformative — 30% of the confidence budget spent on a three-level flag that is a constant for 43.4% of all queries.
+
+**4. Retuning the weights is not the fix.**
+The best of 231 weightings is the degenerate corner 1.00 / 0.00 / 0.00 — i.e. *stop blending, just use `top_k_mean`*. Held out properly, that buys **+0.0918** AUROC under `retrieved@k` (0.7436 vs 0.6519 on the same 247 test rows). But `max_score` alone already scores 0.7837 with no weights at all. The honest conclusion is that the three-signal architecture adds nothing over a single similarity number, not that a better weighting exists.
+
+**5. Every number here is a measurement, not a tuning outcome — and say so explicitly.**
+The weights 0.55/0.15/0.30 and the tiers 0.55/0.38 were frozen in February 2026, months before the first retrieval score was ever logged. They could not have been tuned on this evaluation set because this evaluation set did not exist. That is a real methodological strength and should be one sentence in the Method section, because the alternative reading — "she tried weightings until one worked" — is what a reviewer will otherwise assume of any ablation. The sweep in §3.3 is reported as a counterfactual and changed nothing.
+
+**Also worth a line in Limitations:** under `grounded`, with 27 positives out of 617, *no* signal separates grounded from ungrounded answers (every interval crosses 0.5). Report that as "underpowered at n=27", not as evidence of absence.
+
+---
+
+### 6. What broke while computing this
+
+**(i) The formula in the task brief was wrong, and the paired check caught it.**
+The first reconstruction — brief's formula, `0.15*score_gap` untransformed — missed the logged composite on **617 of 617 rows**, by 0.148 at worst and 0.090 on average. Under the brief's instruction that a mismatch here "would mean the logged composite was not produced by the documented formula", this initially looked like the major finding. Reading `agents/retriever.py:137–142` showed the deployed code applies `1 − min(gap/0.3, 1)` first, and with that the reconstruction agrees to 9.0×10⁻⁵ on every row. So the logged composite **is** the deployed formula; the *description* was wrong, not the data. Both facts are recorded in `ablation.csv` (`composite_reconstruction_max_abs_dev` and `..._brief_formula`) so the discrepancy is visible rather than quietly absorbed. This changed the design of parts (b) and (c): they blend `gap_term`, not `score_gap`, because only then does 0.55/0.15/0.30 reproduce the deployed composite.
+
+**(ii) I wrote a matcher with the exact bug `metrics_lib` exists to prevent.**
+`check04`'s deliberately-simple `simple_key()` uppercased and squashed `"BNS Section 351"` into `"BNSSECTION351"`, then tested `startswith("BNSS")` — which is true. Every BNS citation was attributed to the BNSS, a different statute, and 69 genuine matches were silently lost (`cited` positives came out 462 instead of ~533). This is the same class of failure as defect E2. Fixed by stripping the words `SECTION` / `SEC` / `ARTICLE` / `ORDER` / `RULE` before looking for a statute prefix; the count then rose to 537. The moral, and the reason `metrics_lib.normalise_section()` is the single comparison rule: **never hand-roll section matching.** The bug and its cost are now documented in the source of `check04`.
+
+**(iii) A count that does not match the GATE.**
+The gate recorded **538** positives under `cited` at n = 617. Measured here with `metrics_lib.correctness_label(..., "cited")` the answer is **533**. `retrieved@k` (327) and `grounded` (27) both reproduce exactly; only `cited` is off, by 5. I did not resolve it, and I did not adjust anything to match. See §7.
+
+**(iv) Runtime.** 911 s. Cluster bootstraps at N_BOOT = 10000 over 177 clusters are the cost; the run was backgrounded rather than trimmed.
+
+---
+
+### 7. What I could not compute, and why
+
+**(a) The 5-row `cited` discrepancy against the GATE — NOT RESOLVED.**
+533 measured here, 538 at the gate. Both `retrieved@k` and `grounded` reproduce exactly, so this is specific to the `cited` definition. Possible causes not eliminated: a different matching strictness, or the row-set difference described in (b) below. **Reported, not reconciled.** Whoever owns the gate number should reconcile it before either figure is published; do not average them and do not assume mine is right.
+
+**(b) Three labelled rows are lost inside `load_logs()`, and I could not fix it — the loader is not my file.**
+`load_logs()` deduplicates on `(query_id, intervention)` with `keep="last"`. Nine server rows have no matching `eval_summary` record and therefore no gold. In three cases such a gold-less row is the *last* occurrence of a key whose earlier occurrence **did** carry gold, so `keep="last"` discards the labelled row and keeps the unlabelled one. Verified: keys `('G0107','baseline')`, `('G0190','baseline')`, `('D0094','both')`. The labelled count is therefore **617** where a gold-preferring dedupe gives **620**. Reproduce with:
+
+```
+./venv/Scripts/python.exe -c "import sys; sys.path.insert(0,'.'); from experiments.metrics_lib import load_logs; d=load_logs(); print(len(d), int(d['expected_sections'].map(lambda x: len(x or [])>0).sum()))"
+```
+
+This is ~0.5% of the data and does not move any conclusion here, but it is a shared-loader issue affecting every subagent's `n`. **Flagged for the `metrics_lib` owner; not fixed by me.**
+
+**(c) Clustered confidence intervals for `cited` and `grounded` — NOT MEASURED.**
+Cluster bootstraps are computed only for the `retrieved@k` headline rows in parts (a) and (b). At 10,000 resamples over 177 clusters each one costs ~36 s, and covering all three definitions plus the per-query-set breakdown would have pushed the run past an hour. The row-level intervals are present everywhere; treat them as **narrower than the truth** wherever the clustered column is blank. Any conclusion here that depends on an interval's exact width should be re-run with clustering before publication.
+
+**(d) Clustered intervals for the paired differences — NOT MEASURED**, same reason. `paired_bootstrap_auroc_diff()` accepts `cluster_ids` and would give the honest interval; the `p_two_sided` values reported are from the row bootstrap and are therefore anti-conservative.
+
+**(e) A selection-corrected interval for the sweep argmax — NOT COMPUTED.**
+`auroc_diff_sweep_argmax_vs_deployed` bootstraps the difference between the winning weighting and the deployed one, but the winner was *chosen on those same rows*, and the bootstrap does not re-run the selection inside each resample. That interval is therefore anti-conservative and is labelled as such in `notes`. The train/test split in §3.3 is the correct answer to this question and is what should be quoted; a nested bootstrap that re-selects inside each resample would be better still and was not attempted.
+
+**(f) Anything requiring re-retrieval — OUT OF SCOPE.** Zero API calls were made. Every number is recomputed from signals already logged.
+
+---
+
+### 8. What surprised me
+
+**1. The composite is beaten by its own ingredients.** I expected a blend to be at worst roughly as good as its best component — that is the intuition combination usually earns. Instead 0.663 sits below `top_k_mean`'s 0.757, which is *inside* it at 55% weight. Two of the three ingredients are not merely diluting the good one; one of them is actively pulling in the wrong direction. Averaging a signal with an anti-signal destroys information, and I had not internalised how much.
+
+**2. The sign error hid behind a plausible sentence.** `# Signal 2: Score drop-off (small gap = consistent relevance)` reads perfectly sensibly. It is even arguably true about *relevance*. It is just false about *correctness* — what actually predicts finding the right section is one chunk standing clearly above the rest, not five chunks being equally mediocre. AUROC 0.270 versus 0.730 for the same underlying quantity, and the only difference is which direction "good" points. A comment that sounds right is not evidence, and no test could have caught this, because the code does exactly what the comment says.
+
+**3. The argmax was the degenerate corner, not a nearby adjustment.** I expected something like 0.70/0.10/0.20 — the deployed recipe, nudged. What 231 weightings actually chose was 1.00/0.00/0.00 under all three definitions: *delete two of the three signals*. And it is not a flat-surface accident — exactly 1 of 231 weightings comes within 0.005 of it under `retrieved@k`.
+
+**4. The per-query-set table nearly fooled me into the opposite conclusion.** On `generated_retrieval` the composite scores 0.873 and `entity_coverage` 0.880 — in isolation those numbers say the confidence score works beautifully. They say nothing of the kind: those queries were *constructed* by naming a section, so "does the retrieved text mention the named section" is close to reading the answer key. On `layman_situation` — the queries this system exists to serve — the same signal is the constant 0.5. **An aggregate over query sets built by different processes can average a label leak together with a constant and produce a respectable-looking middle.** Always break the table down by query set before believing it.
+
+**5. `entity_coverage` was anti-predictive on `paired_recodification` (0.386), and the reason is a legal fact, not a bug.** The query names a repealed IPC section; the corpus holds its BNS successor. The entity genuinely is not in the right chunk, and the times it *does* appear are the times retrieval landed in the wrong (repealed) statute. The signal is working exactly as coded and is wrong anyway, because the underlying assumption — that the words of the query should appear in the correct answer — fails specifically under recodification. That is a substantive point about legal RAG, not about this codebase, and it may be the most paper-worthy observation in this file.
+
+---
+
+# Robustness and clustering
+
+Output file: `results/robustness.csv`
+Regenerate with: `./venv/Scripts/python.exe experiments/exp05_robustness.py`
+Verify with: `./venv/Scripts/python.exe experiments/check05_robustness_check.py`
+Owner: Wave 2 Subagent 5
+Seed 20260901 · N_BOOT 10000 · zero API calls · reads only
+
+---
+
+### 1. ELI5 — what does this measure?
+
+Two questions, both about whether the other four subagents' numbers are actually true.
+
+**Question one: does "correct" mean what you think it means?**
+
+This project can call an answer correct in three different ways:
+
+| Name | Means | Positives out of 617 |
+|---|---|---|
+| `retrieved@15` | the right section of law was **found** and put in front of the model | **327** (53.0%) |
+| `cited` | the right section **appears in the answer text** | **538** (87.2%) |
+| `grounded` | **every** section the answer cited was actually supported by retrieved text | **27** (4.4%) |
+
+Same 617 questions. Same system. Same day. The score is 87% or 53% or 4% depending purely on which of these three you write in the paper. So any sentence of the form "the system achieves X" is meaningless until it says *which* X. This experiment re-runs the project's three core analyses under **all three**, and never picks one.
+
+**Question two: how much evidence do you actually have?**
+
+The query sets are not 617 separate questions. They are 177 legal *situations*, each asked several different ways. Here is one real situation, `pair_id = L001`, gold answer IPC 376 / BNS 64:
+
+| variant | the query | found the right law? |
+|---|---|---|
+| `no_date` | "i was sexually assaulted and this happened but it has been long time now…" | no |
+| `ipc_era` | *same text* + "This happened in March 202…" | no |
+| `bns_era` | *same text* + "This happened last month." | no |
+| `vague` | *same text* + "This happened a while back" | no |
+
+Those four rows are the **same sentence with a different date glued on the end**. They failed together, for the same reason. Counting them as four independent failures is like asking one person the same question four times and writing down four opinions.
+
+It is not a fluke of L001. Across the 30 layman situations, **28 of 30 (93.3%)** had all four phrasings agree — either all four found the law or all four missed it. Only 2 situations split.
+
+So the layman set contains something much closer to **30** pieces of evidence than 120. Pretending it has 120 makes the error bars too narrow, and "too narrow" is exactly what a reviewer will circle.
+
+---
+
+### 2. Technically
+
+Terms, each defined once, in the order you meet them.
+
+| Term | Definition |
+|---|---|
+| **Independent observation** | A data point that carries genuinely new information — knowing the others would not let you guess it. The four L001 rows are *not* independent: knowing three tells you the fourth almost certainly. |
+| **Cluster** | A group of rows that belong together and are not independent of each other. Here a cluster is one legal situation, identified by `pair_id`. 617 rows fall into **177** clusters. |
+| **Naive interval** | A 95% confidence interval computed as if every row were independent. Too narrow whenever clusters exist and agree internally. |
+| **Cluster bootstrap** | Instead of resampling *rows*, resample whole *situations* with replacement, 10,000 times, and take the 2.5th and 97.5th percentiles. A situation is drawn all-or-nothing, so the fact that its phrasings agree can no longer masquerade as extra evidence. `metrics_lib.cluster_bootstrap()`. |
+| **Design effect** | clustered interval width ÷ naive interval width. Above 1 = clustering widened the interval (the usual case). Below 1 = clustering narrowed it. |
+| **`width_ratio`** | naive ÷ clustered — the ratio this task asked for. It is the **reciprocal** of the design effect, so *smaller than 1 is the normal, healthy case*. Both are written into every `notes` field so neither can be misread. |
+| **Sensitivity analysis** | Recomputing a result under a different reasonable choice, to see whether the conclusion depended on the choice rather than on the data. Done here for the correctness definition (three of them) and for four data restrictions. |
+
+**How the naive column is computed, and why it matters.** The naive interval is *not* a Wilson formula. It is the same `cluster_bootstrap()` call with the cluster column set to a per-row unique id, so each "cluster" is one row and the resample degenerates to an ordinary row bootstrap. Same code, same seed, same 10,000 draws — **the only thing that changes between the two columns is the definition of a cluster.** Had the naive column used a closed-form Wilson interval instead, the width ratio would have confounded "clustering" with "bootstrap vs formula". CHECK 4 confirms Wilson and the naive bootstrap agree anyway (widths 0.1276 vs 0.1250, ratio 0.979).
+
+---
+
+### 3. What the number came out as
+
+All values below are `restriction=none`, the full 617 rows / 177 clusters. Every gate anchor reproduced exactly: 327 / 538 / 27 positives, and the paired 87.9% / 33.3%.
+
+**The naive-vs-clustered table.** This is the headline deliverable.
+
+| value | definition · stage | n | point | naive 95% CI | clustered 95% CI | width_ratio | design effect |
+|---|---|---|---|---|---|---|---|
+| paired rate, IPC-numbered | retrieved@15 · raw_15 | 33 | 0.879 | [0.758, 0.970] | [0.758, 0.970] | 1.000 | 1.00 |
+| paired rate, BNS-numbered | retrieved@15 · raw_15 | 33 | 0.333 | [0.182, 0.485] | [0.182, 0.485] | 1.000 | 1.00 |
+| **paired gap IPC − BNS** | retrieved@15 · raw_15 | 66 | **+0.545** | [0.348, 0.737] | **[0.303, 0.758]** | 0.856 | 1.17 |
+| paired gap IPC − BNS | cited | 66 | −0.030 | [−0.160, 0.096] | **[−0.121, 0.061]** | 1.406 | 0.71 |
+| paired gap IPC − BNS | grounded | 66 | −0.030 | [−0.100, 0.000] | [−0.091, 0.000] | 1.100 | 0.91 |
+| **layman rate** | retrieved@15 · raw_15 | 120 | **0.150** | [0.092, 0.217] | **[0.033, 0.275]** | **0.517** | **1.93** |
+| layman rate | retrieved@15 · filtered_n | 120 | 0.075 | [0.033, 0.125] | **[0.000, 0.167]** | 0.550 | 1.82 |
+| layman rate | cited | 120 | 0.667 | [0.583, 0.750] | [0.542, 0.783] | 0.690 | 1.45 |
+| layman rate | grounded | 120 | 0.000 | [0.000, 0.000] | [0.000, 0.000] | — | — |
+| AUROC composite | retrieved@15 · raw_15 | 617 | 0.663 | [0.617, 0.710] | [0.605, 0.721] | 0.793 | 1.26 |
+| AUROC max_score | retrieved@15 · raw_15 | 617 | 0.784 | [0.747, 0.820] | [0.732, 0.831] | 0.728 | 1.37 |
+| **AUROC diff (composite − max)** | retrieved@15 · raw_15 | 617 | **−0.121** | [−0.162, −0.080] | **[−0.166, −0.075]** | 0.909 | 1.10 |
+| AUROC diff | cited | 617 | −0.103 | [−0.159, −0.046] | [−0.164, −0.041] | 0.913 | 1.09 |
+| AUROC diff | grounded | 617 | −0.058 | [−0.169, 0.056] | [−0.158, 0.045] | 1.110 | 0.90 |
+
+The two paired *arms* show `width_ratio` exactly 1.000 because each situation contributes exactly one IPC row and one BNS row — there is nothing inside a cluster to collapse, so clustering is a no-op there **by construction**, not by accident.
+
+**Why clustering bites hardest on the layman set.** Per query set, for `retrieved@15 / raw_15`:
+
+| query set | rows | situations | all variants agreed | design effect |
+|---|---|---|---|---|
+| `layman_situation` | 120 | 30 | **93.3%** | **1.93** |
+| `generated_retrieval` | 198 | 80 | 42.5% | 1.13 |
+| `paired_dated_conflict` | 197 | 33 | 3.0% | **0.79** |
+| `paired_recodification` | 99 | 33 | 24.2% | **0.64** |
+
+The layman number is near the theoretical ceiling: with 4 phrasings per situation that agree essentially always, the most clustering can cost you is √4 = 2.00, and it costs 1.93. **The layman set's effective sample size is 30, not 120.**
+
+The bottom two sets are *below* 1, and that is by design rather than by defect — see section 6.
+
+---
+
+### 4. How to read it
+
+- **Read the clustered interval, not the naive one.** The naive column is in the file only so the difference is visible; it is not the number for the paper.
+- **`width_ratio` below 1 is healthy.** It means clustering widened the interval, which is what should happen. Do not read a small ratio as a small problem — 0.517 means the honest interval is nearly **twice** as wide.
+- **Never quote a rate without its definition and its stage.** "15.0%" and "7.5%" for the layman set are not a disagreement between two studies; they are `raw_15` and `filtered_n` of the same measurement, and both are in the table above.
+- **The `n` column is rows, not evidence.** For the layman set, `n=120` but there are 30 situations. The clustered interval already accounts for this; the naive one does not.
+- **An interval touching 0.000 means "cannot rule out zero."** That is the case for the layman `filtered_n` rate once clustered.
+
+---
+
+### 5. What this means for the paper
+
+Three claims were tested. **One survives everything. Two do not.** Naming the failures is the point of this task.
+
+#### CLAIM 1 — "IPC-numbered queries retrieve the right law far more often than BNS-numbered ones" (the recodification gap)
+
+| definition | gap | clustered CI | verdict |
+|---|---|---|---|
+| `retrieved@15` raw_15 | +0.545 | [0.303, 0.758] | **HOLDS** |
+| `retrieved@15` reranked_15 | +0.545 | [0.303, 0.758] | **HOLDS** |
+| `retrieved@15` filtered_n | +0.455 | [0.242, 0.667] | **HOLDS** |
+| `cited` | −0.030 | [−0.121, 0.061] | **DIES** — contains 0, and the sign flips |
+| `grounded` | −0.030 | [−0.091, 0.000] | **DIES** — contains 0 |
+
+It also holds under all four stability restrictions, naive and clustered.
+
+**But it is a claim about retrieval only, and the paper must say so.** Under `cited` the gap is gone: the IPC arm cites the gold section 90.9% of the time and the BNS arm 93.9% — *higher*. The model names the right section whether or not the retriever found it. That is this project's known "cites unretrieved authority" pathology, and it means the recodification gap is **invisible in the output the user actually reads**. Written as "the system answers IPC-numbered questions better", the claim is false. Written as "the retriever finds IPC-numbered provisions better, while the generator papers over the difference by citing from parametric memory", it is true, supported, and considerably more interesting.
+
+#### CLAIM 2 — "the layman retrieval rate is low but non-zero"
+
+| definition · stage | rate | naive CI | clustered CI | verdict |
+|---|---|---|---|---|
+| `retrieved@15` raw_15 | 0.150 | [0.092, 0.217] | [0.033, 0.275] | holds, but barely |
+| `retrieved@15` filtered_n | 0.075 | [0.033, 0.125] | **[0.000, 0.167]** | **DIES UNDER CLUSTERING** |
+| `cited` | 0.667 | [0.583, 0.750] | [0.542, 0.783] | holds |
+| `grounded` | 0.000 | [0.000, 0.000] | [0.000, 0.000] | zero positives |
+
+**This is the one claim that clustering alone kills, and it is the specific answer to "does clustering cross a threshold a claim depends on."**
+
+At the `filtered_n` stage — the chunks that actually reach the language model — the naive interval is [0.033, 0.125], comfortably above zero. The clustered interval is **[0.000, 0.167]**. The lower bound moves from 0.033 to 0.000, a shift of 3.3 percentage points, and the interval width grows from 0.092 to 0.167 (design effect 1.82). Once the 4 phrasings of a situation are correctly counted as 1, **the data cannot rule out that the true layman retrieval rate at `filtered_n` is zero.** With 30 situations and 9 hits concentrated in 3 of them, that is the honest reading.
+
+The spread across definitions is the other half of the story: 0.0% (`grounded`), 7.5% (`filtered_n`), 15.0% (`raw_15`), 66.7% (`cited`). A paper quoting any one of these without the other three is not reporting a result, it is choosing one.
+
+#### CLAIM 3 — "the composite confidence score is worse than raw max_score"
+
+| definition | restriction=none | excl. entity default | excl. filter null | one variant per situation |
+|---|---|---|---|---|
+| `retrieved@15` raw_15 | **−0.121 [−0.166, −0.075]** ✓ | −0.116 [−0.177, −0.051] ✓ | −0.156 [−0.210, −0.099] ✓ | −0.119 [−0.201, −0.037] ✓ |
+| `cited` | −0.103 [−0.164, −0.041] ✓ | −0.026 [−0.149, 0.099] ✗ | −0.075 [−0.195, 0.047] ✗ | −0.121 [−0.237, 0.016] ✗ |
+| `grounded` | −0.058 [−0.158, 0.045] ✗ | +0.219 [−0.115, 0.539] ✗ | −0.017 [−0.179, 0.144] ✗ | −0.075 [−0.236, 0.103] ✗ |
+
+**Survives under `retrieved@15` in every restriction — this is the robust version of the claim.** Under `cited` it survives only on the full data and collapses under all three real restrictions. Under `grounded` it never holds, and under one restriction the point estimate even flips sign (+0.219), though with an interval so wide it establishes nothing.
+
+Safe wording: *"the composite score discriminates retrieval success worse than raw max score alone (ΔAUROC −0.121, cluster-bootstrap 95% CI [−0.166, −0.075])."* Do not generalise it to answer quality — under the two answer-level definitions it does not hold.
+
+#### One more thing the paper needs to disclose
+
+The **`grounded` definition has 27 positives out of 617 (4.4%)**, and **zero** of them are in the layman set and zero in the paired IPC arm. Any analysis conditioned on `grounded` is running on almost no positive examples, which is why its intervals are enormous and why nothing is ever significant under it. It should be reported as a diagnostic, not used as the primary correctness definition.
+
+---
+
+### 6. What broke while computing this
+
+1. **The width ratio was inverted, and it produced a false alarm on every headline value.** My first version flagged "clustered NARROWER" whenever `naive/clustered > 1`, which is backwards — that condition is the *healthy* one reversed. The smoke run duly reported the layman rate as narrowing under clustering, which is impossible for a mean over positively-correlated rows. Caught by checking the layman case against theory before trusting it: the analytic cluster-robust SE is 0.06297 against a naive 0.03260, a design effect of 1.932, and the bootstrap gives 1.933. Clustering had been *widening* the whole time. Fixed, direction now stated explicitly in the code, and CHECK 2 exists precisely to catch this class of error.
+
+2. **The 3 legacy `criminal_*` rows are NOT already excluded from the 617.** The task brief stated they should be. They are not: `Q001`, `Q002`, `Q003` carry gold labels, survive the gold-label filter, and sit inside the headline 617. They also share a single `pair_id` (`P_murder`) *across two different query sets*, making them the only cluster in the data that spans query sets. Excluding them (n=614) changes nothing material — the AUROC diff moves from −0.121 to −0.120 — but the 617 is not the clean set it was described as.
+
+3. **The 4 unlabelled rows are not what the brief called them.** Described as "4 unlabelled SMOKE rows". Only one (`SMOKE01`) is a smoke row; the other three are real queries — `G0107`, `G0190`, `D0094` — that failed to join to a gold record. They are correctly dropped, but they represent 3 lost real observations, not test scaffolding.
+
+4. **Two other brief details did not match the data.** The dated set is 33 situations × 3 variants × 2 interventions = 197 rows, not "30 × 4"; the "30 situations × 4 variants" description belongs to the *layman* set. And `filter_applied is None` covers **208** rows, not 210.
+
+5. **`ZeroDivisionError` in the check.** Degenerate zero-width intervals (layman `grounded`, which is 0/120 with no positives at all) produced a 0/0 width ratio. Guarded.
+
+6. **The narrowings that are NOT a bug.** CHECK 2 asserts that clustering must widen. It fires on 8 AUROC values, and **4 of them are correct behaviour**: the within-situation correlation there is *negative*. In the contrastive sets the phrasings of a situation are **built to disagree** — the IPC-named and BNS-named versions of one murder question are designed to come out differently — so `paired_recodification` has a design effect of 0.64 and `paired_dated_conflict` 0.79. Resampling whole situations then *cancels* variance instead of adding it. Confirmed directly by splitting the data:
+
+   | subset | AUROC naive width | clustered width | width_ratio |
+   |---|---|---|---|
+   | positively-correlated sets (generated + layman) | 0.0788 | 0.1146 | 0.688 (widens) |
+   | contrastive sets (dated + recodification) | 0.1356 | 0.1133 | **1.197 (narrows)** |
+
+   The restrictions `exclude_entity_default_used` and `exclude_filter_applied_null` delete the entire layman set and much of `generated`, leaving a remainder dominated by the contrastive sets — which is why narrowing appears there and nowhere else. The same effect explains why the paired IPC−BNS **gap** narrows under `cited` (`width_ratio` 1.406): the within-situation correlation between the two arms is **−0.328**.
+
+7. **4 narrowings remain genuinely unexplained, and CHECK 2 is left FAILING because of them.** See section 7. I did not weaken the test until it passed.
+
+---
+
+### 7. What I could not compute, and why
+
+| Wanted | Status | Why |
+|---|---|---|
+| Layman rate under `exclude_entity_default_used` | **NOT MEASURED** | The restriction removes **all 120** layman rows. Every single layman query used the neutral 0.30 entity-coverage default — 120/120. The layman set *is* the no-entity case, so "layman results excluding the neutral default" does not exist. |
+| Layman rate under `exclude_filter_applied_null` | Computed but **useless** (n=4) | 116 of 120 layman rows had no corpus filter applied. The surviving 4 rows are reported with their n so nobody mistakes them for a result. |
+| `grounded` design effect for the layman set and the paired IPC arm | **NOT MEASURED** | Zero positives (0/120 and 0/33). A statistic with no variance has no interval; the code writes empty rather than a plausible-looking number. |
+| Why 4 AUROC narrowings persist | **UNRESOLVED** | All 4 are `auroc_composite` / `auroc_max_score` under `cited` and `grounded`, on the two restricted subsets, with width ratios 1.043–1.121. Ruled out: a resampler bug (CHECK 3 reproduces the analytic design effect to 4 significant figures, 1.933 vs 1.932) and Monte Carlo noise (the ratio is stable at 1.078–1.096 across five seeds). Not ruled out: **AUROC is a rank statistic**, and the design-effect argument used throughout this document is derived for a *mean*. The cluster-robust variance of AUROC depends on the covariance of placement values, which I did not derive. **Until that is settled, do not rely on the clustered AUROC intervals for these two restricted subsets.** The `restriction=none` AUROC intervals are unaffected and behave correctly (design effects 1.03–1.37). |
+| Clustering across *sections* rather than situations | Not attempted | `P_IPC302` (paired) and `D_IPC302` (dated) are different `pair_id`s covering the same provision, so the two sets are treated as independent when arguably they are not. This would widen intervals further, never narrower. Flagged for `OPEN_QUESTIONS.md`. |
+
+---
+
+### 8. What surprised me
+
+**The layman variants are the same sentence.** I expected four differently-worded questions per situation. They are one identical stem with a date phrase appended — "This happened last month." versus "This happened a while back". Nothing that a retriever keys on differs between them. The 93.3% unanimity is not a finding about robustness to phrasing; it is close to a tautology, and it means the layman set was always a 30-question benchmark wearing a 120-question label.
+
+**The definition swing is larger than any effect being measured.** Moving from `grounded` to `cited` changes the score by **83 percentage points** (4.4% → 87.2%). The recodification gap — the paper's headline effect — is 54 points. The labelling choice is worth more than the phenomenon. That reframes what the contribution is: the measurement problem is at least as publishable as the system.
+
+**Clustering does not always widen, and I had it backwards in code before I had it backwards in my head.** I had internalised "clustering widens intervals" as a law. It is a law only when rows inside a cluster *agree*. Half this project's query sets are deliberately contrastive, so their clusters *disagree*, and there clustering correctly tightens the estimate. My first implementation encoded the folk version, flagged the healthy cases as bugs, and would have had me report the layman interval as suspicious when it was the most correct number in the file.
+
+**The generator hides the retriever's biggest failure.** The paired gap is +54 points at retrieval and −3 points at citation. The single most striking result in this task is not a number the system produces — it is the difference between two ways of scoring it, and it says the answer text cannot be used as evidence that retrieval worked.
