@@ -424,3 +424,81 @@ Caught by reading one answer before reporting the number. Recorded in `docs/OPEN
 ### Next
 
 Bind citations to their supporting chunk so attribution stops depending on proximity; re-run the comparison on the layman set; investigate BNS chunking.
+
+---
+
+## 2026-09-01 — Wave 0 (discovery). Two of my earlier claims were wrong.
+
+Branch `metrics/sept-01`. Baseline 142 tests passing. Cost this wave: **₹0.06** (621 embedding calls, no generation).
+
+Artifacts: `experiments/SCHEMA.md`, `experiments/stages.jsonl` (621 rows, all three retrieval stages with authoritative `section_number`), `experiments/check00_preflight.py`, `check01_determinism.py`, `check02_reproduce.py`, `check03_stage_effect.py`.
+
+### CORRECTION 1 — the "counting bug" was not a bug
+
+On 26 August I claimed `scripts/analyze_eval.py` mis-identified retrieved passages by parsing the first 160 characters of text instead of reading `section_number`, and that this had "halved a published figure: layman retrieval reported as 7.5% is actually 15.0%."
+
+**Measured against authoritative `section_number` on 4,906 Stage-C chunks:**
+
+```
+recovered correctly : 4,906  (100.0%)
+found nothing       :     0
+found the wrong one :     0
+```
+
+The text-parsing rule has a **0.0% error rate**. The 1,020 chunks (17.2%) carrying no `section_number` are preamble, split continuations, or demoted footnotes — they are not sections, so scoring them as "not the gold section" was always correct.
+
+**The 7.5% / 15.0% discrepancy was a STAGE confusion, not a bug — mine.**
+
+| Stage | Layman gold retrieved |
+|---|---|
+| `raw_15` — what Qdrant returned | **15.0%** [9.7, 22.5] |
+| `reranked_15` | 15.0% [9.7, 22.5] |
+| `filtered_n` — what reached the model | **7.5%** [4.0, 13.6] |
+
+I compared `raw_15` (my 26-Aug probe searched unfiltered) against the README's `filtered_n`. Both figures were always correct at their own stage. **`docs/PLAN.md` section 4.1, "'retrieved' has three meanings", is the rule that caught this.** It was written by Udita.
+
+Consequence: Wave 1 Subagent 2 had no bug to fix and has been repurposed (below).
+
+### CORRECTION 2 — `section_number` was never in the logs
+
+`SCHEMA.md` records the real chunk schema: `['corpus', 'doc', 'page', 'score', 'text_head']`. No `section_number`. It exists in the Qdrant payload but was never copied into the run log. Recovery by `(doc, page)` fails — 376 of 495 keys (76.0%) hold more than one section.
+
+Resolved by Option A: a retrieval-only re-run capturing all three stages plus the payload field. ₹0.06.
+
+### Pre-flight checks (all passed)
+
+| Check | Result |
+|---|---|
+| Index identity | 1,899 points; composition CRPC 742 / IPC 595 / BNS 424 / CPA 138 exact; **1,200 of 1,200** logged chunks re-found in Qdrant by text |
+| Reproducibility | **589/621 (94.8%)** identical chunk list *and* order; 22 same set different order; **7 (1.1%)** genuinely different (HNSW is approximate); max score deviation 0.0063 |
+| Determinism | Keyed on `(query_id, intervention)`: 228 same-condition repeats, **206 (90.4%) byte-identical**; `n_citations` differed **0** times; refusal flipped **0** times; confidence differed on 22 by at most **0.0005** — three orders of magnitude below the 0.55/0.38 tier boundaries |
+
+**The pipeline is effectively deterministic.** Claimable with evidence. The 99 of 222 "duplicate" `query_id`s that disagreed were baseline-vs-both — two conditions, not repeats.
+
+### NEW FINDING — the adaptive filter is what costs laypeople their answers
+
+Gold section retrieved, strict, by stage:
+
+| Query set | N | `raw_15` | `filtered_n` | filter cost |
+|---|---|---|---|---|
+| generated | 198 | 69.2% | 67.7% | −1.5 pt |
+| paired | 99 | 73.7% | 70.7% | −3.0 pt |
+| paired_dated | 197 | 49.2% | 45.2% | −4.0 pt |
+| **layman** | **120** | **15.0%** | **7.5%** | **−7.5 pt, i.e. HALF** |
+
+The adaptive filter — `threshold = max(top_score − 0.15, 0.35)` — removes half of all successful layman retrievals while costing the other sets 2–4%. Hypothesis to test in Wave 2: the 0.35 absolute floor is binding on layman queries because their top scores sit near 0.40, whereas technical queries top out well above it.
+
+This is a new, unreported mechanism and it is measured on data already paid for.
+
+### Schema facts worth keeping
+
+- `pair_id` exists on **every** query set — the `situation_id` the plan asked for needs no reconstruction. paired 33×3, paired_dated 33×3, layman 30×4, generated 80×2.5.
+- Gold present on **518 of 518** rows across the four current sets.
+- `answer.prompt_variant` is `"HIGH"` on all 859 rows — the tier bug, confirmed in schema.
+- `answer.prompt_tokens` / `completion_tokens` **are** logged, so per-query cost is recoverable although `cost_usd` never was.
+- `date.*` and `mapper.*` buckets exist and are populated — Phase H logging worked.
+- Summaries hold 850 rows for 521 unique `query_id`; **deduplication belongs inside `load_logs()`**, not in each caller.
+
+### Next
+
+Task B — build `experiments/metrics_lib.py` with known-answer tests. Wave 1 Subagent 2 repurposed to `exp08_filter.py`, the adaptive-filter investigation (analysis only; the deployed 0.35 floor is **not** to be changed).

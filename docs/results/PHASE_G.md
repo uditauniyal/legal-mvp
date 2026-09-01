@@ -22,6 +22,31 @@ Every proportion carries a **95% Wilson interval** — the range the true value 
 
 ---
 
+## STAGE LABELLING — added 1 September 2026
+
+**Every retrieval figure in this document was computed at stage `filtered_n`** — the passages that survived the adaptive filter and actually reached the language model. That was never stated, and it matters: "retrieved" has three meanings in this pipeline.
+
+| Stage | Meaning |
+|---|---|
+| `raw_15` | the 15 the database returned, in score order |
+| `reranked_15` | the same 15, reordered by entity match |
+| `filtered_n` | what survived `max(top_score − 0.15, 0.35)` and reached the model |
+
+Measured across all four query sets with the authoritative `section_number` (`experiments/check03_stage_effect.py`):
+
+| Query set | N | `raw_15` | `filtered_n` | cost of the filter |
+|---|---|---|---|---|
+| generated | 198 | 69.2% | 67.7% | −1.5 pt |
+| paired | 99 | 73.7% | 70.7% | −3.0 pt |
+| paired_dated | 197 | 49.2% | 45.2% | −4.0 pt |
+| **layman** | **120** | **15.0%** | **7.5%** | **−7.5 pt — half of everything found** |
+
+**The adaptive filter discards half of all successful layman retrievals** while costing the other sets 2–4 percent. Under investigation as `experiments/exp08_filter.py`.
+
+An earlier claim that the 7.5 percent figure was produced by a counting bug is **retracted** — see `docs/WORKLOG.md`, 2026-09-01.
+
+---
+
 ## The three query sets
 
 | Set | N | What it is | What it tests |
@@ -70,7 +95,7 @@ With the filter on, an IPC-numbered query **cannot** return a BNS chunk. The dia
 
 ## E0 · Is this actually retrieval-augmented?
 
-| Query set | N | gold **retrieved** (strict) | (lenient) | gold **cited** | gap |
+| Query set | N | gold **retrieved** (strict, stage `filtered_n`) | (lenient) | gold **cited** | gap |
 |---|---|---|---|---|---|
 | generated (ideal conditions) | 200 | **68.0%** [61.2, 74.1] | 69.0% | 98.5% [95.7, 99.5] | +30.5 pp |
 | paired | 99 | 71.7% [62.2, 79.6] | 93.9% | 100.0% [96.3, 100.0] | +28.3 pp |
@@ -115,7 +140,7 @@ Asked a neutral question about Indian criminal law, the system answers out of th
 
 30 situations × 4 date conditions. Non-control, answerable rows only.
 
-| variant | N | gold retrieved | gold cited | corpus correct |
+| variant | N | gold retrieved (`filtered_n`) | gold cited | corpus correct |
 |---|---|---|---|---|
 | `no_date` | 28 | 7.1% [2.0, 22.6] | 96.4% [82.3, 99.4] | 35.7% [20.7, 54.2] |
 | `ipc_era` "in March 2023" | 28 | 10.7% [3.7, 27.2] | 89.3% [72.8, 96.3] | 28.6% [15.3, 47.1] |
@@ -185,7 +210,7 @@ Honest statement: **the system has no working abstention mechanism for the queri
 
 ## E6 · Messiness — confounded, do not report
 
-| messiness | N | gold retrieved | gold cited | mean confidence |
+| messiness | N | gold retrieved (`filtered_n`) | gold cited | mean confidence |
 |---|---|---|---|---|
 | 1 (fairly clear) | 20 | 0.0% [0.0, 16.1] | 85.0% | 0.451 |
 | 2 (typical) | 57 | 0.0% [0.0, 6.3] | 84.2% | 0.465 |
@@ -199,7 +224,7 @@ Fixing it needs messiness varied *within* topic — the same situation written t
 
 ## E7 · Routing
 
-| decision path | N | gold retrieved |
+| decision path | N | gold retrieved (`filtered_n`) |
 |---|---|---|
 | `act_map_single` (Act named → filtered) | 211 | **65.9%** [59.2, 71.9] |
 | `no_match` (no Act named → no filter) | 208 | 49.0% [42.3, 55.8] |
@@ -216,7 +241,7 @@ Naming a statute is worth ~17 points. But note this understates the gap for real
 
 1. **Cross-statute retrieval failure exists, is asymmetric, and favours the repealed code** — 97.0% vs 51.5% when the code is named explicitly.
 2. **The routing filter hides it.** A system that looks correct only because it was never given the chance to be wrong.
-3. **For layman queries the pipeline is barely retrieval-augmented** — 7.5% retrieved vs 85.0% cited, 83.8% ungrounded.
+3. **For layman queries the pipeline is barely retrieval-augmented** — 7.5% retrieved (stage `filtered_n`) vs 85.0% cited, 83.8% ungrounded. At stage `raw_15` retrieval is 15.0%; the adaptive filter removes half of it.
 4. **The composite confidence score is worse than a single raw similarity number**, and one of its three signals is at chance.
 5. **Retrieval has a hard ceiling of ~68%** even when the query names the section it wants.
 

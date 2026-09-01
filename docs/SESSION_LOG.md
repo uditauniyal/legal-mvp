@@ -6182,3 +6182,342 @@ echo "=== total tracked under backup/ ==="
 git ls-files backup/ | wc -l
 git ls-files backup/ | sed 's|/[^/]*$||' | sort -u
 ```
+
+`2026-09-01 10:31:13` · **cmd** — Untrack the backup duplicates
+```bash
+cd /c/Users/uniya/legal-mvp
+git rm -r --cached -q backup/
+printf '\n# Local safety copies of read-only data. Never versioned:\n# eval/ and data/ are already tracked, and runs/ is 12MB.\nbackup/\n' >> .gitignore
+git add -A && git commit -q -m "untrack backup/ -- duplicates of tracked eval/ and data/"
+echo "committed: $(git log --oneline -1)"
+echo
+echo "=== backup still on disk? ==="
+echo "  $(find backup/pre-metrics -type f | wc -l) files, $(du -sh backup/pre-metrics | cut -f1)"
+echo "  tracked by git: $(git ls-files backup/ | wc -l)"
+echo
+echo "=== tree clean? ==="
+git status --porcelain | gre
+… [truncated, 34 more chars]
+```
+
+`2026-09-01 10:31:45` · **cmd** — Wave 0 Task A step 1-2: inventory real files
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== 1. branch + clean tree ==="
+echo "  branch: $(git branch --show-current)"
+echo "  dirty (excl SESSION_LOG): $(git status --porcelain | grep -v SESSION_LOG | wc -l)"
+mkdir -p results experiments
+echo "  created: results/ experiments/"
+echo
+echo "=== baseline test count ==="
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -1
+echo
+echo "=== 2. what actually exists under runs/ ==="
+find runs -type f -name "*.jsonl" | head -20
+echo "  total jsonl files: $(find runs -type f -name '*.jsonl' | wc -l)"
+echo
+echo "=== eval/ ==="
+ls -la eval/*.jsonl 2>/dev/
+… [truncated, 39 more chars]
+```
+
+`2026-09-01 10:32:37` · **cmd** — Answer the six Wave 0 discovery questions from real data
+```bash
+cd /c/Users/uniya/legal-mvp
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/discover.py <<'PY'
+import json, io, sys, glob, collections
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+
+def keys_of(obj, prefix=""):
+    out = []
+    for k, v in obj.items():
+        p = f"{prefix}{k}"
+        if isinstance(v, dict):
+            out += keys_of(v, p + ".")
+        else:
+            out.append((p, type(v).__name__, str(v)[:58]))
+    return out
+
+# ---------- server-side run log ----------
+srv = sorted(glob.glob(
+… [truncated, 4058 more chars]
+```
+
+`2026-09-01 10:33:29` · **cmd** — Verify the two blocking questions
+```bash
+cd /c/Users/uniya/legal-mvp
+cat > /c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/verify2.py <<'PY'
+import json, io, sys, glob, collections
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+
+rows = []
+for f in glob.glob("runs/*/queries.jsonl"):
+    for l in open(f, encoding="utf-8"):
+        try: rows.append(json.loads(l))
+        except: pass
+
+print("CHECK 1 -- is scores_raw in score order or rerank order?")
+srt = unsrt = 0
+for r in rows:
+    s = (r.get("retrieval") or {}).get("scores_ra
+… [truncated, 2816 more chars]
+```
+
+### 2026-09-01 10:49:36 · prompt
+
+Option A. Three additions before you start:
+
+1. Confirm the current Qdrant collection still has 1,899 chunks and 
+   matches the index the original runs used. If it doesn't, stop and 
+   tell me â€” the re-run wouldn't be comparable.
+
+2. After re-running, verify reproducibility: compare the new Stage C 
+   chunk sets against what's already in runs/ for the same query_ids. 
+   Report how many match exactly. If they don't match, stop and show 
+   me before building anything.
+
+3. On the 222 duplicates: before deduplicating, report how many 
+   duplicate pairs actually disagree with each other. If they're 
+   identical it's harmless. If they differ, that's a determinism 
+   finding I need to know about. Then dedupe inside load_logs().
+
+Write to new files only. Never touch runs/ or backup/.
+Then continue to Task B.
+
+`2026-09-01 10:50:36` · **cmd** — Pre-flight: verify index identity and duplicate agreement
+```bash
+cd /c/Users/uniya/legal-mvp
+cat > experiments/check00_preflight.py <<'PY'
+"""Pre-flight checks before the Option A re-run.
+
+CHECK 1  Is the Qdrant collection still the index the original runs used?
+CHECK 3  Do duplicated query_id rows AGREE with each other?
+
+Read-only. Writes nothing. Zero API cost (Qdrant is local).
+"""
+import json, io, sys, glob, collections
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, ".")
+from clients.qdrant_client import COLLECTION, qdrant
+
+print("=" * 78)
+print("CHECK 1 -- is the index the same one the original runs used?")
+print(
+… [truncated, 4369 more chars]
+```
+
+`2026-09-01 10:51:50` · **cmd** — Isolate true non-determinism from mode differences
+```bash
+cd /c/Users/uniya/legal-mvp
+cat > experiments/check01_determinism.py <<'PY'
+"""Isolate TRUE non-determinism: same query_id, SAME intervention mode.
+
+Rows that differ because they ran under different intervention modes are two
+conditions, not duplicates. Only same-mode repeats can reveal non-determinism.
+Read-only, zero cost.
+"""
+import json, io, sys, glob, collections, statistics
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+
+srows = []
+for f in glob.glob("runs/eval_*/eval_summary.jsonl"):
+    for l in open(f, encoding="utf-8"):
+        try: srows.append(json.loads(l))
+   
+… [truncated, 2593 more chars]
+```
+
+`2026-09-01 10:53:40` · **cmd** — Re-run retrieval capturing all three stages with section_number
+```bash
+cd /c/Users/uniya/legal-mvp
+cat > experiments/rerun_stages.py <<'PY'
+"""Option A -- re-run RETRIEVAL ONLY, capturing all three stages with section_number.
+
+WHY THIS EXISTS
+    The original run logs store chunk records with five keys:
+        doc, page, corpus, score, text_head
+    There is no section_number. It exists in the Qdrant payload but was never
+    copied into the log. Two recovery routes both fail: (doc,page) is ambiguous
+    for 76% of keys, and text_head identifies only 80.9% of passages because
+    19.1% begin mid-provision ("Explanation.-A threat to injure...").
+
+    That 19.1% I
+… [truncated, 4884 more chars]
+```
+
+`2026-09-01 10:54:47` · **cmd** — Verify reproducibility and measure the real counting-bug size
+```bash
+cd /c/Users/uniya/legal-mvp
+cat > experiments/check02_reproduce.py <<'PY'
+"""Addition 2 -- does the re-run reproduce Stage C? And how big is the counting bug REALLY?
+
+Read-only over experiments/stages.jsonl and runs/. Zero cost.
+"""
+import json, io, sys, glob, re, collections
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+
+SECTION_HEAD = re.compile(r"Section\s+(\d+[A-Za-z]?)")   # the OLD analysis rule
+
+new = {}
+for l in open("experiments/stages.jsonl", encoding="utf-8"):
+    r = json.loads(l); new[r["req_id"]] = r
+
+old = {}
+for f in glob.glob("runs/*/queries.jsonl"):
+    f
+… [truncated, 3287 more chars]
+```
+
+`2026-09-01 10:55:32` · **cmd** — Compare chunk identity ignoring float noise
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import json,io,sys,glob
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+new={}
+for l in open('experiments/stages.jsonl',encoding='utf-8'):
+    r=json.loads(l); new[r['req_id']]=r
+old={}
+for f in glob.glob('runs/*/queries.jsonl'):
+    for l in open(f,encoding='utf-8'):
+        try:
+            r=json.loads(l); old[r.get('req_id')]=r
+        except: pass
+sh=[k for k in new if k in old]
+ident=order=setonly=diff=0
+maxdev=0.0
+for k in sh:
+    o=[(c.get('doc'),c.get('page')) for c in ((old[k].get('retrieval') or {}).get('chun
+… [truncated, 816 more chars]
+```
+
+`2026-09-01 10:56:25` · **cmd** — Determine which stage reproduces the README figure
+```bash
+cd /c/Users/uniya/legal-mvp
+cat > experiments/check03_stage_effect.py <<'PY'
+"""Which retrieval stage reproduces the README's layman figure?
+
+Uses the AUTHORITATIVE section_number from the re-run, so text-parsing is
+out of the picture entirely. The only variable is the stage.
+"""
+import json, io, sys, glob, re, math, collections
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+
+def wilson(k, n):
+    if not n: return 0,0,0
+    z=1.959963985; p=k/n; d=1+z*z/n
+    c=(p+z*z/(2*n))/d; h=z*math.sqrt(p*(1-p)/n+z*z/(4*n*n))/d
+    return p, max(0,c-h), min(1,c+h)
+def pct(k,n):
+    p,l
+… [truncated, 2681 more chars]
+```
+
+### 2026-09-01 10:58:33 · prompt
+
+bro i changed the key to new one it has new cap
+
+`2026-09-01 10:59:27` · **cmd** — Check the new key's cap and balance
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import os,io,sys,json,urllib.request
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+from dotenv import load_dotenv; load_dotenv('.env', override=True)
+k=os.getenv('OPENROUTER_API_KEY') or os.getenv('OPENAI_API_KEY')
+if not k: print('NO KEY FOUND in .env'); raise SystemExit
+def get(p):
+    r=urllib.request.Request('https://openrouter.ai/api/v1/'+p,headers={'Authorization':'Bearer '+k})
+    return json.load(urllib.request.urlopen(r,timeout=15))['data']
+try:
+    d=get('auth/key')
+except Exception as e:
+    print('KEY REJE
+… [truncated, 727 more chars]
+```
+
+### 2026-09-01 11:14:42 · prompt
+
+99% contetc used for this hta- ihop wyoure documenting evrything gehvaily on this chat, and do not fuck up like the last time. high tsakes project - cnat let things slip at all.Answers to both questions.
+
+1. Subagent 2 is repurposed. Not to stage-labelling, that's already
+   enforced by the `stage` column in the CSV schema. Instead:
+
+   SUBAGENT 2 - the adaptive filter investigation
+     experiments/exp08_filter.py -> results/filter_analysis.csv
+     New finding from Wave 0: the filter costs generated 2%, paired 4%,
+     paired_dated 8%, but layman 50%. Find out why and how much it costs.
+
+     a) For every query where the gold section was in raw_15 but not in
+        filtered_n: what score did that gold chunk have, and what was
+        the threshold that cut it?
+     b) The threshold is max(top_score - 0.15, 0.35). For each cut,
+        which arm was binding: the relative one or the 0.35 floor?
+        Report the split per query set. My hypothesis is the floor
+        does nearly all the damage on layman queries because their top
+        scores sit near 0.40.
+     c) Counterfactual sweep: recompute what recall WOULD have been at
+        floors of 0.35, 0.30, 0.25, 0.20 and no floor, per query set,
+        with CIs.
+
+     To be explicit, because it looks like it violates a standing rule:
+     this is ANALYSIS, not tuning. Do NOT change the deployed 0.35
+     floor anywhere in the system. Measure what other floors would have
+     done, report it, change nothing.
+
+2. Yes, correct the docs, and there are two files not one:
+
+   a) docs/results/PHASE_G.md - numbers are correct, just unlabelled.
+      Attach the retrieval stage to every retrieval figure.
+   b) README.md Part 2 - it currently states that the counting bug
+      "already halved one published figure: layman retrieval reported
+      as 7.5 percent is actually 15.0 percent." That claim is now known
+      to be false. Both figures were always correct at their own stages.
+      Correct it, and record in the correction table that this was an
+      error we caught, with the 4,906/4,906 verification as evidence.
+
+Then start Task B.
+
+`2026-09-01 11:15:32` · **cmd** — Record Wave 0 findings in the append-only worklog
+```bash
+cd /c/Users/uniya/legal-mvp
+cat >> docs/WORKLOG.md <<'MDEOF'
+
+---
+
+## 2026-09-01 â€” Wave 0 (discovery). Two of my earlier claims were wrong.
+
+Branch `metrics/sept-01`. Baseline 142 tests passing. Cost this wave: **â‚¹0.06** (621 embedding calls, no generation).
+
+Artifacts: `experiments/SCHEMA.md`, `experiments/stages.jsonl` (621 rows, all three retrieval stages with authoritative `section_number`), `experiments/check00_preflight.py`, `check01_determinism.py`, `check02_reproduce.py`, `check03_stage_effect.py`.
+
+### CORRECTION 1 â€” the "counting bug" was not a bug
+
+On 26 August I claimed `scri
+… [truncated, 4466 more chars]
+```
+
+`2026-09-01 11:15:51` · **cmd** — Locate the claims to correct
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== README: the false claim ==="
+grep -n "7.5 percent is actually\|7.5% â†’ 15.0%\|halved one published" README.md
+echo
+echo "=== PHASE_G.md: retrieval figures needing a stage label ==="
+grep -n "7.5%\|68.0%\|71.7%\|gold retrieved\|gold \*\*retrieved\*\*" docs/results/PHASE_G.md | head
+```
+
+`2026-09-01 11:16:34` · **cmd** — Correct the README claim and label PHASE_G stages
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PY'
+import io,sys,pathlib
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+
+# ---------- (b) README.md -- retract the false claim ----------
+p=pathlib.Path("README.md"); t=p.read_text(encoding="utf-8"); o=t
+t=t.replace(
+"""**The counting bug.** The analysis identified a retrieved passage by reading the first 160 characters of its text and looking for `"Section 190."`. Passages beginning mid-provision, such as *"Explanation.â€”A threat to injure..."*, carry no number there and were counted as failures. The authoritative `
+… [truncated, 5190 more chars]
+```

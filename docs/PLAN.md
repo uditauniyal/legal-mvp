@@ -326,18 +326,35 @@ SUBAGENT 1 — tier bug
   Tests: 0.30 -> LOW, 0.45 -> MEDIUM, 0.60 -> HIGH, and a boundary test
   at exactly 0.55 and exactly 0.38.
 
-SUBAGENT 2 — counting bug
-  Owns: the analysis/scoring code doing the 160-character match,
-        tests/test_counting_bug.py
-  Analysis identifies a retrieved passage by reading its first 160
-  characters looking for "Section N.". Passages beginning mid-provision
-  carry no number there and were counted as failures. The authoritative
-  section_number field is in the Qdrant payload and was never read.
-  Replace every 160-character match with a payload read, via
-  normalise_section() from metrics_lib.
-  Tests: a passage beginning "Explanation.—A threat to injure..." is
-  identified correctly; a passage whose text begins with a page number
-  is NOT falsely identified.
+SUBAGENT 2 — the adaptive filter investigation
+  Owns: experiments/exp08_filter.py -> results/filter_analysis.csv
+  REPURPOSED 1 Sept. The original task was a "counting bug" fix. Wave 0
+  proved there was no bug: the text-parsing rule recovered the section
+  correctly 4,906 times out of 4,906, a 0.0% error rate. The 7.5% vs
+  15.0% discrepancy was a STAGE confusion, not a defect.
+
+  Wave 0 surfaced a real finding instead. The adaptive filter costs
+  generated 2%, paired 4%, paired_dated 8% -- but layman 50%. Find out
+  why, and how much it costs.
+
+  a) For every query where the gold section was in raw_15 but NOT in
+     filtered_n: what score did that gold chunk have, and what was the
+     threshold that cut it?
+  b) The threshold is max(top_score - 0.15, 0.35). For each cut, which
+     arm was binding -- the relative one or the 0.35 floor? Report the
+     split per query set. Hypothesis: the floor does nearly all the
+     damage on layman queries because their top scores sit near 0.40.
+  c) Counterfactual sweep: recompute what recall WOULD have been at
+     floors of 0.35, 0.30, 0.25, 0.20 and no floor, per query set, with
+     confidence intervals.
+
+  To be explicit, because it looks like it violates a standing rule:
+  this is ANALYSIS, not tuning. Do NOT change the deployed 0.35 floor
+  anywhere in the system. Measure what other floors would have done,
+  report it, change nothing.
+
+  Input: experiments/stages.jsonl, which already holds all three stages
+  with authoritative section_number.
 
 SUBAGENT 3 — citations binding bug
   Owns: core/citations.py, tests/test_citations_bug.py

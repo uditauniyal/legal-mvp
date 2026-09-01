@@ -1213,6 +1213,7 @@ The single most important cost fact for planning: **experiments that do not gene
 | 1,011 chunks | **1,899** after the ingest rebuild | Phase E |
 | GPT-4o-mini | `google/gemini-3.7-flash` via OpenRouter, provider pinned | Chapter 2 |
 | Validation results in the architecture PDF, section 8 | Section 8.2 **cannot be produced by the stated formula**. Do not carry it into any paper | `GAPS.md` finding 21 |
+| *(this document, 28 Aug)* "a counting bug halved a published figure, 7.5 percent should be 15.0 percent" | **False, and retracted 1 September.** Both figures were correct at their own retrieval stage. The text-parsing rule was verified correct 4,906 times out of 4,906, a 0.0 percent error rate | `experiments/check02_reproduce.py`, `check03_stage_effect.py`, `WORKLOG.md` 2026-09-01 |
 
 ---
 
@@ -1437,7 +1438,21 @@ The key carries a spending cap separate from the account balance. Raising it is 
 
 ### Phase A — Fix the two measurement bugs. Zero cost, half a day.
 
-**The counting bug.** The analysis identified a retrieved passage by reading the first 160 characters of its text and looking for `"Section 190."`. Passages beginning mid-provision, such as *"Explanation.—A threat to injure..."*, carry no number there and were counted as failures. The authoritative `section_number` field was in the payload throughout and was never read. This already halved one published figure: layman retrieval reported as 7.5 percent is actually **15.0 percent**.
+**The counting bug — RETRACTED 1 September 2026. There was no bug.**
+
+This section previously claimed that the analysis mis-identified retrieved passages by parsing the first 160 characters of text instead of reading the `section_number` field, and that this "already halved one published figure: layman retrieval reported as 7.5 percent is actually 15.0 percent."
+
+**Both figures were always correct. They are different retrieval stages.**
+
+| Stage | Layman gold retrieved |
+|---|---|
+| `raw_15`, what the database returned | **15.0 percent** [9.7, 22.5] |
+| `reranked_15` | 15.0 percent [9.7, 22.5] |
+| `filtered_n`, what actually reached the model | **7.5 percent** [4.0, 13.6] |
+
+The "correction" compared `raw_15` against a `filtered_n` figure. Measured against the authoritative `section_number` on 4,906 Stage-C chunks, the text-parsing rule recovered the section correctly **4,906 times out of 4,906 — a 0.0 percent error rate**, with zero misses and zero false matches. The 1,020 chunks carrying no section number are preamble, split continuations and demoted footnotes; they are not sections, so scoring them as "not the gold section" was always correct.
+
+Section 4.1 of `docs/PLAN.md`, which requires every retrieval figure to be labelled with its stage, is the rule that caught this. Evidence: `experiments/check02_reproduce.py` and `experiments/check03_stage_effect.py`.
 
 **The tier bug.** `agents/answer.py` sets `prompt_variant` to `"HIGH"` and never updates it, even when applying a LOW-confidence disclaimer.
 
