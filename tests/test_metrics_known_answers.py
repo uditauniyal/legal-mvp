@@ -238,3 +238,62 @@ class TestWilson:
 
     def test_zero_of_zero_is_safe(self):
         assert wilson(0, 0) == (0.0, 0.0, 0.0)
+
+
+class TestNonSectionReferences:
+    """Found by the GATE smoke test, 1 Sept 2026.
+
+    normalise_section() handles Sections. Constitution Articles and CPC
+    Orders/Rules fell through to a fallback that returned no ':' separator,
+    so same_section() raised ValueError on real logged data -- 28 distinct
+    strings, "CONSTITUTION Article 226" 29 times among them. Wave 2 would
+    have crashed in five places at once.
+    """
+
+    def test_contract_holds_for_articles_orders_and_rules(self):
+        for s in ("CONSTITUTION Article 226", "CPC Order 37", "CPC Rule 9",
+                  "CRPC Article 226", "BNSS Article 226"):
+            assert normalise_section(s).count(":") == 1, s
+
+    def test_same_section_does_not_raise_on_them(self):
+        assert same_section("CONSTITUTION Article 226", "IPC 302") is False
+        assert same_section("CPC Order 37", "Section 37") is False
+
+    def test_an_article_is_not_the_section_of_the_same_number(self):
+        # Article 226 (writ jurisdiction of the High Courts) is not Section 226
+        assert same_section("CONSTITUTION Article 226", "CONSTITUTION 226") is False
+        assert same_section("CONSTITUTION Article 226", "Section 226") is False
+
+    def test_the_same_article_still_matches_itself(self):
+        assert same_section("CONSTITUTION Article 226",
+                            "Constitution Article 226") is True
+
+    def test_the_same_number_under_two_statutes_stays_distinct(self):
+        # this is the pair that actually appears in the logs
+        assert same_section("CONSTITUTION Article 226", "CRPC Article 226") is False
+
+    def test_longest_statute_prefix_wins(self):
+        # "BNSS" must not be parsed as "BNS" + "S..."
+        assert normalise_section("BNSS Article 226").startswith("BNSS:")
+
+    def test_idempotent_on_its_own_output(self):
+        """normalise_section is called on its own output in normal use.
+
+        ranked_sections() returns canonical strings; same_section() then
+        normalises them again. On 1 Sept a corrected fallback turned
+        "BNS:190" into "BNS::190" and every retrieval metric silently went
+        to 0/617. Nothing crashed. This test is why that is now impossible.
+        """
+        cases = ["IPC Section 302", "Section 302", "BNS 318(4)", "IPC 304B",
+                 "CONSTITUTION Article 226", "CPC Order 37", "BNSS Article 226",
+                 "s. 41A CrPC", "BNS 190", "CRPC 154(3)"]
+        for s in cases:
+            once = normalise_section(s)
+            assert normalise_section(once) == once, f"{s!r} -> {once!r}"
+            assert once.count(":") == 1, f"{s!r} -> {once!r}"
+
+    def test_canonical_strings_still_compare_equal(self):
+        # the exact pair that went to zero
+        assert same_section("BNS 190", normalise_section("BNS 190")) is True
+        assert same_section(normalise_section("BNS 190"),
+                            normalise_section("BNS 190")) is True

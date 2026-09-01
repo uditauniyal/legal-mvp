@@ -7473,3 +7473,258 @@ MEDIUM branches. The disclaimer itself was always applied correctly; only the
 recorded fie
 … [truncated, 6469 more chars]
 ```
+
+`2026-09-01 12:12:01` · **cmd** — Commit Wave 1
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"
+cat > "$SP/w1msg.txt" <<'ENDMSG'
+Wave 1: tier bug, citation binding bug, and a finding that moves the paper
+
+Three subagents in parallel. Zero API calls.
+
+S1 -- agents/answer.py logged prompt_variant="HIGH" on every record because the
+variable was initialised once and never reassigned in the LOW/MEDIUM branches.
+The disclaimer was always applied correctly; only the log was wrong. Measured,
+not assumed: 369/859 = 42.96% mislabelled [39.69, 46.29]. Tr
+… [truncated, 1785 more chars]
+```
+
+### 2026-09-01 12:25:32 · prompt
+
+go ahead run the gate
+
+`2026-09-01 12:25:58` · **cmd** — Inspect metrics_lib API before writing the gate script
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== metrics_lib public API ==="
+grep -n "^def \|^SEED\|^N_BOOT\|^STAGES\|^DEFINITIONS" experiments/metrics_lib.py
+echo
+echo "=== correctness_label body ==="
+sed -n "/^def correctness_label/,/^def /p" experiments/metrics_lib.py | head -55
+```
+
+`2026-09-01 12:26:08` · **cmd** — Read load_logs and load_stages
+```bash
+cd /c/Users/uniya/legal-mvp
+sed -n '140,240p' experiments/metrics_lib.py
+```
+
+`2026-09-01 12:26:30` · **cmd** — Find the numbering_scheme field for the IPC/BNS split
+```bash
+cd /c/Users/uniya/legal-mvp
+ls eval/*.jsonl
+echo "--- keys in paired queryset ---"
+head -1 eval/paired_queryset.jsonl 2>/dev/null | ./venv/Scripts/python.exe -c "import sys,json;d=json.loads(sys.stdin.read());print(list(d.keys()));print({k:d[k] for k in ('query_id','numbering_scheme','expected_corpus','expected_sections','pair_id') if k in d})" 2>/dev/null || echo "check name"
+echo "--- numbering_scheme distribution across all sets ---"
+./venv/Scripts/python.exe -c "
+import json,glob,collections
+c=collections.Counter()
+for f in glob.glob('eval/*.jsonl'):
+    for l in open(f,encoding='utf-8'):
+
+… [truncated, 129 more chars]
+```
+
+`2026-09-01 12:26:48` · **cmd** — Find how the 97.0/51.5 headline was originally computed
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== where 97.0 / 51.5 are defined ==="
+grep -rn "97\.0\|51\.5" docs/results/*.md docs/WORKLOG.md 2>/dev/null | head -8
+echo
+echo "=== scripts that compute it ==="
+ls scripts/ experiments/ 2>/dev/null
+echo
+grep -rln "numbering_scheme" scripts/ experiments/ 2>/dev/null
+```
+
+`2026-09-01 12:26:57` · **cmd** — Read the exact definition of the headline metric
+```bash
+cd /c/Users/uniya/legal-mvp; sed -n '55,80p' docs/results/PHASE_G.md
+```
+
+`2026-09-01 12:27:32` · **cmd** — Check whether the ablation run output survives
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== ablate_filter.py: what it does and writes ==="
+grep -n "filter\|out\|write\|json\|def \|query_filter\|limit" scripts/ablate_filter.py | head -30
+echo
+echo "=== does its output still exist? ==="
+ls -la runs/ 2>/dev/null | head -20
+echo "--- ablation outputs anywhere ---"
+find . -iname "*ablat*" -not -path "./venv/*" -not -path "./.git/*" 2>/dev/null
+echo
+echo "=== filter_applied distribution in stages.jsonl source logs ==="
+./venv/Scripts/python.exe -c "
+import sys; sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs
+df=load_logs()
+print(df
+… [truncated, 59 more chars]
+```
+
+`2026-09-01 12:28:14` · **cmd** — Check Qdrant is reachable before the ablation re-run
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== Qdrant up? ==="
+curl -s -m 5 http://127.0.0.1:6333/collections 2>&1 | head -c 300 || echo "NOT REACHABLE"
+echo
+echo "=== collection count ==="
+curl -s -m 5 http://127.0.0.1:6333/collections/legal_chunks 2>&1 | ./venv/Scripts/python.exe -c "import sys,json;d=json.load(sys.stdin);print('points:',d.get('result',{}).get('points_count'))" 2>/dev/null || echo "could not read"
+```
+
+`2026-09-01 12:28:27` · **cmd** — Confirm collection point count matches the indexed corpus
+```bash
+cd /c/Users/uniya/legal-mvp
+curl -s -m 5 http://127.0.0.1:6333/collections/legal_mvp | ./venv/Scripts/python.exe -c "import sys,json;d=json.load(sys.stdin)['result'];print('points:',d.get('points_count'),' vectors:',d.get('vectors_count'),' status:',d.get('status'))"
+```
+
+`2026-09-01 12:28:55` · **cmd** — Re-run the corpus-filter ablation and capture its output
+```bash
+cd /c/Users/uniya/legal-mvp
+mkdir -p results
+./venv/Scripts/python.exe scripts/ablate_filter.py 2>&1 | tee results/ablation_rerun_2026-09-01.txt | tail -40
+```
+
+`2026-09-01 12:30:00` · **cmd** — Read normalise_section and same_section
+```bash
+cd /c/Users/uniya/legal-mvp; sed -n '73,128p' experiments/metrics_lib.py
+```
+
+`2026-09-01 12:30:22` · **cmd** — Find the real strings that break normalise_section's contract
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import sys, collections; sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs, normalise_section
+df = load_logs()
+bad = collections.Counter()
+for col in ('cited','grounded','expected_sections'):
+    for lst in df[col]:
+        for s in (lst or []):
+            n = normalise_section(s)
+            if n and ':' not in n:
+                bad[(col, s, n)] += 1
+print('distinct strings that break the contract:', len(bad))
+for (col,s,n),c in bad.most_common(25):
+    print(f'  {col:<18} {s!r:<42} -> {n!r:<28} x{c}')
+"
+```
+
+`2026-09-01 12:30:48` · **cmd** — Check the known-statute set
+```bash
+cd /c/Users/uniya/legal-mvp; grep -n "_KNOWN_STATUTES\s*=" -A 6 experiments/metrics_lib.py | head -12
+```
+
+`2026-09-01 12:31:19` · **cmd** — Fix normalise_section and pin it with tests
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+from pathlib import Path
+p = Path("experiments/metrics_lib.py")
+src = p.read_text(encoding="utf-8")
+
+old = '''    m = _SEC_RE.match(txt)
+    if not m:
+        return txt.upper().replace(" ", "")
+'''
+new = '''    m = _SEC_RE.match(txt)
+    if not m:
+        # Not a Section reference at all. Constitution Articles, CPC Orders
+        # and CPC Rules land here -- 28 distinct such strings appear in the
+        # real logs, "CONSTITUTION Article 226" 29 times among them.
+        #
+        # They must still satisfy the "<STATUTE>:<REST
+… [truncated, 2769 more chars]
+```
+
+`2026-09-01 12:31:46` · **cmd** — Verify the patch and run the full suite
+```bash
+cd /c/Users/uniya/legal-mvp
+grep -n 'squashed = re.sub' experiments/metrics_lib.py
+./venv/Scripts/python.exe -c "
+import sys;sys.path.insert(0,'.')
+from experiments.metrics_lib import normalise_section as n
+for s in ['CONSTITUTION Article 226','CPC Order 37','BNSS Article 226','IPC Section 302','Section 302']: print(f'{s!r:<30} -> {n(s)!r}')"
+echo "--- full suite ---"
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -2
+```
+
+`2026-09-01 12:32:34` · **cmd** — Re-run the gate smoke test
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe experiments/gate_smoke.py 2>&1 | tail -45
+```
+
+`2026-09-01 12:33:10` · **cmd** — Trace one query through the correctness label
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import sys;sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs, load_stages, ranked_sections, normalise_section as N, same_section
+df=load_logs(); st=load_stages()
+r=df[df['query_set']=='paired_recodification'].iloc[0]
+print('req_id',r['req_id'],'gold',r['expected_sections'])
+print('gold norm:',[N(g) for g in r['expected_sections']])
+ch=st[r['req_id']]['raw_15'][:4]
+print('raw chunk keys:',list(ch[0].keys()))
+for c in ch: print('  corpus=',repr(c.get('corpus')),' section_number=',repr(c.get('section_number')),' -> ',re
+… [truncated, 122 more chars]
+```
+
+`2026-09-01 12:33:36` · **cmd** — Test correctness_label call paths directly
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import sys;sys.path.insert(0,'.')
+from experiments.metrics_lib import load_logs, load_stages, correctness_label
+df=load_logs(); st=load_stages()
+sub=df[df['query_set']=='paired_recodification']
+r=sub.iloc[0]
+d={**r,'_stage':'raw_15'}
+print('type of d:',type(d),' _stage=',d.get('_stage'),' req_id=',d.get('req_id'))
+print('label via dict :',correctness_label(d,'retrieved@k',k=15,stages=st))
+print('label via Series:',correctness_label(r,'retrieved@k',k=15,stages=st))
+# what does iterrows give
+for i,(idx,row) in enumerate(sub.iterrows()):
+
+… [truncated, 159 more chars]
+```
+
+`2026-09-01 12:34:30` · **cmd** — Make normalise_section idempotent and pin it
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+from pathlib import Path
+p = Path("experiments/metrics_lib.py")
+src = p.read_text(encoding="utf-8")
+
+old = '''    m = _SEC_RE.match(txt)
+    if not m:
+        # Not a Section reference at all.'''
+new = '''    # IDEMPOTENCE. ranked_sections() returns strings ALREADY in canonical
+    # form, and same_section() normalises its arguments again -- so this
+    # function is routinely called on its own output and MUST be a no-op
+    # there. The original fallback satisfied this only by accident; when the
+    # fallback was corrected on 
+… [truncated, 2144 more chars]
+```
+
+`2026-09-01 12:35:35` · **cmd** — Re-run the gate
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe experiments/gate_smoke.py 2>&1 | tail -45
+```
+
+`2026-09-01 12:39:58` · **cmd** — Add EXPLAIN pointer, verify blocks and suite
+```bash
+cd /c/Users/uniya/legal-mvp
+printf '\n---\n\n## GATE smoke test\n\nThe three gate numbers and their full explanation blocks live in\n`results/smoke_test.md` rather than here, because the GATE prompt in\n`docs/PLAN.md` section 5 names that file specifically. Three blocks, eight\nheadings each.\n' >> results/EXPLAIN.md
+echo "smoke_test.md: $(grep -c '^### ' results/smoke_test.md) headings, $(grep -c '^## [0-9]' results/smoke_test.md) blocks"
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -2
+git status --porcelain
+```
+
+### 2026-09-01 13:20:25 · prompt
+
+sorry please contine

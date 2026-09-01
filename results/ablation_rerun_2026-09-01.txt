@@ -1,0 +1,19 @@
+
+  chance baseline (share of the index):  IPC 31.3%   BNS 22.3%   CRPC 39.1%   CPA 7.3%
+  queries: 66 numbered paired queries, corpus filter DISABLED
+
+  DOMINANT corpus among the top 15
+  QUERY NAMES        IPC     BNS    CRPC     CPA      N          CORRECT           CHANCE
+  ------------------------------------------------------------------------------
+  IPC                 32       1       0       0     33    97.0% [84.7, 99.5]    31.3%
+  BNS                 16      17       0       0     33    51.5% [35.2, 67.5]    22.3%
+
+  corpus of the single TOP-1 chunk
+  QUERY NAMES        IPC     BNS    CRPC     CPA      N          CORRECT           CHANCE
+  ------------------------------------------------------------------------------
+  IPC                 30       3       0       0     33    90.9% [76.4, 96.9]    31.3%
+  BNS                 19      14       0       0     33    42.4% [27.2, 59.2]    22.3%
+
+  A query that NAMES a code and still lands in the other one is a
+  cross-statute retrieval failure. Compare each row against its chance
+  column: a value near chance means the Act name carried no signal.

@@ -642,3 +642,137 @@ measured 1.5-4.1 pp). Corrected in place in PLAN.md.
 
 The GATE: three smoke-test numbers, per PLAN.md section 5. Do not start Wave 2
 before reading them.
+
+---
+
+## 2026-09-01 — GATE: the spine holds, and two of my own defects were caught
+
+Branch `metrics/sept-01`, after Wave 1. Three numbers per `docs/PLAN.md` §5.
+Full explanation blocks (three, eight headings each) in `results/smoke_test.md`.
+Cost: about ₹0.01, the ablation re-run only. Everything else computed from logs.
+
+### Verdict
+
+| Gate condition | Required | Measured |
+|---|---|---|
+| 97.0 / 51.5 survive the fixes | yes | **reproduced exactly** — 32/1 and 16/17 |
+| positives under `retrieved@k` | 200+ | **327** |
+| positives still stuck at 27 | would mean the label is miswired | no — 27 is `grounded` only, by design |
+
+Per the plan's decision table: **spine holds, Wave 2 may run.**
+
+### 1 — the headline is unchanged
+
+`scripts/ablate_filter.py` re-run against the live collection (1,899 points,
+green). Output captured this time at `results/ablation_rerun_2026-09-01.txt`;
+the original run printed to stdout only and was never saved, so 97.0/51.5
+existed in `docs/` and nowhere as data.
+
+Dominant corpus among the top 15, corpus filter OFF, n=33 per row:
+
+| Query names | to IPC | to BNS | correct | chance |
+|---|---|---|---|---|
+| Indian Penal Code (repealed) | 32 | 1 | **97.0%** [84.7, 99.5] | 31.3% |
+| Bharatiya Nyaya Sanhita (in force) | **16** | 17 | **51.5%** [35.2, 67.5] | 22.3% |
+
+Top-1 only: IPC 30/3 = 90.9% [76.4, 96.9]; BNS 19/14 = 42.4% [27.2, 59.2].
+**Identical to `docs/results/PHASE_G.md` in every cell**, after three bug fixes
+and a new metric library.
+
+A DIFFERENT question, recorded so the two are never conflated: gold-section
+recall through the deployed pipeline with the corpus filter ON, paired set,
+`retrieved@15`, n=33 per cell.
+
+| Stage | IPC-named | BNS-named |
+|---|---|---|
+| `raw_15` | 29/33 = 87.9% [72.7, 95.2] | 11/33 = 33.3% [19.8, 50.4] |
+| `reranked_15` | 29/33 = 87.9% | 11/33 = 33.3% |
+| `filtered_n` | 26/33 = 78.8% [62.2, 89.3] | 11/33 = 33.3% |
+
+The asymmetry survives with the corpus filter ON, so it is not an artefact of
+switching a filter off to expose it. The adaptive filter costs the IPC row 9.1
+points and the BNS row nothing — it removes correct retrievals only where
+retrieval was already working.
+
+**Two filters exist and must not be confused.** The *corpus filter* restricts
+the Qdrant search to one statute before retrieval. The *adaptive score filter*
+`max(top_score - 0.15, 0.35)` drops low scorers afterwards. `ablate_filter.py`
+disables the FIRST; `stages.jsonl` replays it as recorded, which is why the
+three-stage table cannot reproduce 97.0/51.5 and must not be asked to.
+
+### 2 — positives under each definition, n=617 labelled rows
+
+| Definition | Stage | Positives | Rate |
+|---|---|---|---|
+| `retrieved@15` | `raw_15` | **327** | 53.0% [49.1, 56.9] |
+| `retrieved@15` | `reranked_15` | 327 | 53.0% [49.1, 56.9] |
+| `retrieved@15` | `filtered_n` | 304 | 49.3% [45.3, 53.2] |
+| `cited` | pre-fix parser (logged) | 533 | 86.4% [83.5, 88.9] |
+| `cited` | post-fix parser (re-parsed) | 538 | 87.2% [84.3, 89.6] |
+| `grounded` | — | 27 | 4.4% [3.0, 6.3] |
+
+Reranking moves nothing (327 to 327), as expected: it reorders the same 15
+passages, and a presence metric cannot see a reordering. Rank-order metrics
+must therefore be reported separately in Wave 2.
+
+**The S3 citation fix barely moves this: 533 to 538, five rows.** It changes
+15.9% of citation units and flips 72, but `cited` asks only whether the gold
+number appears somewhere, and most changes turn a confident statute into
+UNKNOWN, which still matches on number alone. The fix will show up in
+statute-sensitive metrics, not this one. Do not oversell it.
+
+### 3 — composite vs raw max score, paired bootstrap, n=617
+
+| Definition | Positives | composite | max_score | paired diff | p | Supported claim |
+|---|---|---|---|---|---|---|
+| `grounded` | 27 | 0.531 [0.449, 0.608] | 0.589 [0.489, 0.686] | -0.058 [-0.169, +0.056] | 0.3154 | **no better than** |
+| `retrieved@15` | 327 | 0.663 [0.617, 0.710] | **0.784** [0.747, 0.819] | **-0.121** [-0.162, -0.080] | <0.0001 | **worse** |
+| `cited` post-fix | 538 | 0.571 [0.500, 0.643] | 0.675 [0.602, 0.744] | -0.103 [-0.159, -0.046] | 0.0004 | **worse** |
+
+The README word "worse" IS supported — and more strongly than the README claims
+— but only under the definitions with the positives to support it. Under
+`grounded` (27 positives) the honest statement is "no better than".
+
+Recommended claim for the paper: **a single raw cosine similarity discriminates
+better than the engineered three-signal composite, on 617 queries, at
+p < 0.0001** — reported under `retrieved@15` as primary, with all three
+definitions shown and the power limitation of `grounded` stated.
+
+`max_score` reaching 0.784 matters: this is a design finding about the
+composite, not a "nothing works here" result.
+
+**Which definition produced the README pair 0.610 / 0.663 is not recorded**, and
+none of the three rows reproduces it. Same class of omission as the unlabelled
+stage figures. Treat those README numbers as superseded, not reconcilable.
+Flagged for Wave 4.
+
+### Two defects in my own Wave 0 code, both caught here
+
+**(a) `same_section` raised ValueError on real data.** `normalise_section`
+handles Sections; Constitution *Articles* and CPC *Orders*/*Rules* fell through
+to a fallback returning no `:` separator, which `same_section` then split on.
+28 distinct such strings in the logs, `CONSTITUTION Article 226` 29 times.
+Fixed so the kind word is kept: `CONSTITUTION:ARTICLE226`, which correctly does
+NOT equal Section 226 — and the Constitution is not in this corpus, so
+collapsing the kind would have manufactured matches among precisely the
+out-of-corpus citations the paper counts.
+
+**(b) The fix for (a) silently zeroed every retrieval metric.**
+`ranked_sections()` returns canonical strings and `same_section()` normalises
+them again, so the function is routinely called on its own output.
+`normalise_section` was never idempotent; the old fallback was a no-op there by
+accident. The corrected fallback stripped the statute prefix a second time and
+turned `BNS:190` into `BNS::190`. Result: 0/617 under `retrieved@k`. Nothing
+crashed. Every number looked like a real finding.
+
+This is exactly the failure the gate exists to catch, and it is exactly the
+failure mode that cost this project six months in February. Fixed by making
+`normalise_section` idempotent and pinning it with
+`test_idempotent_on_its_own_output`.
+
+Suite 229 to 237 (`pytest tests/ -q`).
+
+### Next
+
+Wave 2 — five metric families in parallel. Per the plan, Wave 2 must not start
+until these three numbers have been read.

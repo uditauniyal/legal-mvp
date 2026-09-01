@@ -1084,3 +1084,12 @@ reporting them with wider error bars.
 60-character window was too short and the unit rule reaches further through
 filler. Not one, in 6,687. The old window was never the binding constraint —
 the *decision rule inside it* was.
+
+---
+
+## GATE smoke test
+
+The three gate numbers and their full explanation blocks live in
+`results/smoke_test.md` rather than here, because the GATE prompt in
+`docs/PLAN.md` section 5 names that file specifically. Three blocks, eight
+headings each.

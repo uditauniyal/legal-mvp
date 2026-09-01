@@ -69,6 +69,11 @@ _SEC_RE = re.compile(
 _KNOWN_STATUTES = {"IPC", "BNS", "CRPC", "BNSS", "CPA", "IEA", "BSA",
                    "NI", "CPC", "HMA", "IT", "LSA", "CONSTITUTION"}
 
+# Canonical output shape: an optional known statute, one colon, then a
+# non-empty remainder containing no further colon.
+_CANON_RE = re.compile(
+    r"^(?:" + "|".join(sorted(_KNOWN_STATUTES, key=len, reverse=True)) + r")?:[^:]+$")
+
 
 def normalise_section(s: str) -> str:
     """Canonical form of a statutory reference.
@@ -89,9 +94,35 @@ def normalise_section(s: str) -> str:
     txt = str(s).strip()
     if not txt:
         return ""
+    # IDEMPOTENCE. ranked_sections() returns strings ALREADY in canonical
+    # form, and same_section() normalises its arguments again -- so this
+    # function is routinely called on its own output and MUST be a no-op
+    # there. The original fallback satisfied this only by accident; when the
+    # fallback was corrected on 1 Sept the accident stopped holding and
+    # "BNS:190" became "BNS::190", silently zeroing every retrieval metric.
+    # Pinned by test_idempotent_on_its_own_output.
+    if _CANON_RE.match(txt):
+        return txt
+
     m = _SEC_RE.match(txt)
     if not m:
-        return txt.upper().replace(" ", "")
+        # Not a Section reference at all. Constitution Articles, CPC Orders
+        # and CPC Rules land here -- 28 distinct such strings appear in the
+        # real logs, "CONSTITUTION Article 226" 29 times among them.
+        #
+        # They must still satisfy the "<STATUTE>:<REST>" contract, because
+        # same_section() splits on that colon and crashed without it.
+        #
+        # They must ALSO keep the kind word. Article 226 of the Constitution
+        # (writ jurisdiction of the High Courts) is not Section 226 of
+        # anything, and the Constitution is not in this corpus at all -- so
+        # collapsing the kind would manufacture matches among exactly the
+        # out-of-corpus citations this project counts.
+        squashed = re.sub(r"\s+", "", txt).upper()
+        for st in sorted(_KNOWN_STATUTES, key=len, reverse=True):
+            if squashed.startswith(st):
+                return f"{st}:{squashed[len(st):]}"
+        return f":{squashed}"
     statute = (m.group("statute") or "").upper()
     if statute and statute not in _KNOWN_STATUTES:
         statute = ""                      # "Section", "Sec", stray words
