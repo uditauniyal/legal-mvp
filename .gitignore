@@ -69,3 +69,7 @@ venv/
 .env.*
 __pycache__/
 *.pyc
+
+# Local safety copies of read-only data. Never versioned:
+# eval/ and data/ are already tracked, and runs/ is 12MB.
+backup/

@@ -6158,3 +6158,27 @@ t = t.replace(
 "4. **`runs
 … [truncated, 1860 more chars]
 ```
+
+`2026-09-01 10:30:23` · **cmd** — Commit the plan corrections
+```bash
+cd /c/Users/uniya/legal-mvp
+git add -A && git commit -q -m "correct paths in plan, fix verifier import" && git log --oneline -1
+echo
+echo "=== branch / tree ==="
+git branch --show-current
+git status --porcelain | grep -v SESSION_LOG || echo "  clean"
+echo
+echo "=== backup excluded from the commit? ==="
+git log --stat -1 --format="" | grep -c backup || echo "  yes, backup/ not committed"
+```
+
+`2026-09-01 10:30:43` · **cmd** — Check what backup files were committed
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== what backup files got committed? ==="
+git log --stat -1 --format="" | grep backup | head -15
+echo
+echo "=== total tracked under backup/ ==="
+git ls-files backup/ | wc -l
+git ls-files backup/ | sed 's|/[^/]*$||' | sort -u
+```
