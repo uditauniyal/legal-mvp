@@ -1630,3 +1630,43 @@ score — so F8 plots the anchors and says so.
 corrected-composite stress test, the self-naming measurement, and every
 retraction since Part 2. Verified separately at **67 decimal tokens, 0
 unsourced**.
+
+---
+
+## 2026-09-03 — PROJECT_REPORT ships as PDF, with the before/pivot/after narrative
+
+`docs/PROJECT_REPORT.pdf`, 28 pages, printed from the self-contained HTML by
+headless Chrome so it inherits the print stylesheet. PDF is now the primary
+deliverable.
+
+**New section 3, "Where this began, and what changed"**, written after reading
+the prior 21-page architecture document end to end. Roughly two and a half
+pages: what already existed, what its evidence could and could not support, the
+pivot, the architecture change that followed, and a before/after scale table.
+
+Two findings about that document, both stated with the arithmetic shown:
+
+- Its first worked example **reproduces exactly** — 0.55(0.499) +
+  0.15(1 − 0.037/0.3) + 0.30(1.00) = 0.7060, the reported 70.6%.
+- Its second **cannot**. Reaching 43.3% with a top-five mean near 0.40 and a
+  legitimate entity-coverage value requires a score gap of about 0.17, which the
+  same row calls "Small" on a scale whose maximum is 0.3. Internally
+  inconsistent. This independently confirms `GAPS.md` finding 21.
+- Its **corpus table already showed the tagging defect** — IPC tagged BNS, CrPC
+  tagged BNSS — in the original documentation, unremarked.
+
+**The architecture change is now recorded with its measured effect.** A date
+resolver and a statute mapper were inserted between routing and retrieval. New
+figure F10: on the set where the named code and the conduct date disagree,
+retrieval rose from 0.293 [0.212, 0.389] to 0.694 [0.597, 0.776], intervals
+non-overlapping — the largest single gain in the project.
+
+18 images (8 architecture diagrams, 10 data charts). Sections renumbered 3–9;
+all internal cross-references updated.
+
+**Verification.** 68 figures sourced. Sections 4–9, carrying this project's own
+claims: **89 decimal tokens, 0 unsourced**. Section 3 quotes the prior document,
+so the CSV membership check is not meaningful there — it passes only because
+values like 0.30 occur somewhere in 2,959 rows. That section is instead verified
+by being hand-checkable arithmetic in the text, which is the stronger check for
+a quotation. Recorded so the distinction is not lost.

@@ -210,7 +210,135 @@ say, and what the system needs in order to be right.
 
 ---
 
-## 3 · What was built
+## 3 · Where this began, and what changed
+
+### The system that already existed
+
+This project did not start from nothing. A working five-agent pipeline was built
+and documented before any of the measurement in this report took place. That
+document described the architecture reproduced in section 4: intake, routing,
+retrieval, answering, reporting.
+
+It named one component as the project's principal contribution — the composite
+confidence score. Three signals combined by fixed weights: the average
+similarity of the best five retrieved passages at 55%, a penalty for uneven
+scores at 15%, and a check for whether those passages contain section numbers
+named in the question at 30%. Three confidence tiers followed from it, and the
+tiers changed the system's behaviour: which warning was attached to the answer,
+which passages reached the model, what colour badge the user saw.
+
+It also stated three design principles as achieved properties: that answers are
+grounded, with every claim traceable to a stored passage; that the system
+refuses rather than hallucinating when retrieval fails; and that routing is
+deterministic and therefore free of routing errors.
+
+### What that evidence could and could not support
+
+The evidence was two queries.
+
+Not two hundred. Two — chosen by hand, examined after the fact, with no record
+of what the correct answer should have been. Nobody had written down in advance
+which statutory section each question ought to retrieve, so there was nothing
+for the system to be right or wrong against. And no retrieval score had ever
+been written to disk, so the two numbers reported could not be recomputed even
+in principle.
+
+Both of those are ordinary for an architecture document. Neither is sufficient
+for a claim about how well a system performs.
+
+**One of the two worked examples reproduces exactly; the other does not.** This
+is checkable by hand from the formula that document states.
+
+The first reported a top-five mean of 0.499, a score gap of 0.037, and entity
+coverage of 1.00, giving 70.6%. Working it through: the first term is
+0.55 × 0.499 = 0.2745. The gap penalty is 0.037 ÷ 0.3 = 0.123, so the second
+term is 0.15 × (1 − 0.123) = 0.1315. The third is 0.30 × 1.00 = 0.30. They sum
+to 0.7060. Exact.
+
+The second reported 43.3%, with a top-five mean of about 0.40, a score gap
+described as "Small", and entity coverage described as "Low". Entity coverage is
+a count of matching passages divided by a count of entities, so with the two
+entities in that query it can only take values such as 0, 0.5 or 1.0 — nothing
+in between. Taking 0.5, reaching 43.3% requires the gap term to contribute
+0.063, which needs a score gap of roughly 0.17. On a scale where 0.3 is the
+maximum, 0.17 is not small. **The row contradicts its own description**, and it
+should not be carried into any paper.
+
+**The same document already contained the evidence of a defect nobody had
+noticed.** Its corpus table lists the Indian Penal Code tagged as BNS, and the
+Code of Criminal Procedure tagged as BNSS. Both tags are wrong, and they are
+wrong in exactly the direction that matters here: the repealed statute labelled
+as the one that replaced it. The corpus-tagging defect that later measurement
+confirmed was sitting in the original documentation, in a table, unremarked.
+
+### The pivot
+
+The work described in this report began by changing the question.
+
+The original question was *does the system work?* Two examples cannot answer
+that. The replacement question was *what does it get wrong, and why?* Two
+examples cannot answer that either — but a properly constructed evaluation set
+can, and that is what section 5 describes building.
+
+Three things followed from the change.
+
+**The confidence score changed role.** It stopped being the contribution and
+became the object of study. Finding 6.4 reports what measuring it produced, and
+the result is negative — which is a contribution of a different and more durable
+kind than the one originally claimed.
+
+**The recodification changed role.** In the original document the coexistence of
+the old and new criminal codes is background, a fact about the corpus. Here it
+is the subject. The cross-statute failure is not a defect found along the way;
+it is the phenomenon being studied.
+
+**The routing bug changed role.** Under the first framing it is an
+embarrassment to be fixed quietly. Under the second it is data.
+
+### What was added to the architecture
+
+The pipeline in section 4 is not the pipeline that was first documented. Two
+stages were inserted between routing and retrieval, because measurement showed
+they were needed.
+
+A **date resolver** reads the question for any indication of when the conduct
+happened — "last month", "in 2023", an explicit date — and converts it into
+which legal era governs. A **statute mapper** then takes the section numbers the
+router extracted and translates them across the recodification, so that a
+question naming a repealed section can also be searched for under the section
+that replaced it.
+
+Both were measured rather than assumed. On the question set where the code named
+in the question and the date of the conduct disagree — the hard case, and the
+one a member of the public is most likely to produce — retrieval of the correct
+section rose from **{n('rec_dated_baseline', 3)}** {ci('rec_dated_baseline', 3)}
+to **{n('rec_dated_interv', 3)}** {ci('rec_dated_interv', 3)}. The two intervals
+do not overlap, which means the improvement is larger than sampling noise could
+explain. It is the largest single gain recorded in this project.
+
+{fig('F10_intervention')}
+
+### The scale of what changed
+
+| | As first documented | As measured now |
+|---|---|---|
+| Evidence base | 2 hand-picked queries | 518 questions across four purpose-built sets |
+| Correct answers recorded in advance | none | all 518, fixed before any output was seen |
+| Retrieval scores written to disk | none | 859 runs, 80 fields each |
+| Individual measurements | 2 confidence values | {total:,} rows, each with sample size and interval |
+| Automated tests | none | 237, including known-answer tests |
+| Alternative retrievers compared | none | keyword search and rank fusion |
+| Figures | 5 architecture diagrams | 17, nine of them measured results |
+| Indexed passages | stated as 1,011 | {int(g['idx_all'].v):,} after a rebuilt ingest |
+
+**What did not change is the five-agent structure itself.** The pivot was in
+what was asked of the system, not in rebuilding it. The two new stages were
+added because a measurement said they were needed, and their effect was then
+measured in turn.
+
+---
+
+## 4 · What was built
 
 A five-stage pipeline. A question in plain English goes in; an answer with
 citations and a PDF report comes out. Two stages use a language model; the rest
@@ -233,7 +361,7 @@ Adhiniyam, the Constitution, or case law — those were never ingested. The
 refusal mechanism does *not* protect users, because it has never once triggered.
 The composite confidence score is *not* the system's key innovation, because it
 performs worse than a simpler alternative. And the passage count is not 1,011.
-Section 6 sets out the full list.
+Section 7 sets out the full list.
 
 ### How a question moves through the system
 
@@ -281,7 +409,7 @@ And the whole path, end to end:
 
 ---
 
-## 4 · How it was measured
+## 5 · How it was measured
 
 Written for someone who has never evaluated a search system.
 
@@ -302,7 +430,7 @@ Did it work? There are three different things you might mean.
   present in the passages it was given, or did the model supply some from
   memory? This is the strict question, called **grounded**.
 
-These come apart, and finding 6 is a case where the answer is yes under one
+These come apart, and finding 6.6 is a case where the answer is yes under one
 definition and no under another. That is why all three are always reported, and
 why every number in this report says which one it used.
 
@@ -331,7 +459,7 @@ built from a known section, so the section is the answer by definition. The
 dated-conflict set of {g['rec_paired_dated_conflict'].n} and the layman set of
 {g['rec_layman_situation'].n} required legal judgement — deciding which section
 governs a described situation — and that judgement was made by one person.
-Section 7 treats this as the largest threat to everything reported here.
+Section 8 treats this as the largest threat to everything reported here.
 
 The paired set is the experiment rather than merely the data: it asks the same
 legal question twice, once with the old code's number and once with the new
@@ -357,11 +485,11 @@ and both are in section 6.
 
 ---
 
-## 5 · The findings
+## 6 · The findings
 
 Strongest evidence first.
 
-### 5.1 The system is more reliable on the law that no longer applies
+### 6.1 The system is more reliable on the law that no longer applies
 
 **The finding.** When a question names the repealed code, the system usually
 finds the right law. When it names the code actually in force, it finds the
@@ -407,12 +535,12 @@ questions unanswered.** The filter is a secondary problem.
 
 **How it could be wrong.** The measure is coarse: it asks which statute
 *dominates* the fifteen passages, which can score zero even when the single best
-passage is correct — finding 5.2 contains exactly such a case. The corpus filter
+passage is correct — finding 6.2 contains exactly such a case. The corpus filter
 is switched off for this measurement, because with it on an IPC-named question
 physically cannot return BNS text, and the question becomes unaskable. And
 {g['dom_dense_ipc'].n} questions per arm is a small sample.
 
-### 5.2 Keyword search does not fix it; it breaks the other half
+### 6.2 Keyword search does not fix it; it breaks the other half
 
 **The finding.** The obvious remedy — search for exact words instead of meaning
 — fails in the opposite direction, and combining the two methods produces a
@@ -440,7 +568,7 @@ cross-references, so "which statute dominates" scores it zero. Judged on the
 single best passage instead, keyword search is not catastrophic. The direction
 of the finding survives; the magnitude is exaggerated.
 
-### 5.3 The cause is in how the statutes are written
+### 6.3 The cause is in how the statutes are written
 
 **The finding.** The new code writes its own name inside its own text. The old
 one never did. So the old code's name has become, statistically, a word
@@ -482,7 +610,7 @@ of the effect without fully reconstructing the ranking. The corpus is four
 statutes, and the argument that this generalises is an argument, not a
 measurement.
 
-### 5.4 The confidence score is worse than a number it already had
+### 6.4 The confidence score is worse than a number it already had
 
 **The finding.** The system combines three signals into a confidence score. That
 combination separates right answers from wrong ones less well than the single
@@ -534,7 +662,7 @@ earns its keep only where the question and the date pull apart.
 underpowered to separate anything. This finding rests on the other two
 definitions.
 
-### 5.5 There is no confidence setting that makes the system safe
+### 6.5 There is no confidence setting that makes the system safe
 
 **The finding.** The standard safety mechanism for a system like this is to
 answer only when confident and stay silent otherwise. These measurements say
@@ -570,7 +698,7 @@ it is a weighted sum of similarity scores. Calibration measures assume a
 probability, so applying them here needs the caveat. The zeros are a real
 property of this score, not proof that no score could work.
 
-### 5.6 None of this shows up in the answers
+### 6.6 None of this shows up in the answers
 
 **The finding.** The retrieval failure is invisible in what the system writes,
 because the language model cites correct sections whether or not the search
@@ -601,7 +729,7 @@ two disagree — which is why every number in this report names its definition.
 
 ---
 
-## 6 · What we got wrong
+## 7 · What we got wrong
 
 Leading with this rather than burying it. Each row: what was claimed, what is
 true, and what caught it.
@@ -629,7 +757,7 @@ described in section 4 exists.
 
 ---
 
-## 7 · Limitations
+## 8 · Limitations
 
 Stated as a reviewer would state them.
 
@@ -667,14 +795,14 @@ Stated as a reviewer would state them.
    would shift every number in ten results files for a difference that moves no
    conclusion.
 8. **The headline finding is definition-dependent** and does not survive at
-   citation level, as section 5.6 states.
+   citation level, as section 6.6 states.
 9. **Answer quality was not evaluated.** This work measures retrieval,
    confidence and citation behaviour. It does not assess whether the legal advice
    is sound.
 
 ---
 
-## 8 · What could be done next
+## 9 · What could be done next
 
 Candidates with rough cost and effort. No recommendation is made.
 

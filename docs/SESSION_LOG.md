@@ -12019,3 +12019,216 @@ for f in glob.glob("results/*.csv"):
       
 … [truncated, 493 more chars]
 ```
+
+`2026-09-03 01:14:14` · **cmd** — Commit the project report and README Part 3
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"
+cat > "$SP/prmsg.txt" <<'ENDM'
+PROJECT_REPORT: the argument, not the ledger. Supersedes TECHNICAL_REPORT.
+
+docs/PROJECT_REPORT.md and a self-contained docs/PROJECT_REPORT.html (2.9 MB,
+16 base64 images, zero external references, prints to PDF in one click).
+TECHNICAL_REPORT is left in place but superseded.
+
+Rebuilt around one rule: EVERY NUMBER APPEARS INSIDE A SENTENCE THAT EXPLAINS
+WHY IT MATTERS. No bare numbers, no table without prose saying wha
+… [truncated, 4370 more chars]
+```
+
+### 2026-09-03 01:20:11 · prompt
+
+I can't really send the professor in HTML I think PDF should be the one. I can give you the old doc. The old doc had this history and narrative about it, which I sent him the last time.
+
+What I want you to do is read that old documentation and then give 2-3 pages of what happened in February and then what we did. Now don't say February but you can tell that first the 5-agent architecture was already there and these were the findings and confidence score. We then changed the architecture a bit. We did this much amount of testing, this amount of queries, graphs, etc.
+
+That is the goal. Add that to and optimize this one too. You get what I am trying to say, right? If you have any questions, let me know and create the PDF.  with proper diagrams and explanations like a proper doc
+
+### 2026-09-03 01:22:04 · prompt
+
+I can't really send the professor in HTML I think PDF should be the one. I can give you the old doc."C:\Users\uniya\OneDrive\Desktop\resume+letter\Legal_MVP_Architecture_Document (2).pdf" The old doc had this history and narrative about it, which I sent him the last time.
+
+What I want you to do is read that old documentation and then give 2-3 pages of what happened in February and then what we did. Now don't say February but you can tell that first the 5-agent architecture was already there and these were the findings and confidence score. We then changed the architecture a We did this much amount of testing, this amount of queries, graphs, etc.
+That is the goal. Add that to and optimize this one too. You get what I am trying to say, right? If you have any questions, let me know and create the PDF.  with proper diagrams and explanations like a proper doc Basically he should be able to understand what happened before, then how I pivoted, what I did, the architecture, the data flow, everything else. The other technical report we have created is good but I have told you the gaps and how one can optimize it.
+
+`2026-09-03 01:22:40` · **cmd** — Find an available PDF text extractor
+```bash
+cd /c/Users/uniya/legal-mvp
+for m in pypdf PyPDF2 fitz pdfplumber pdfminer; do
+  ./venv/Scripts/python.exe -c "import $m; print('  $m OK')" 2>/dev/null || echo "  $m missing"
+done
+echo "--- what does the project use to read PDFs? ---"
+grep -rn "^import\|^from" ingest/*.py 2>/dev/null | grep -i "pdf\|fitz\|pymupdf" | head -5
+```
+
+`2026-09-03 01:22:54` · **cmd** — Extract text from the old architecture PDF
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+import sys, fitz
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+p = r"C:\Users\uniya\OneDrive\Desktop\resume+letter\Legal_MVP_Architecture_Document (2).pdf"
+d = fitz.open(p)
+print(f"pages: {d.page_count}")
+print("=" * 78)
+for i in range(min(6, d.page_count)):
+    t = d[i].get_text().strip()
+    print(f"\n---------- PAGE {i+1} ----------")
+    print(t[:2200])
+ENDPY
+```
+
+`2026-09-03 01:23:08` · **cmd** — Read the confidence and validation sections of the old PDF
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+import sys, fitz
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+p = r"C:\Users\uniya\OneDrive\Desktop\resume+letter\Legal_MVP_Architecture_Document (2).pdf"
+d = fitz.open(p)
+for i in range(12, 18):
+    t = d[i].get_text().strip()
+    print(f"\n---------- PAGE {i+1} ----------")
+    print(t[:2400])
+ENDPY
+```
+
+`2026-09-03 01:23:53` · **cmd** — Find a way to produce a PDF
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== chrome / edge ==="
+for p in "/c/Program Files/Google/Chrome/Application/chrome.exe" \
+         "/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" \
+         "/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" \
+         "/c/Program Files/Microsoft/Edge/Application/msedge.exe"; do
+  [ -f "$p" ] && echo "  FOUND $p"
+done
+echo "=== puppeteer chromium (bundled with mermaid-cli) ==="
+ls -d /c/Users/uniya/.cache/puppeteer/*/*/ 2>/dev/null | head -3
+find /c/Users/uniya/AppData/Roaming/npm/node_modules -iname "chrome.exe" -o -iname "chrome-he
+… [truncated, 217 more chars]
+```
+
+`2026-09-03 01:24:14` · **cmd** — Test Chrome headless PDF generation
+```bash
+cd /c/Users/uniya/legal-mvp
+CHROME="/c/Program Files/Google/Chrome/Application/chrome.exe"
+"$CHROME" --headless --disable-gpu --no-sandbox --no-pdf-header-footer \
+  --print-to-pdf="C:\Users\uniya\legal-mvp\docs\_pdftest.pdf" \
+  "file:///C:/Users/uniya/legal-mvp/docs/PROJECT_REPORT.html" 2>&1 | tail -3
+sleep 2
+if [ -f docs/_pdftest.pdf ]; then
+  ./venv/Scripts/python.exe -c "
+import fitz; d=fitz.open('docs/_pdftest.pdf')
+print(f'  PDF OK: {d.page_count} pages, {d[0].get_text()[:60].strip()!r}')"
+  rm docs/_pdftest.pdf
+else
+  echo "  FAILED"
+fi
+```
+
+`2026-09-03 01:25:01` · **cmd** — Source the baseline vs intervention retrieval numbers
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/retrieval_metrics.csv')
+s=d[d.metric.isin(['recall_at_k_baseline_rows','recall_at_k_both_rows'])&(d.k==15.0)&(d.definition=='retrieved@k')&(d.stage=='raw_15')]
+print(s[['metric','query_set','stage','k','value','n','ci_lo','ci_hi','notes']].to_string(index=False,max_colwidth=48))"
+```
+
+`2026-09-03 01:26:11` · **cmd** — Renumber sections to make room for the new narrative
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+import re
+from pathlib import Path
+
+# ---- 1. project_text.py : renumber sections to make room for the new one ----
+p = Path("experiments/project_text.py"); s = p.read_text(encoding="utf-8")
+ren = [
+    ("## 3 Â· What was built", "## 4 Â· What was built"),
+    ("## 4 Â· How it was measured", "## 5 Â· How it was measured"),
+    ("## 5 Â· The findings", "## 6 Â· The findings"),
+    ("### 5.1 ", "### 6.1 "), ("### 5.2 ", "### 6.2 "), ("### 5.3 ", "### 6.3 "),
+    ("### 5.4 ", "### 6.4 "), ("### 5.5 ", "### 6.5 "), ("### 5.6 ", "###
+… [truncated, 1178 more chars]
+```
+
+`2026-09-03 01:26:50` · **cmd** — Insert the before/pivot/after narrative section
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+from pathlib import Path
+p = Path("experiments/project_text.py"); s = p.read_text(encoding="utf-8")
+
+NEW = '''## 3 Â· Where this began, and what changed
+
+### The system that already existed
+
+This project did not start from nothing. A working five-agent pipeline was built
+and documented before any of the measurement in this report took place. That
+document described the architecture reproduced in section 4: intake, routing,
+retrieval, answering, reporting.
+
+It named one component as the project's principal contribution â€” the co
+… [truncated, 6440 more chars]
+```
+
+`2026-09-03 01:27:23` · **cmd** — Add the intervention figure and PDF generation, then rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+from pathlib import Path
+p = Path("experiments/make_project_report.py"); s = p.read_text(encoding="utf-8")
+
+s = s.replace(
+"""from experiments.make_supervisor_brief import REGEN, load
+import experiments.make_technical_report as tr""",
+"""import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+
+from experiments.make_supervisor_brief import REGEN, load, pick
+import experiments.make_technical_report as tr""")
+
+s = s.replace(
+"""def main() -> None:
+    print("data figures...")
+    g = tr.gather()""
+… [truncated, 3780 more chars]
+```
+
+`2026-09-03 01:28:15` · **cmd** — Remove the mangled file so it can be written cleanly
+```bash
+rm -f experiments/make_project_report.py && echo "removed; ready for clean write"
+```
+
+`2026-09-03 01:29:28` · **cmd** — Rebuild the report with the new section, figure, and PDF
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe experiments/make_project_report.py 2>&1 | tail -20
+```
+
+`2026-09-03 01:29:53` · **cmd** — Verify numbers, separating quoted history from measured claims
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+import glob, re
+from pathlib import Path
+import pandas as pd
+vals=set()
+for f in glob.glob("results/*.csv"):
+    d=pd.read_csv(f)
+    for c in ("value","ci_lo","ci_hi","cluster_ci_lo","cluster_ci_hi","n","k"):
+        if c in d:
+            for v in pd.to_numeric(d[c],errors="coerce").dropna():
+                vals.add(round(float(v),4))
+def known(x,tol=6e-4):
+    return any(abs(x-v)<=tol for v in vals)
+txt=Path("docs/PROJECT_REPORT.md").read_text(encoding="utf-8")
+
+sec3 = txt.split("## 3 Â· Where this began")[1].split("## 4 Â· 
+… [truncated, 594 more chars]
+```

@@ -1,4 +1,4 @@
-"""Build docs/PROJECT_REPORT.md and a self-contained docs/PROJECT_REPORT.html.
+"""Build docs/PROJECT_REPORT.md, .html and .pdf.
 
 Supersedes docs/TECHNICAL_REPORT.md, which is left in place.
 
@@ -8,6 +8,9 @@ Reuses, rather than duplicating:
   - report_text           : the glossary and the markdown -> HTML renderer
   - figures/mermaid/*.mmd : the 8 architecture diagrams, rendered by mermaid-cli
 
+The PDF is printed from the self-contained HTML by headless Chrome, so it
+inherits the print stylesheet rather than being laid out a second time.
+
     ./venv/Scripts/python.exe experiments/make_project_report.py
 """
 from __future__ import annotations
@@ -16,11 +19,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from experiments.make_supervisor_brief import REGEN, load
+from experiments.make_supervisor_brief import REGEN, load, pick
 import experiments.make_technical_report as tr
 from experiments.report_text import build_html
 from experiments.project_text import build as build_project
@@ -53,7 +60,7 @@ MERMAID = [
      "answered."),
     ("M6_confidence",
      "M6 — How confidence is computed: three signals combined by fixed weights. "
-     "Finding 5.4 shows this combination performs worse than one of its own "
+     "Finding 6.4 shows this combination performs worse than one of its own "
      "inputs used alone."),
     ("M7_ingestion",
      "M7 — Ingestion, run once. PDFs become text, text becomes passages, "
@@ -63,21 +70,89 @@ MERMAID = [
      "and in what sequence."),
 ]
 
+CHROME_CANDIDATES = [
+    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+]
+
+
+def extra_gather(g):
+    """The two numbers behind the architecture change, sourced like all others."""
+    g["rec_dated_baseline"] = pick(
+        "retrieval_metrics.csv", metric="recall_at_k_baseline_rows", k="15.0",
+        definition="retrieved@k", stage="raw_15",
+        query_set="paired_dated_conflict")
+    g["rec_dated_interv"] = pick(
+        "retrieval_metrics.csv", metric="recall_at_k_both_rows", k="15.0",
+        definition="retrieved@k", stage="raw_15",
+        query_set="paired_dated_conflict")
+    return g
+
+
+def f10_intervention(g):
+    """What the date resolver and statute mapper actually bought."""
+    fig, ax = plt.subplots(figsize=(6.9, 2.9))
+    items = [
+        ("Before\n(router only)", g["rec_dated_baseline"], tr.CRED),
+        ("After\n(+ date resolver\n+ statute mapper)", g["rec_dated_interv"],
+         tr.CGREEN),
+    ]
+    ys = [1, 0]
+    for yy, (lab, r, col) in zip(ys, items):
+        lo, hi = float(r.r["ci_lo"]), float(r.r["ci_hi"])
+        ax.barh(yy, r.v, height=0.45, color=col, edgecolor=tr.INK, lw=0.7)
+        ax.errorbar(r.v, yy, xerr=[[r.v - lo], [hi - r.v]], fmt="none",
+                    ecolor=tr.INK, capsize=3, lw=1.1)
+        ax.text(r.v + 0.02, yy, f"{r.v * 100:.1f}%   (n={r.n})", va="center",
+                fontsize=8.5)
+    ax.set_yticks(ys)
+    ax.set_yticklabels([i[0] for i in items], fontsize=8.5)
+    ax.set_xlim(0, 1.0)
+    ax.set_xlabel("share of questions where the correct section was retrieved")
+    ax.xaxis.set_major_formatter(lambda v, p: f"{v * 100:.0f}%")
+    ax.grid(axis="x", color=tr.GRID, lw=0.6)
+    ax.set_axisbelow(True)
+    ax.set_title("Effect of the architecture change, on questions where the named "
+                 "code\nand the date of the conduct disagree   (95% Wilson CI)",
+                 fontsize=9.5)
+    tr.save(fig, "F10_intervention",
+            "F10 — Adding a date resolver and a statute mapper more than doubled "
+            "retrieval of the correct section on the hard case: where the question "
+            "names one code but the conduct falls under the other. The two "
+            "intervals do not overlap, so the gain is larger than sampling noise "
+            "could explain.")
+
+
+def to_pdf(html_path: Path, pdf_path: Path) -> bool:
+    """Print the self-contained HTML to PDF with headless Chrome."""
+    browser = next((c for c in CHROME_CANDIDATES if Path(c).exists()), None)
+    if not browser:
+        return False
+    if pdf_path.exists():
+        pdf_path.unlink()
+    subprocess.run([browser, "--headless", "--disable-gpu", "--no-sandbox",
+                    "--no-pdf-header-footer", f"--print-to-pdf={pdf_path}",
+                    html_path.as_uri()],
+                   capture_output=True, timeout=300)
+    return pdf_path.exists()
+
 
 def main() -> None:
     print("data figures...")
-    g = tr.gather()
+    g = extra_gather(tr.gather())
     tr.f1_pipeline(g); tr.f2_ipc_bns(g); tr.f3_inversion(g); tr.f4_self_naming(g)
     tr.f5_funnel(g); tr.f6_ablation(g); tr.f7_reliability(g)
-    tr.f8_risk_coverage(g); tr.f9_ceiling(g)
+    tr.f8_risk_coverage(g); tr.f9_ceiling(g); f10_intervention(g)
 
     print("architecture diagrams...")
     figs = list(tr.FIGS)
     for fid, cap in MERMAID:
         png = ROOT / "figures" / f"{fid}.png"
         if not png.exists():
-            tr.DROPPED.append(f"{fid}: figures/{fid}.png absent — Mermaid render "
-                              f"did not produce it; diagram omitted")
+            tr.DROPPED.append(f"{fid}: figures/{fid}.png absent — the Mermaid "
+                              f"render did not produce it; diagram omitted")
             print(f"  MISSING {fid}")
             continue
         figs.append((fid, png.name, cap))
@@ -89,8 +164,16 @@ def main() -> None:
 
     md = build_project(g, figs, sha, total, tr.DROPPED)
     (ROOT / "docs" / "PROJECT_REPORT.md").write_text(md, encoding="utf-8")
-    (ROOT / "docs" / "PROJECT_REPORT.html").write_text(
-        build_html(md, figs, sha), encoding="utf-8")
+    html = ROOT / "docs" / "PROJECT_REPORT.html"
+    html.write_text(build_html(md, figs, sha), encoding="utf-8")
+
+    pdf = ROOT / "docs" / "PROJECT_REPORT.pdf"
+    if to_pdf(html, pdf):
+        import fitz
+        print(f"\n  PDF: {pdf.name} — {fitz.open(pdf).page_count} pages, "
+              f"{pdf.stat().st_size // 1024} KB")
+    else:
+        tr.DROPPED.append("PDF: no Chrome or Edge executable found; HTML only")
 
     print(f"\n{len(g)} figures sourced · {len(figs)} images · {total} result rows")
     print(f"DROPPED: {len(tr.DROPPED)}")
