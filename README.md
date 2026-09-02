@@ -1636,3 +1636,275 @@ Retrieval only. No answers generated. Costs under one rupee.
 ---
 
 **End of Part 2.**
+
+---
+---
+
+# PART 3 — MEASUREMENT: 1–3 SEPTEMBER 2026
+
+Part 2 ended with a plan and a set of defects. Part 3 records what happened when
+the plan was executed: five waves of measurement, two retractions of claims made
+in Part 2, and the closing of the last gap between a headline finding and a
+machine-readable source.
+
+**Same rule as Part 2, applied harder:** every number below appears inside a
+sentence explaining why it matters, and every one of them is extracted from
+`results/*.csv` by a filter that must match exactly one row or the program stops.
+The full ledger is Appendix B of [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md).
+
+---
+
+## 3.1 What the five waves were for
+
+The problem at the end of August was not a shortage of numbers. It was that
+nobody had checked the instruments that produced them. A metric that crashes is
+harmless; a metric that quietly returns a believable wrong number is how this
+project lost six months earlier in its life.
+
+So the work was sequenced deliberately:
+
+| Wave | Purpose |
+|---|---|
+| **0** | Read the actual log files rather than the documentation. Build one shared measurement library. Test it against answers worked out by hand in advance |
+| **1** | Fix three things corrupting the measurements — a mislabelled confidence tier, a citation parser binding statutes by proximity, and an investigation of the score filter |
+| **Gate** | Compute three sanity numbers and stop, before spending anything on the full analysis |
+| **2** | Five metric families in parallel: retrieval, routing, calibration, ablation, robustness |
+| **3** | Two experiments: the fourth confidence signal that had been specified and never built, and keyword search as an alternative to meaning-based search |
+| **4** | Assemble everything, and list separately every number that changed, every assertion that failed, and everything that could not be computed |
+
+The gate earned its place immediately. It caught **two defects in the
+measurement library written during Wave 0**, one of which silently returned zero
+correct answers out of 617 while nothing crashed and every number looked like a
+real finding. That is precisely the failure the sequencing existed to catch.
+
+**Total cost of all five waves: about ₹0.09.** Everything was computed from data
+already on disk, apart from one retrieval-only re-run and one embedding batch.
+
+---
+
+## 3.2 What the measurements found
+
+Six findings. The full argument, with figures, is in
+[`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md); this is the record.
+
+### The system is more reliable on the law that no longer applies
+
+A question naming the repealed Indian Penal Code retrieves mostly IPC text
+**97.0%** of the time, against a chance baseline of 31.3% — that is the share of
+the index the IPC occupies, so it is what a retriever ignoring the question
+entirely would score. A question naming the Bharatiya Nyaya Sanhita, which is
+the code actually in force, manages **51.5%** against a 22.3% baseline: real, but
+weak. Both rest on 33 questions per arm, so the intervals are wide — [84.7%,
+99.5%] and [35.2%, 67.5%] — and narrowing them needs more questions, not better
+analysis.
+
+The misses have a direction. When a BNS-named question fails, what comes back is
+overwhelmingly the repealed code. That directionality is what makes this a
+finding rather than noise.
+
+**This reproduced cell-for-cell** after three bug fixes, a rebuilt measurement
+library, and a fresh run against the live index — which is the strongest
+reproducibility evidence the project has.
+
+### Keyword search does not fix it; it breaks the other half
+
+Exact-word search raises accuracy on questions naming the code in force from
+51.5% to **97.0%**, a large real improvement. But on questions naming the
+repealed code it collapses from 97.0% to **0.0%** — below the 31.3% a system
+ignoring the question would score. Fusing the two methods lands between them on
+both arms and beats neither at what it was good at.
+
+**Averaging two opposite failure modes produces a system that fails twice.** This
+answers the sharpest objection the paper will face: that the failure is an
+artefact of choosing a meaning-based retriever.
+
+### The cause is in how the statutes are written
+
+The word *sanhita* appears in **30** of the 1,899 indexed passages, and every
+single one is Bharatiya Nyaya Sanhita text — a perfect signpost, informativeness
+**4.116**. The word *penal* appears in **110** passages, but only **23** are
+Indian Penal Code while **82** are Code of Criminal Procedure.
+
+**Searching for the Penal Code by its own name points at the procedure code
+roughly three times more often than at the Penal Code itself.**
+
+The reason is mundane once seen. The 1860 drafters had no occasion to write
+"penal" inside the Penal Code — you do not name the book you are in. The
+procedure code cites it constantly, because procedure refers to offences. Both
+statutes name themselves rarely: the BNS in 7.1% [5.0, 9.9] of its own passages,
+the IPC in 3.9% [2.6, 5.7]. The asymmetry that matters is not how often they say
+their names, but whether saying the name identifies the book.
+
+This is a property of legal drafting, not of any retriever, and it should recur
+in any jurisdiction that replaces a statute rather than amending it.
+
+### The confidence score is worse than a number the system already had
+
+The deployed three-signal composite scores **0.6631** at separating right answers
+from wrong ones. The single highest similarity from the search — a number
+already sitting in the logs, costing nothing — scores **0.7837**. Two of the
+composite's own ingredients also beat it, at 0.7571 and 0.7298.
+
+**A blend of three signals is worse than one of the signals alone.**
+
+See section 3.3 for what happened when that finding was stress-tested.
+
+### There is no confidence setting that makes the system safe
+
+If the system answered only its most confident questions, what share could it
+answer while being wrong at most one time in ten? For the composite the answer
+is **0.0000** — no threshold anywhere on the curve reaches that error rate.
+
+The reason is visible in the shape of the curve rather than in any summary
+number. A well-behaved confidence score climbs steadily. This one rises through
+the middle of its range and then **falls back at the top**, so the answers it is
+most sure about are no better than its middling ones. A single calibration error
+figure — 0.2410 for the composite against 0.1270 for the simple score — tells
+you it is worse, but cannot tell you the curve bends the wrong way at the end,
+which is the part that matters for safety.
+
+**One thing does work, in one place.** A fourth signal was built for the first
+time: the fraction of retrieved passages coming from the statute the question
+and its date imply. Overall it scores **0.6850**, no better than what already
+existed. But on the 197 questions where the named code and the offence date
+disagree — precisely the hard case — it reaches **0.8300**. The catch is that on
+most other questions the search filter was itself built from the same date
+information, so the signal cannot fail there by construction.
+
+### None of this shows up in the answers
+
+The gap between the two arms of the paired set is **0.5455** when measured on
+what was *retrieved*. Measured on what was *cited* it is **-0.0303**, an interval
+straddling zero, meaning the data cannot distinguish the arms at all.
+
+The mechanism was measured directly: the model cites correct sections from its
+own training regardless of what the search returned. **Anyone evaluating this
+system by reading its answers would conclude it works.** A legal system whose
+failures are invisible is more dangerous than one whose failures are obvious.
+
+---
+
+## 3.3 The corrected composite — stress-testing our own finding
+
+One of the composite's three ingredients turned out to be **wired backwards**.
+The gap between the best and second-best result is evidence of a clear winner,
+but the deployed code treats it as evidence of doubt. Measured alone, that
+inverted term scores **0.2702** — below 0.5, meaning it actively points the wrong
+way, while the same signal uninverted scores 0.7298.
+
+That raised the obvious objection: perhaps the whole confidence finding is just
+this bug.
+
+**It is not, and the check that settled it is worth recording.** Before anything
+else, the deployed formula was reconstructed from `agents/retriever.py` and
+required to reproduce the logged confidence values. It matched to **1.0e-04**,
+exactly the four-decimal rounding floor. Only then was the sign flipped.
+
+Correcting the sign lifts the composite from 0.6631 to **0.7207** — a real
+improvement, significant at p<0.0001. But the simple similarity score remains
+ahead at 0.7837, and the corrected composite still loses by **-0.0630**, with an
+interval [-0.0946, -0.0325] nowhere near zero.
+
+**The sign error explains about half of the original -0.1207 shortfall. The
+other half is the blend itself.** And when the three corrected signals are given
+the best weighting that can be found, then tested on questions the weight search
+never saw, they reach **0.7631** against the simple score's 0.7624 — a tie, never
+a win.
+
+The claim this permits is stronger and more defensible than the one it replaces:
+
+> **No weighting of these three signals beats a single raw cosine similarity, and
+> correcting the known sign error does not change that.**
+
+**Do not write "the composite is worse because of the sign error."** It explains
+about half. Attributing all of it would be false.
+
+---
+
+## 3.4 A documentation gap, and closing it
+
+When the first supervisor-facing document was assembled, one claim could not be
+included: the self-naming mechanism behind the keyword-search inversion existed
+only as prose in `results/EXPLAIN.md` and appeared in **no results file**. Under
+the project's own sourcing rule — no number typed, everything filtered from a
+CSV — it had to be dropped from the document.
+
+That is an uncomfortable position: the mechanism behind the strongest finding
+had no machine-readable source. `experiments/exp10_self_naming.py` closed it,
+producing `results/self_naming.csv`.
+
+The check that matters is the last one it runs. It asserts that the freshly
+computed figures reproduce the prose claims made during Wave 3 — `sanhita` in 30
+passages, all BNS, informativeness 4.12; `penal` in 82 CrPC passages and 23 IPC
+ones, informativeness 2.79. **All six assertions passed exactly.** The prose was
+right; it simply had no source until now.
+
+**An unexpected result from the same run.** A sweep for other terms concentrated
+in a single statute returned almost no further self-naming vocabulary. What it
+returned instead was procedural register — *thinks*, *pleader*, *thereupon*,
+*magistrates*, *triable* — every one of them 100% Code of Criminal Procedure.
+**The CrPC is lexically distinctive because it is written differently, not
+because it identifies itself.**
+
+---
+
+## 3.5 What changed from Part 2
+
+Two claims made in Part 2 are retracted here, with the evidence that overturned
+them. Both were caught by this project's own checks rather than by review.
+
+**The counting bug did not exist.** Part 2 reported that a bug had halved a
+published figure and that 7.5% should read 15.0%. It measured wrong. Both figures
+were correct at their own retrieval stage — 7.5% after the score filter, 15.0%
+before it. The text-parsing rule was verified correct **4,906 times out of
+4,906**, a 0.0% error rate. The mistake was comparing an unfiltered probe against
+a filtered figure.
+
+**A ceiling was misreported as a failure.** BNS-named gold recall of 33.3% was
+presented as a retrieval failure. It is a **reachability ceiling**: 22 of the 33
+gold labels for that arm name a subsection the index stores only as a whole
+section, so no retriever of any kind can score them. Meaning-based and fused
+retrieval both reach 11 of 33 — **saturating the ceiling exactly**. On everything
+reachable, retrieval is perfect. Pooled, only **85.7%** [82.4, 88.5] of the 518
+questions have a reachable answer, and every recall figure in this project must
+be read against that rather than against 100%.
+
+Three further corrections, all documentation rather than defects:
+
+- The confidence formula recorded in `CLAUDE.md` and in Part 1 is **wrong**. The
+  deployed code inverts the middle term. The logged scores were always right.
+- `GAPS.md` findings 1 and 2 describe **superseded code**. The entity-coverage
+  signal does not exceed 1.0 and grants no free default; it takes only the values
+  0, 0.5 and 1.0, and its discrimination is 0.5806, not the 0.492 repeatedly
+  quoted.
+- The confidence figures 0.610 and 0.663 record neither which correctness
+  definition nor which retrieval stage produced them, and none reproduces the
+  pair. **Superseded, not reconcilable.**
+
+---
+
+## 3.6 Where the project stands
+
+| | |
+|---|---|
+| Waves complete | 0, 1, 2, 3, 4, plus the gate |
+| Measurements | 2,959 rows across ten results files, one shared schema |
+| Automated tests | 237 |
+| Explanation blocks | 14, eight fixed headings each |
+| Figures | 17 — 8 architecture diagrams, 9 data charts |
+| Total API spend, September | about ₹0.09 |
+
+**The documents.** [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md) is the one
+to read and the one to send: the whole argument, with figures, written for
+someone with no prior exposure to this codebase.
+[`docs/TECHNICAL_REPORT.md`](docs/TECHNICAL_REPORT.md) is superseded by it and
+kept for reference. [`results/RESULTS.md`](results/RESULTS.md) holds every
+measurement with its appendices on changed numbers and failed assertions.
+[`results/EXPLAIN.md`](results/EXPLAIN.md) explains each output in plain English.
+
+**What remains is not code.** Independent expert validation of the gold labels —
+all of which were decided by one person — is the largest outstanding threat to
+every finding above, and the cheapest to fix. The framing and the venue are
+judgement calls. Whether to re-derive gold labels at subsection granularity,
+which would raise the 85.7% ceiling but revise the evaluation set, is a decision
+that should be taken deliberately rather than quietly.

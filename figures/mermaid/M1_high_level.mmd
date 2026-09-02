@@ -1,0 +1,50 @@
+flowchart TD
+    subgraph UI["🧑 Interface Layer"]
+        USER["👤 User"]
+        STUI["🖥️ Streamlit UI<br/><i>streamlit_app.py · port 8501</i>"]
+        CURL["⌨️ cURL / HTTP Client"]
+    end
+
+    subgraph API["🌐 Application Layer"]
+        FA["⚡ FastAPI Orchestrator<br/><i>app.py · port 8000</i><br/>/query · /ingest · /healthz"]
+    end
+
+    subgraph Agents["🤖 Five-Agent Sequential Pipeline"]
+        direction LR
+        INTAKE["📝 Intake<br/><i>agents/intake.py</i><br/>LLM triage"]
+        ROUTER["🧭 Router<br/><i>agents/router.py</i><br/>Regex routing"]
+        RETRIEVER["🎯 Retriever<br/><i>agents/retriever.py</i><br/>7-step pipeline"]
+        ANSWER["💬 Answer<br/><i>agents/answer.py</i><br/>Confidence-aware"]
+        REPORTER["📊 Reporter<br/><i>agents/reporter.py</i><br/>PDF generation"]
+        INTAKE --> ROUTER --> RETRIEVER --> ANSWER --> REPORTER
+    end
+
+    subgraph Ingest["📥 Ingestion Pipeline"]
+        EXT["🔍 Extract<br/><i>ingest/extract.py</i><br/>PyMuPDF + OCR"]
+        CHK["✂️ Chunk<br/><i>ingest/chunk.py</i><br/>~450 tokens + section norm"]
+        IDX["📦 Index<br/><i>ingest/index.py</i><br/>Batch embed + upsert"]
+        EXT --> CHK --> IDX
+    end
+
+    subgraph Infra["🗄️ External Services"]
+        QD[("🔷 Qdrant<br/>1536-dim Cosine<br/>Docker :6333")]
+        OAI["🤖 OpenRouter API<br/>text-embedding-3-small<br/>google/gemini-3.7-flash<br/>(T=0, provider pinned)"]
+        OCR["📝 Tesseract OCR<br/>eng+hin+tam+tel"]
+    end
+
+    USER --> STUI & CURL
+    STUI & CURL -->|"HTTP POST"| FA
+    FA --> INTAKE
+    FA --> EXT
+    RETRIEVER <-->|"search"| QD
+    IDX --> QD
+    RETRIEVER <--> OAI
+    ANSWER <--> OAI
+    IDX <--> OAI
+    EXT -.->|"fallback"| OCR
+    REPORTER -->|"JSON + PDF"| FA
+    FA -->|"response"| STUI & CURL
+
+    style Agents fill:#fce4ec,stroke:#E91E63
+    style Ingest fill:#e0f2f1,stroke:#009688
+    style Infra fill:#ede7f6,stroke:#673AB7

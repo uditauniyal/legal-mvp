@@ -1593,3 +1593,40 @@ Task 0 (`exp10_self_naming.py`) ran first and is committed separately at
 `95f5ac7`. It closed the last gap between a headline claim and a
 machine-readable source, which is why figure F4 exists at all — before it, the
 mechanism behind the strongest finding could not have been plotted.
+
+---
+
+## 2026-09-03 — PROJECT_REPORT: the argument, not the ledger
+
+`docs/PROJECT_REPORT.md` + self-contained `docs/PROJECT_REPORT.html`
+(2.9 MB, 16 base64 images, no external references). Supersedes
+`docs/TECHNICAL_REPORT.md`, which is kept.
+
+Rebuilt around one rule: every number appears inside a sentence explaining why
+it matters. Provenance moved to Appendix B. Opens with six plain sentences
+containing no numbers at all.
+
+**17 figures.** The 8 README Part 1 Mermaid diagrams rendered with mermaid-cli
+v11.12.0, plus the 9 data charts.
+
+**The diagrams were factually corrected before rendering.** A diagram is a
+claim. Four carried facts measurement disproved: GPT-4o-mini (now
+`google/gemini-3.7-flash` via OpenRouter), the BNSS/BSA/Constitution corpus
+filters (now marked NOT INGESTED — those corpora were never ingested and the
+branches silently fall through), and the refusal gate (now marked "never fired:
+0 of 859"). Nine substitutions across five files. Sources kept at
+`figures/mermaid/*.mmd` so the correction is auditable.
+
+**Verification.** 66 figures sourced by one-row-or-crash filters. Independent
+pass over the rendered markdown: **88 body decimal tokens, 0 unsourced**. The
+scan for disproven claims found matches only inside the corrections table and
+the explicit "these are not true" paragraph, which is where they belong.
+
+One documented drop, carried forward and stated in Appendix B: the full
+risk-coverage curve is not in `calibration.csv` — only three anchor points per
+score — so F8 plots the anchors and says so.
+
+`README.md` Part 3 added: the five waves, the six findings, the
+corrected-composite stress test, the self-naming measurement, and every
+retraction since Part 2. Verified separately at **67 decimal tokens, 0
+unsourced**.

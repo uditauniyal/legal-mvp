@@ -1,0 +1,22 @@
+flowchart LR
+    subgraph Input["📄 Documents"]
+        PDF["PDF"] & DOCX["DOCX"] & TXT["TXT"]
+    end
+
+    subgraph Extract["🔍 Extract<br/><i>ingest/extract.py</i>"]
+        E["PyMuPDF primary<br/>Tesseract OCR fallback<br/>(if page < 20 chars, 300 DPI)<br/>eng+hin+tam+tel"]
+    end
+
+    subgraph Chunk["✂️ Chunk<br/><i>ingest/chunk.py</i>"]
+        C["~450 tokens target<br/>1-sentence overlap<br/>Section normalization<br/>Corpus auto-tagging"]
+    end
+
+    subgraph Embed["🔢 Embed<br/><i>clients/openai_client.py</i>"]
+        EM["text-embedding-3-small<br/>1536 dimensions<br/>Batch size: 64"]
+    end
+
+    subgraph Index["📦 Index<br/><i>ingest/index.py</i>"]
+        I["Qdrant upsert<br/>UUID point IDs<br/>Full metadata payload"]
+    end
+
+    PDF & DOCX & TXT --> E --> C --> EM --> I --> QD[("🔷 Qdrant<br/>legal_mvp")]

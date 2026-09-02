@@ -1,0 +1,20 @@
+flowchart TD
+    IN["QueryPlan from Router<br/>(rewritten query + corpus filter + entities)"]
+
+    subgraph Pipeline["🎯 7-Step Retrieval Pipeline"]
+        S1["<b>Step 1 — Embed</b><br/>Query → 1536-dim vector<br/><i>text-embedding-3-small</i>"]
+        S2["<b>Step 2 — Search</b><br/>Qdrant cosine similarity<br/>limit=15, optional corpus filter"]
+        S3["<b>Step 3 — Fallback</b><br/>If filtered search = 0 results<br/>→ retry without filter"]
+        S4["<b>Step 4 — Rerank</b><br/>Promote chunks containing<br/>Router-extracted entities to top"]
+        S5["<b>Step 5 — Filter</b><br/>Adaptive threshold:<br/><code>max(top_score − 0.15, 0.35)</code><br/>Minimum 3 chunks always pass"]
+        S6["<b>Step 6 — Score</b><br/>Composite confidence from<br/>3 orthogonal signals (§7)"]
+        S7["<b>Step 7 — Return</b><br/>RetrievalResult with chunks,<br/>confidence, metadata"]
+
+        S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
+    end
+
+    IN --> S1
+    S7 --> OUT["RetrievalResult → Answer Agent"]
+    S2 <-->|"similarity search"| QD[("🔷 Qdrant")]
+
+    style Pipeline fill:#e8f5e9,stroke:#4CAF50

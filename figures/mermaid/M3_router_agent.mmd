@@ -1,0 +1,23 @@
+flowchart TD
+    CC["CaseContext from Intake"] --> CORPUS{"Corpus Mapping<br/>(keyword scan)"}
+
+    CORPUS -->|"ipc, bns, penal code"| BNS["BNS corpus filter"]
+    CORPUS -->|"crpc, bnss, procedure"| BNSS["BNSS corpus filter<br/><b>NOT INGESTED</b><br/>matches nothing"]
+    CORPUS -->|"iea, bsa, evidence"| BSA["BSA corpus filter<br/><b>NOT INGESTED</b><br/>matches nothing"]
+    CORPUS -->|"constitution"| CONST["Constitution filter<br/><b>NOT INGESTED</b><br/>matches nothing"]
+    CORPUS -->|"Multiple match"| NONE["No filter (cross-corpus)"]
+
+    BNS & BNSS & BSA & CONST & NONE --> ENTITY["Entity Extraction<br/><code>(section|article|order|rule)\s+(\d+[A-Za-z]?)</code>"]
+
+    ENTITY --> INTENT{"Intent Classification"}
+    INTENT -->|"Section/Article match"| STATUTE["statute"]
+    INTENT -->|"v./vs./judgment"| CASELAW["case_law"]
+    INTENT -->|"Multiple corpora"| COMPARE["comparison"]
+    INTENT -->|"No triggers"| GENERAL["general"]
+
+    STATUTE & CASELAW & COMPARE & GENERAL --> REWRITE["Query Rewriting<br/>Prepend entities + issues"]
+
+    REWRITE --> OUT["QueryPlan → Retriever"]
+
+    style CORPUS fill:#e1f5fe,stroke:#0288D1
+    style INTENT fill:#fff9c4,stroke:#F9A825

@@ -1,0 +1,10 @@
+flowchart TD
+    Q["Raw User Query"] --> LLM["gemini-3.7-flash Triage<br/>(temp=0, max 600 tokens)"]
+    LLM --> CC["CaseContext Object"]
+    CC --> REGEX{"Paralegal Override<br/>Regex Check"}
+    REGEX -->|"Contains Section/Article/FIR/<br/>Bail/Writ/Quash/BNS/IPC"| FORCE["Force persona = 'Paralegal'"]
+    REGEX -->|"No technical terms"| PASS["Keep LLM classification"]
+    FORCE --> OUT["Final CaseContext"]
+    PASS --> OUT
+
+    style REGEX fill:#fff9c4,stroke:#F9A825

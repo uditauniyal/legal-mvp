@@ -1,0 +1,19 @@
+flowchart TD
+    IN["RetrievalResult + Original Query"]
+
+    IN --> GATE{"Refusal Gate<br/>refused=True OR chunks empty?<br/><b>never fired: 0 of 859</b>"}
+    GATE -->|"Yes"| REFUSE["Return REFUSAL_MESSAGE<br/>(no LLM tokens consumed)"]
+    GATE -->|"No"| TIER{"Confidence Tier?"}
+
+    TIER -->|"≥ 55%"| HIGH["<b>HIGH</b><br/>Normal system prompt<br/>7-section structured response<br/>🟢 Green badge"]
+    TIER -->|"≥ 38%"| MEDIUM["<b>MEDIUM</b><br/>MEDIUM_DISCLAIMER prepended<br/>Distinguish sourced vs. general<br/>🟡 Yellow badge"]
+    TIER -->|"< 38%"| LOW["<b>LOW</b><br/>LOW_DISCLAIMER prepended<br/>General guidance only<br/>🔴 Red badge"]
+
+    HIGH & MEDIUM & LOW --> LLM["google/gemini-3.7-flash<br/>temp=0, JSON mode"]
+    LLM --> VALIDATE["JSON Validator<br/>Parse → Validate → Auto-repair"]
+    VALIDATE --> OUT["AnswerData<br/>{answer, citations, confidence}"]
+
+    style GATE fill:#ffcdd2,stroke:#E53935
+    style HIGH fill:#c8e6c9,stroke:#43A047
+    style MEDIUM fill:#fff9c4,stroke:#F9A825
+    style LOW fill:#ffcdd2,stroke:#E53935
