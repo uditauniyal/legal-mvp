@@ -617,9 +617,9 @@ def build_html(md: str, figs, sha) -> str:
             items, ordered = [], bool(re.match(r"^\s*\d+\.\s+", ln))
             while i < len(lines) and (re.match(r"^\s*[-*]\s+", lines[i])
                                       or re.match(r"^\s*\d+\.\s+", lines[i])
-                                      or (lines[i].startswith("   ") and lines[i].strip())):
+                                      or (lines[i].startswith("  ") and lines[i].strip())):
                 t = re.sub(r"^\s*(?:[-*]|\d+\.)\s+", "", lines[i])
-                if lines[i].startswith("   ") and items and not re.match(r"^\s*(?:[-*]|\d+\.)\s", lines[i]):
+                if lines[i].startswith("  ") and items and not re.match(r"^\s*(?:[-*]|\d+\.)\s", lines[i]):
                     items[-1] += " " + t.strip()
                 else:
                     items.append(t.strip())

@@ -12488,3 +12488,500 @@ for i, pg in enumerate(doc):
     for b in pg.get_image
 … [truncated, 1454 more chars]
 ```
+
+`2026-09-03 01:46:00` · **cmd** — Confirm prose unchanged and commit the rendering fixes
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"
+echo "=== prose and numbers unchanged? ==="
+git diff HEAD --stat -- docs/PROJECT_REPORT.md | tail -2
+./venv/Scripts/python.exe -c "
+import subprocess,re
+old=subprocess.run(['git','show','HEAD:docs/PROJECT_REPORT.md'],capture_output=True,text=True,encoding='utf-8').stdout
+new=open('docs/PROJECT_REPORT.md',encoding='utf-8').read()
+strip=lambda t: re.sub(r'^\*.*\*$','',re.sub(r'^!\[.*$','',t,flags=re.M),flags=re.M)
+on=re.findall(r'(?<![\w.\-])(\d+\.\d+
+… [truncated, 2470 more chars]
+```
+
+### 2026-09-03 02:05:07 · prompt
+
+rempve this line Udita Uniyal Â· Banasthali Vidyapith Â· 3 September 2026 Â· commit 
+b720937 and this line for it Written for a reader with no prior exposure to this projec and laso if there a way you can make the documenation more robust and explana The report is good and the figures are fixed. Three additions, no restructuring,
+no rewriting of existing prose.
+
+1. ONE WORKED EXAMPLE, as a new subsection at the end of section 5.
+   Pick one real logged query from runs/ â€” ideally a layman question where
+   retrieval failed but the answer looked fine, since that is finding 6.6 made
+   concrete. Show, from the actual log:
+     - the question as typed
+     - what Intake extracted
+     - which corpus the Router chose and which rule fired
+     - the top five passages actually retrieved, with their scores and which
+       statute each came from
+     - which survived the adaptive filter
+     - the four confidence signals and the composite, and the tier
+     - the answer the system wrote, or its first paragraph
+     - which sections it cited, and which of those were actually in the
+       retrieved passages
+     - the gold section, and whether this counts as correct under each of the
+       three definitions
+   Pull every value from the log. Do not invent or paraphrase. This is the one
+   place a reader sees the system actually run.
+
+2. A TABLE OF CONTENTS after the title block. Section numbers and page numbers.
+   The document is over twenty pages and has none.
+
+3. FIX TWO FORMATTING BUGS.
+   Section 8's numbered list restarts at 1 after figure F9 â€” it should run
+   1 through 9 continuously.
+   In section 5, the first bullet under "three different things you might mean"
+   breaks across a paragraph boundary mid-sentence: "The system fetches fifteen
+   passages" then a break then "before writing anything." Keep the bullet whole.
+
+Re-render and confirm no figure spans a page boundary. Commit.also Produce results/TESTING_WORKBOOK.xlsx, an inspectable record of what was
+tested. Same sourcing rule: every value pulled from the query sets and results
+files, nothing typed.
+
+Sheet 1 "Questions" â€” all 518, one row each: query_id, set, the question text,
+gold statute, gold section, gold certainty (construction or judgement), query
+type, era condition, situation_id, and whether the gold is reachable in the
+index.
+
+Sheet 2 "Per-query results" â€” one row per query: what was retrieved at each of
+the three stages, whether gold was among it, what the answer cited, whether
+those citations were supported, the four confidence signals, the composite,
+the tier, and correct/incorrect under each of the three definitions.
+
+Sheet 3 "Parameters" â€” every configuration value the runs used: embedding
+model, generation model and provider pin, chunk size, overlap, top-k, the
+confidence weights, the tier thresholds, the filter formula, index size,
+seeds, bootstrap count.
+
+Sheet 4 "Summary" â€” the headline results with n, CI, definition and stage.
+
+Freeze the header row, autofit columns, and add a filter to each sheet so he
+can sort and filter it himself. Commit.
+
+`2026-09-03 02:06:03` · **cmd** — Find a layman query where retrieval failed but the answer cited gold
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "import openpyxl;print('openpyxl OK',openpyxl.__version__)" 2>/dev/null || echo "openpyxl MISSING"
+echo
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+from experiments.metrics_lib import load_logs, load_stages, ranked_sections, same_section
+df = load_logs(); st = load_stages()
+lay = df[(df.query_set=="layman_situation") & (df.expected_sections.map(len)>0)]
+print(f"layman rows: {len(lay)}")
+cands = []
+for _, r in lay.iterrows():
+    s = st.get(r.req_id)
+ 
+… [truncated, 596 more chars]
+```
+
+`2026-09-03 02:06:50` · **cmd** — Pull the full log record for the worked example
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys, json, glob; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+TARGET = "8134c48bf465"
+rec = None
+for f in glob.glob("runs/**/queries.jsonl", recursive=True):
+    for line in open(f, encoding="utf-8"):
+        r = json.loads(line)
+        if r.get("req_id") == TARGET:
+            rec = r
+if not rec:
+    print("not found"); raise SystemExit
+p = lambda *a: print(*a)
+p("QUERY      :", rec["query_raw"])
+p("query_id   :", rec["query_id"], " git_sha:", rec.get("git_sha"))
+i = rec["intake"]
+p(
+… [truncated, 1842 more chars]
+```
+
+`2026-09-03 02:07:43` · **cmd** — Complete the worked example with retrieval stages
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys; sys.path.insert(0,'.')
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+from experiments.metrics_lib import load_logs, load_stages, ranked_sections, same_section, normalise_section
+st = load_stages(); df = load_logs()
+r = df[df.req_id=="8134c48bf465"].iloc[0]
+s = st["8134c48bf465"]
+print("GOLD:", r.expected_sections)
+for stage in ("raw_15","reranked_15","filtered_n"):
+    ch = s[stage]
+    print(f"\n{stage}  ({len(ch)} passages)")
+    for i,c in enumerate(ch[:5],1):
+        print(f"  {i}. {c.get('corpus'):<
+… [truncated, 768 more chars]
+```
+
+### 2026-09-03 02:09:02 · prompt
+
+you can ask agnent to do tasks as well if it increase productivity
+
+`2026-09-03 02:10:16` · **cmd** — Explore repo structure
+```bash
+ls && echo "---BRANCH---" && cat .git/HEAD && echo "---EVAL---" && ls eval/ && echo "---RESULTS---" && ls results/ && echo "---EXPERIMENTS---" && ls experiments/ && echo "---RUNS---" && ls runs/ | head -50
+```
+
+`2026-09-03 02:10:33` · **cmd** — Capture pip freeze before
+```bash
+./venv/Scripts/python.exe -m pip freeze > "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/freeze_before.txt" 2>&1; wc -l "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/freeze_before.txt"
+```
+
+`2026-09-03 02:10:40` · **cmd** — Read metrics_lib.py
+```bash
+wc -l experiments/metrics_lib.py && cat experiments/metrics_lib.py
+```
+
+`2026-09-03 02:10:43` · **cmd** — Read the exact header and the broken list
+```bash
+cd /c/Users/uniya/legal-mvp
+sed -n '1,16p' docs/PROJECT_REPORT.md
+echo "..."
+echo "=== section 8 list around F9 ==="
+sed -n '/^## 8 Â· Limitations/,/^3\. \*\*One embedding/p' docs/PROJECT_REPORT.md | head -22
+```
+
+`2026-09-03 02:11:01` · **cmd** — Install openpyxl with no-deps guard
+```bash
+./venv/Scripts/python.exe -m pip install openpyxl et_xmlfile --no-deps 2>&1 | tail -20
+```
+
+`2026-09-03 02:11:17` · **cmd** — Diff pip freeze before/after
+```bash
+SP="C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"; ./venv/Scripts/python.exe -m pip freeze > "$SP/freeze_after.txt" 2>&1; echo "=== DIFF ==="; diff "$SP/freeze_before.txt" "$SP/freeze_after.txt"; echo "=== exit $? ==="
+```
+
+`2026-09-03 02:11:39` · **cmd** — Verify fastapi/starlette versions and app import
+```bash
+./venv/Scripts/python.exe -c "import fastapi, starlette, app; print(fastapi.__version__, starlette.__version__)" 2>&1 | tail -5
+```
+
+`2026-09-03 02:11:46` · **cmd** — Find the true end of section 5
+```bash
+cd /c/Users/uniya/legal-mvp
+awk '/^## 5 Â· How it was measured/,/^## 6 Â· The findings/' docs/PROJECT_REPORT.md | tail -12
+```
+
+`2026-09-03 02:12:11` · **cmd** — Run test suite
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -12
+```
+
+`2026-09-03 02:12:24` · **cmd** — Apply all report edits atomically
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys, re
+from pathlib import Path
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+p = Path("experiments/project_text.py"); s = p.read_text(encoding="utf-8")
+
+edits = [
+ # byline + "written for a reader" sentence
+ ('''**Udita Uniyal Â· Banasthali Vidyapith Â· 3 September 2026 Â· commit `{sha}`**
+
+A report on a legal question-answering system, what was measured in it, and
+what those measurements mean. Written for a reader with no prior exposure to
+this project. Every technical term is defined in Appendix A.''',
+ 
+… [truncated, 2125 more chars]
+```
+
+`2026-09-03 02:12:36` · **cmd** — Inspect query set schemas
+```bash
+cd /c/Users/uniya/legal-mvp; for f in eval/generated_queryset.jsonl eval/paired_queryset.jsonl eval/paired_dated_queryset.jsonl eval/layman_queryset.jsonl eval/queryset.jsonl; do echo "=== $f ==="; wc -l < "$f"; head -1 "$f" | ./venv/Scripts/python.exe -c "import sys,json;d=json.loads(sys.stdin.read());print(json.dumps(d,indent=1)[:1200])"; done
+```
+
+`2026-09-03 02:12:55` · **cmd** — Field census per query set
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe - <<'EOF'
+import json,collections
+for f in ["generated","paired","paired_dated","layman"]:
+    p=f"eval/{f}_queryset.jsonl"
+    rows=[json.loads(l) for l in open(p,encoding="utf-8") if l.strip()]
+    keys=collections.Counter()
+    for r in rows: keys.update(r.keys())
+    print("==",f,len(rows),"unique ids",len({r['query_id'] for r in rows}))
+    print(" keys:",dict(keys))
+    for k in ["category","variant","numbering_scheme","applicable_regime","date_stated","gold_status","expected_corpus","gold_mode","messiness"]:
+        vals=collections
+… [truncated, 92 more chars]
+```
+
+`2026-09-03 02:13:11` · **cmd** — Preview all results CSVs
+```bash
+cd /c/Users/uniya/legal-mvp; for f in results/*.csv; do echo "=== $f ($(wc -l < $f) lines) ==="; head -4 "$f"; done
+```
+
+`2026-09-03 02:13:29` · **cmd** — Enumerate metrics per results CSV
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe - <<'EOF'
+import pandas as pd, glob, collections
+for f in sorted(glob.glob("results/*.csv")):
+    d=pd.read_csv(f)
+    print("==",f, d.shape)
+    print("  metrics:", sorted(d['metric'].unique()))
+    print("  query_sets:", sorted(set(map(str,d['query_set'].unique()))))
+EOF
+```
+
+`2026-09-03 02:13:49` · **cmd** — Inspect ceiling and cross-statute rows
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe - <<'EOF'
+import pandas as pd
+pd.set_option("display.width",250); pd.set_option("display.max_colwidth",40)
+h=pd.read_csv("results/hybrid_comparison.csv")
+print("--- gold_reachable_ceiling ---")
+print(h[h.metric=="gold_reachable_ceiling"][["metric","query_set","definition","stage","k","value","n","notes"]].to_string())
+print("--- corpus_dominant_accuracy ---")
+print(h[h.metric.isin(["corpus_dominant_accuracy","corpus_top1_accuracy"])][["metric","query_set","stage","k","value","n","ci_lo","ci_hi"]].to_string())
+EOF
+```
+
+`2026-09-03 02:13:59` · **cmd** — Find ceiling computation in exp07
+```bash
+cd /c/Users/uniya/legal-mvp; grep -n "gold_reachable_ceiling" -B 40 experiments/exp07_hybrid.py | head -80
+```
+
+`2026-09-03 02:14:08` · **cmd** — Find Qdrant scroll code in exp07
+```bash
+cd /c/Users/uniya/legal-mvp; grep -n "docs\b\|scroll\|QDRANT\|COLLECTION\|def load_docs\|qdrant" experiments/exp07_hybrid.py | head -40
+```
+
+`2026-09-03 02:14:16` · **cmd** — Read corpus loader and queryset loader
+```bash
+cd /c/Users/uniya/legal-mvp; sed -n '200,235p' experiments/exp07_hybrid.py; echo "=== queries loader ==="; grep -n "QUERYSETS\|def load_queries" -A 30 experiments/exp07_hybrid.py | sed -n '1,60p'
+```
+
+`2026-09-03 02:14:34` · **cmd** — Check Qdrant collection reachable
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe - <<'EOF'
+import sys; sys.path.insert(0,".")
+from clients.qdrant_client import qdrant, COLLECTION
+c=qdrant()
+print("COLLECTION",COLLECTION)
+print(c.count(collection_name=COLLECTION))
+pts,off=c.scroll(collection_name=COLLECTION,limit=2,with_payload=True,with_vectors=False)
+import json
+print(json.dumps({k:(str(v)[:120]) for k,v in (pts[0].payload or {}).items()},indent=1))
+EOF
+```
+
+`2026-09-03 02:14:46` · **cmd** — Read core/config.py
+```bash
+cd /c/Users/uniya/legal-mvp; echo "=== core/config.py ==="; cat -n core/config.py
+```
+
+`2026-09-03 02:14:59` · **cmd** — Inspect run directory contents
+```bash
+cd /c/Users/uniya/legal-mvp; ls runs/eval_2026-08-23_0410_302e1f8_both/ runs/2026-08-23_0408_302e1f8/; echo "=== any run_meta ==="; find runs -maxdepth 2 -type f | sed 's/.*\///' | sort | uniq -c
+```
+
+`2026-09-03 02:15:13` · **cmd** — Read run meta.json config snapshots
+```bash
+cd /c/Users/uniya/legal-mvp; echo "=== meta.json (latest) ==="; cat runs/2026-08-23_0408_302e1f8/meta.json; echo; echo "=== all meta configs distinct ==="; ./venv/Scripts/python.exe - <<'EOF'
+import json,glob
+for f in sorted(glob.glob("runs/*/meta.json")):
+    print(f, json.dumps(json.load(open(f)),sort_keys=True)[:400])
+EOF
+```
+
+`2026-09-03 02:15:15` · **cmd** — Apply the patch and rebuild the report
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"
+./venv/Scripts/python.exe "$SP/patch_worked.py" && ./venv/Scripts/python.exe experiments/make_project_report.py 2>&1 | tail -9
+```
+
+`2026-09-03 02:15:22` · **cmd** — Grep retriever for confidence params
+```bash
+cd /c/Users/uniya/legal-mvp; echo "=== retriever confidence/filter ==="; grep -n "0\.55\|0\.15\|0\.30\|0\.35\|composite\|top_k_mean\|score_gap\|entity_coverage\|min_chunks\|limit=\|threshold" agents/retriever.py | head -60
+```
+
+`2026-09-03 02:15:31` · **cmd** — Read retriever header and confidence function
+```bash
+cd /c/Users/uniya/legal-mvp; sed -n '1,30p' agents/retriever.py; echo "..."; sed -n '86,145p' agents/retriever.py; echo "=== MIN_CHUNKS / forced ==="; grep -n "MIN_CHUNK\|forced\|len(filtered)\|< 3\|\[:3\]" agents/retriever.py | head -20
+```
+
+`2026-09-03 02:15:40` · **cmd** — Read tier thresholds and prompt_variant bug
+```bash
+cd /c/Users/uniya/legal-mvp; grep -n "ENTITY_NEUTRAL" agents/retriever.py; echo "=== answer.py tier ==="; grep -n "tier_for_confidence" -A 30 agents/answer.py | head -50; echo "=== prompt_variant ==="; grep -n "prompt_variant" agents/answer.py | head
+```
+
+`2026-09-03 02:15:41` · **cmd** — Verify the removals, TOC and both formatting bugs
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== 1. removed lines ==="
+grep -c "Banasthali Vidyapith Â· 3 September\|no prior exposure" docs/PROJECT_REPORT.md | sed 's/^/  occurrences: /'
+sed -n '1,10p' docs/PROJECT_REPORT.md | sed 's/^/  /'
+echo
+echo "=== 2. table of contents ==="
+sed -n '/^## Contents/,/^---$/p' docs/PROJECT_REPORT.md | head -20 | sed 's/^/  /'
+echo
+echo "=== 3. section 8 list numbering (want 1..9 unbroken) ==="
+awk '/^## 8 Â· Limitations/,/^## 9 Â·/' docs/PROJECT_REPORT.md | grep -E '^[0-9]+\. ' | sed 's/\(^[0-9]*\.\).*/  item \1/' | tr '\n' ' '; echo
+echo
+echo "=== 4. the bullet that
+… [truncated, 102 more chars]
+```
+
+`2026-09-03 02:15:49` · **cmd** — Find tier thresholds and chunk params
+```bash
+cd /c/Users/uniya/legal-mvp; grep -n "MEDIUM_CONFIDENCE\|HIGH_CONFIDENCE" agents/answer.py core/*.py agents/*.py | head; echo "=== chunk.py sizes ==="; grep -n "CHUNK_SIZE\|OVERLAP\|chunk_size\|overlap" ingest/chunk.py | head -20
+```
+
+`2026-09-03 02:15:57` · **cmd** — Read chunk.py parameters
+```bash
+cd /c/Users/uniya/legal-mvp; grep -n "^[A-Z_]* *=\|MAX_\|MIN_\|TARGET\|_CHARS\|_TOKENS\|def chunk" ingest/chunk.py | head -40; echo "---"; sed -n '100,140p' ingest/chunk.py; echo "--- 320,345 ---"; sed -n '318,350p' ingest/chunk.py
+```
+
+`2026-09-03 02:16:18` · **cmd** — Find the font size that distinguishes headings from TOC rows
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import fitz, collections
+d=fitz.open('docs/PROJECT_REPORT.pdf')
+sizes=collections.Counter()
+for p in d:
+    for b in p.get_text('dict')['blocks']:
+        for l in b.get('lines',[]):
+            for s in l.get('spans',[]):
+                if s['text'].strip():
+                    sizes[round(s['size'],1)]+=1
+print('  font sizes in use:', dict(sorted(sizes.items(), reverse=True)))
+print()
+print('  spans containing \"The six sentences\":')
+for i,p in enumerate(d):
+    for b in p.get_text('dict')['blocks']:
+        for l in b.get('lines',
+… [truncated, 181 more chars]
+```
+
+`2026-09-03 02:16:21` · **cmd** — Inspect load_logs and load_stages output
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe - <<'EOF'
+import sys,json; sys.path.insert(0,".")
+from experiments.metrics_lib import load_logs, load_stages
+df=load_logs(); st=load_stages()
+print("rows",len(df),"before dedupe",df.attrs["rows_before_dedupe"])
+print("with gold", (df.expected_sections.map(len)>0).sum())
+print("query_set counts:"); print(df.query_set.value_counts(dropna=False))
+print("intervention:"); print(df.intervention.value_counts(dropna=False))
+print("stages keys",len(st))
+print("in stages:", df.req_id.isin(st).sum())
+print(df.dtypes)
+r=df.iloc[0].to_dict()
+print({k:(
+… [truncated, 165 more chars]
+```
+
+`2026-09-03 02:17:01` · **cmd** — Pull candidate summary rows
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe - <<'EOF'
+import pandas as pd
+pd.set_option("display.width",250)
+cols=["metric","query_set","definition","stage","k","value","n","ci_lo","ci_hi"]
+r=pd.read_csv("results/retrieval_metrics.csv")
+print("### recall_at_k k=15"); print(r[(r.metric=="recall_at_k")&(r.k==15)][cols].to_string())
+a=pd.read_csv("results/ablation.csv")
+print("### auroc_signal"); print(a[a.metric=="auroc_signal"][cols].to_string())
+c=pd.read_csv("results/calibration.csv")
+print("### ece / coverage"); print(c[c.metric.isin(["ece","coverage_at_risk_0.10"])][cols].to_stri
+… [truncated, 182 more chars]
+```
+
+`2026-09-03 02:17:22` · **cmd** — Read disambiguating notes
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe - <<'EOF'
+import pandas as pd
+a=pd.read_csv("results/ablation.csv")
+print("### auroc_signal notes")
+for i,r in a[a.metric=="auroc_signal"].head(8).iterrows(): print(i,r.query_set,r.definition,"|",str(r.notes)[:160])
+c=pd.read_csv("results/calibration.csv")
+print("### ece notes")
+for i,r in c[c.metric.isin(["ece","coverage_at_risk_0.10"])].iterrows(): print(i,r.query_set,r.definition,"|",str(r.notes)[:180])
+EOF
+```
+
+`2026-09-03 02:17:24` · **cmd** — Fix the TOC page detection and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+from pathlib import Path
+p = Path("experiments/make_project_report.py"); s = p.read_text(encoding="utf-8")
+old = '''    import fitz
+    doc = fitz.open(pdf_path)
+    pages = {}
+    for h in headings:
+        needle = h.split(" Â· ", 1)[-1].strip()
+        for i, page in enumerate(doc):
+            if page.search_for(needle):
+                pages[h] = i + 1
+                break
+    doc.close()'''
+new = '''    import fitz
+    doc = fitz.open(pdf_path)
+    # Match on FONT SIZE, not text alone: the contents table repeats every
+   
+… [truncated, 981 more chars]
+```
+
+`2026-09-03 02:17:40` · **cmd** — Read robustness paired-gap notes
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe - <<'EOF'
+import pandas as pd
+b=pd.read_csv("results/robustness.csv")
+for i,r in b[b.metric.str.startswith("paired_")].iterrows(): print(i,r.metric,r.definition,r.stage,r.value,"|",str(r.notes)[:200])
+EOF
+```
+
+`2026-09-03 02:17:51` · **cmd** — Check verifier grounded semantics
+```bash
+cd /c/Users/uniya/legal-mvp; grep -n "grounded\|ungrounded_rate\|cited" core/verifier.py | head -30
+```
+
+`2026-09-03 02:17:59` · **cmd** — Final page-by-page verification
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys, collections, fitz
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+doc = fitz.open("docs/PROJECT_REPORT.pdf")
+where = collections.defaultdict(list)
+for i, pg in enumerate(doc):
+    for img in pg.get_images(full=True):
+        where[img[0]].append(i + 1)
+split = {x: p for x, p in where.items() if len(p) > 1}
+over = sum(1 for i, pg in enumerate(doc) for b in pg.get_image_info()
+           if fitz.Rect(b["bbox"]).y0 < pg.rect.y0 - 1
+           or fitz.Rect(b["bbox"]).y1 > pg.rect.y1 + 1)
+def area(r): return ma
+… [truncated, 1254 more chars]
+```
+
+`2026-09-03 02:18:09` · **cmd** — Inspect cited/grounded field shapes
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe - <<'EOF'
+import sys; sys.path.insert(0,".")
+from experiments.metrics_lib import load_logs
+df=load_logs()
+d=df[df.cited.map(len)>0].iloc[0]
+print(repr(d.cited), repr(d.grounded), d.ungrounded_rate, d.query_id)
+print("n rows with grounded>0:", (df.grounded.map(len)>0).sum())
+print("composite nan:", df.composite.isna().sum(), "refused:", df.refused.sum())
+print("filter_applied vals:", df.filter_applied.astype(str).value_counts().to_dict())
+print("ungrounded nan:", df.ungrounded_rate.isna().sum())
+EOF
+```

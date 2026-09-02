@@ -1,15 +1,31 @@
 # When the code changes: retrieval failure across India's 2024 statutory recodification
 
-**Udita Uniyal · Banasthali Vidyapith · 3 September 2026 · commit `b720937`**
-
 A report on a legal question-answering system, what was measured in it, and
-what those measurements mean. Written for a reader with no prior exposure to
-this project. Every technical term is defined in Appendix A.
+what those measurements mean. Every technical term is defined in Appendix A.
 
 No number in this report was typed by hand. Each one is extracted from a
 results file by a filter that must match exactly one row or the program stops.
 The full ledger — every value with its confidence interval, sample size and
 regenerating command — is Appendix B.
+
+---
+
+## Contents
+
+| Section | Page |
+|---|---|
+| 1 · The six sentences | 1 |
+| 2 · The problem | 1 |
+| 3 · Where this began, and what changed | 2 |
+| 4 · What was built | 4 |
+| 5 · How it was measured | 7 |
+| 6 · The findings | 9 |
+| 7 · What we got wrong | 15 |
+| 8 · Limitations | 16 |
+| 9 · What could be done next | 16 |
+| Appendix A · Glossary | 17 |
+| Appendix B · Provenance | 18 |
+| Appendix C · File index | 21 |
 
 ---
 
@@ -384,7 +400,107 @@ extracted by a filter that crashes rather than guess if it matches more than one
 row.
 
 That last safeguard caught two real errors while this report was being written,
-and both are in section 6.
+and both are in section 7.
+
+### 5.5 One query, all the way through
+
+Everything above is aggregate. This is one real question from the layman set,
+`L0021`, traced end to end from its log record. Every value below is
+read from that log; none is typed.
+
+It is here because it makes section 6.6 concrete: **the search never found the
+governing section, and the answer cited it anyway.**
+
+**The question, exactly as it was typed:**
+
+> its been 3 days since they took my father. still not in court. they keep saying wait. he has bp problem needs tablets
+
+**What the intake stage extracted.** It read the situation as
+*Illegal Police Detention*, the asker as *Layman*, urgency
+*Immediate*, and listed 4 facts it
+would need in order to answer properly — beginning with which police station is
+holding him. The person asking supplied none of them, which is the normal case.
+
+**What the router decided.** Target corpus `None`, decision
+path `no_match`, intent `general`, entities
+extracted: none. The question names no statute and no
+section number, so no rule matched, **no corpus filter was applied, and the
+search ran across all four books at once.**
+
+**The five best passages the search returned**, of fifteen:
+
+| rank | statute | section | similarity | page |
+|---|---|---|---|---|
+| 1 | CRPC | s. 329 | 0.3403 | p149 |
+| 2 | CRPC | no section number | 0.3157 | p239 |
+| 3 | CRPC | s. 76 | 0.3147 | p48 |
+| 4 | CRPC | s. 331 | 0.3117 | p150 |
+| 5 | CRPC | s. 167 | 0.3068 | p85 |
+
+**None is the governing provision.** The top result concerns the trial of a
+person of unsound mind. The second is a blank warrant form carrying no section
+number at all. Only the third, on producing an arrested person before a court
+without delay, is close to the subject.
+
+**What survived the adaptive filter.** 15 passages went in
+and **3** came out — the minimum the rule forces
+through regardless of score. The best similarity anywhere in the search was
+0.3403, which is low.
+
+**The confidence signals, and what they produced:**
+
+| signal | value |
+|---|---|
+| top-5 mean similarity | 0.3178 |
+| score gap | 0.0334 |
+| entity coverage | 0.5 |
+| statute consistency | not computed at run time; built later, section 6.4 |
+| **composite confidence** | **0.4581** |
+
+A composite of 0.4581 falls in the **MEDIUM** band. The log
+records the tier as `HIGH`, which is wrong — that is the
+tier-logging bug from section 7, visible here in a single record. The refusal
+gate did not fire, as it never has.
+
+**The first line the system wrote:**
+
+> *(Disclaimer: The information below is for educational purposes. Detaining an individual beyond 24 hours without court production is a critical legal emergency. Please consult a qualified criminal defense advocate immediately.)*
+
+**What it cited, and whether the retrieved passages actually supported it:**
+
+| provision cited | supported by a retrieved passage? | |
+|---|---|---|
+| `CRPC Section 76` | yes |  |
+| `BNSS Section 57` | no | **not in the corpus at all** |
+| `BNSS Section 58` | no | **not in the corpus at all** |
+| `CRPC Section 54` | no |  |
+| `CRPC Section 55A` | no |  |
+| `CRPC Section 97` | no |  |
+| `CONSTITUTION Article 22(2)` | no | **not in the corpus at all** |
+| `Article 226` | no |  |
+
+**8 provisions cited; 1 supported.** Three
+come from books that were never ingested, so no passage could ever have
+supported them — the model supplied those from its own training.
+
+**The correct answer** is `CRPC 57` for conduct before 1 July 2024 and
+`BNSS 58` on or after it. Neither appears anywhere in the fifteen passages:
+present at `raw_15` — False; at `reranked_15` —
+False; at `filtered_n` — False.
+
+**So was this query answered correctly?** It depends entirely on the definition:
+
+| definition | verdict | why |
+|---|---|---|
+| `retrieved@15` | **incorrect** | the governing section was never fetched |
+| `cited` | correct | the answer names `BNSS 58` regardless |
+| `grounded` | **incorrect** | 7 of 8 citations are unsupported |
+
+**This one row is the whole argument.** Someone asked why their father was still
+in custody after three days. The search returned nothing relevant, the system
+recorded itself as confident, and the answer it wrote cited the right law
+anyway — so nobody reading the output would know the retrieval had failed.
+
 
 ---
 
@@ -697,12 +813,6 @@ Stated as a reviewer would state them.
    against this, not against 100%** — and on that subset the retrieval that was
    measured reaches the ceiling exactly, meaning it is perfect on everything
    reachable.
-
-![F9_ceiling](../figures/F9_ceiling.png)
-
-*F9 — Where gold labels name a subsection the index stores only as a bare section, no retriever can score them. BNS-named queries are capped at 33.3%: every recall figure must be read against this, not against 100%.*
-
-
 3. **One embedding model, one vector database, one jurisdiction, four
    statutes.** No result generalises beyond this configuration without retesting.
 4. **The strict correctness definition is underpowered**, with 27 right answers
@@ -726,6 +836,11 @@ Stated as a reviewer would state them.
 9. **Answer quality was not evaluated.** This work measures retrieval,
    confidence and citation behaviour. It does not assess whether the legal advice
    is sound.
+
+![F9_ceiling](../figures/F9_ceiling.png)
+
+*F9 — Where gold labels name a subsection the index stores only as a bare section, no retriever can score them. BNS-named queries are capped at 33.3%: every recall figure must be read against this, not against 100%.*
+
 
 ---
 

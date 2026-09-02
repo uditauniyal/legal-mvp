@@ -40,7 +40,7 @@ EXTRA_GLOSSARY = [
 ]
 
 
-def build(g, figs, sha, total, dropped) -> str:
+def build(g, figs, sha, total, dropped, worked="", toc="") -> str:
     F = {fid: (fn, cap) for fid, fn, cap in figs}
 
     def fig(fid, caption=None):
@@ -129,16 +129,19 @@ def build(g, figs, sha, total, dropped) -> str:
 
     return f"""# When the code changes: retrieval failure across India's 2024 statutory recodification
 
-**Udita Uniyal · Banasthali Vidyapith · 3 September 2026 · commit `{sha}`**
-
 A report on a legal question-answering system, what was measured in it, and
-what those measurements mean. Written for a reader with no prior exposure to
-this project. Every technical term is defined in Appendix A.
+what those measurements mean. Every technical term is defined in Appendix A.
 
 No number in this report was typed by hand. Each one is extracted from a
 results file by a filter that must match exactly one row or the program stops.
 The full ledger — every value with its confidence interval, sample size and
 regenerating command — is Appendix B.
+
+---
+
+## Contents
+
+{toc}
 
 ---
 
@@ -483,7 +486,9 @@ extracted by a filter that crashes rather than guess if it matches more than one
 row.
 
 That last safeguard caught two real errors while this report was being written,
-and both are in section 6.
+and both are in section 7.
+
+{worked}
 
 ---
 
@@ -775,9 +780,6 @@ Stated as a reviewer would state them.
    against this, not against 100%** — and on that subset the retrieval that was
    measured reaches the ceiling exactly, meaning it is perfect on everything
    reachable.
-
-{fig('F9_ceiling')}
-
 3. **One embedding model, one vector database, one jurisdiction, four
    statutes.** No result generalises beyond this configuration without retesting.
 4. **The strict correctness definition is underpowered**, with 27 right answers
@@ -801,6 +803,8 @@ Stated as a reviewer would state them.
 9. **Answer quality was not evaluated.** This work measures retrieval,
    confidence and citation behaviour. It does not assess whether the legal advice
    is sound.
+
+{fig('F9_ceiling')}
 
 ---
 
