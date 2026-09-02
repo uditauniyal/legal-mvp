@@ -11265,3 +11265,286 @@ cd /c/Users/uniya/legal-mvp; sed -n '125,150p' agents/retriever.py
 cd /c/Users/uniya/legal-mvp
 ./venv/Scripts/python.exe experiments/exp09_corrected_composite.py 2>&1 | tail -60
 ```
+
+`2026-09-01 23:32:52` · **cmd** — Document and commit the corrected-composite analysis
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"
+cat "$SP/exp09_block.md" >> results/EXPLAIN.md
+
+cat > "$SP/w5_worklog.md" <<'ENDW'
+
+---
+
+## 2026-09-01 â€” The confidence finding is not a bug artefact
+
+Udita asked the right question before writing anything about confidence: the
+composite loses to `max_score`, but one of its three terms has a sign error, so
+is the finding real or is it measuring the bug?
+
+`experiments/exp09_corrected_composite.py` -> `results/corrected_composite.csv`.
+Zero API call
+… [truncated, 4814 more chars]
+```
+
+### 2026-09-02 00:14:46 · prompt
+
+Before I write anything about confidence, compute the corrected composite.
+
+Rebuild the composite with the gap term's sign fixed â€” 0.15Â·min(score_gap/0.3, 1)
+instead of 0.15Â·(1 âˆ’ min(score_gap/0.3, 1)) â€” and report its AUROC with
+bootstrap CI, under all three correctness definitions, alongside the deployed
+composite and max_score.
+
+The question: does the corrected composite still lose to max_score at 0.784?
+
+If yes, my finding is robust and gets stronger. If no, the finding was a bug
+artefact and I need to know that now, not in review.
+
+Do not change the deployed formula. This is analysis, not a fix.
+
+### 2026-09-02 13:19:38 · prompt
+
+okay in plain english explain me where i am - and what tsjould i tell my prof about the work he expected me to do? where my paper and testing and fifning stand?
+
+### 2026-09-02 13:44:21 · prompt
+
+I am meeting my supervisor Prof. Nisheeth Joshi shortly and sending him
+material beforehand. He supervises many projects and has limited time, so
+the deliverable must front-load the bottom line and let him go deeper only
+if he wants to.
+
+Produce docs/SUPERVISOR_BRIEF.md. Hard constraints:
+
+  - NOTHING is retyped. Every number is pulled from results/*.csv or
+    results/RESULTS.md by the same filtering approach assemble_results.py
+    uses. If a number cannot be sourced from a file, it does not appear.
+  - No new claims. No new analysis. This is a communication artefact only.
+  - Every headline number carries its 95% CI, its n, its correctness
+    definition and its retrieval stage. No bare percentages.
+  - Where a claim is definition-dependent or was weakened by clustering,
+    say so in the same sentence, not in a footnote.
+  - Maximum 3 pages of body. He can read RESULTS.md if he wants depth.
+
+STRUCTURE, in this order:
+
+1. BOTTOM LINE â€” six sentences maximum, no jargon. What we found, how
+   confident we are, what it means for the paper, what I need from him.
+
+2. YOUR FIVE PRESCRIBED STEPS, DELIVERED â€” a table mapping each item from
+   his 6 August email to what now exists, with the file that proves it:
+     (1) annotated eval set of 50-100 queries with ground-truth sections
+     (2) complete logging of retrieval signals, confidence, routing
+     (3) evaluate retrieval, calibration, answer correctness
+     (4) investigate routing, compare against hybrid routing
+     (5) ablation on confidence components plus baselines
+   Be honest where something is partial.
+
+3. FINDINGS â€” one subsection each, in descending order of how solid the
+   evidence is. For each: the claim in one sentence, the number with CI and
+   n, the file it comes from, and one line on why it matters. Cover at
+   minimum: the IPC/BNS retrieval asymmetry; the dense-versus-lexical
+   inversion and why RRF fusion does not help; the statutory self-naming
+   mechanism with the IDF evidence; the confidence result including the
+   sign-error decomposition and the held-out optimal reweighting; the
+   adaptive filter as a bias amplifier; statute_consistency on the
+   dated-conflict subset; and the citation-versus-retrieval divergence.
+
+4. WHAT CHANGED SINCE MY AUGUST UPDATE â€” including every retraction. The
+   counting bug that turned out not to exist, the BNS 33.3% that was a
+   reachability ceiling rather than a failure, the superseded README
+   figures, and the documentation error in the confidence formula. Present
+   these as corrections found by our own checks, with the evidence.
+
+5. LIMITATIONS AND THREATS TO VALIDITY â€” pull from appendix lists B, C and
+   D. Include: the gold subsection reachability ceiling of 444/518 and what
+   it does to every recall figure; single annotator; single embedding model;
+   single jurisdiction; the layman significance loss under clustering; and
+   the deliberately-failing assertion B5.
+
+6. WHAT I NEED FROM YOU â€” four decisions, stated so each can be answered in
+   one line: a law student to independently validate ~30 queries and their
+   gold labels; confirmation of the framing; venue choice; and whether to
+   re-derive gold at subsection granularity.
+
+7. HOW TO NAVIGATE THE ATTACHMENTS â€” one line per file.
+
+Then produce docs/NUMBERS_AT_A_GLANCE.md: a single table of every headline
+figure with value, CI, n, definition, stage, source file, and the command
+that regenerates it. One page. This is the page he will actually check.
+
+Finally, run a verification pass before writing anything: confirm every file
+you reference exists, and confirm every number you quote appears in a CSV.
+Report anything you had to drop. Commit when done.
+
+`2026-09-02 13:45:04` · **cmd** — Check which headline numbers are sourceable from CSVs
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import pandas as pd, glob, os
+want = {
+ 'hybrid_comparison.csv': ['corpus_dominant_accuracy','corpus_top1_accuracy','gold_reachable_ceiling','idf','token','sanhita','penal','recall_at_k'],
+ 'ablation.csv': ['auroc_signal'],
+ 'corrected_composite.csv': ['auroc','auroc_paired_diff','auroc_corrected_bestweights_test'],
+ 'routing_confusion.csv': ['over','ratio','share'],
+ 'statute_consistency.csv': ['auroc_statute_consistency'],
+ 'robustness.csv': ['paired_gap_ipc_minus_bns','layman_rate'],
+ 'calibration.csv': ['coverage_at_risk_0.10','ece
+… [truncated, 511 more chars]
+```
+
+`2026-09-02 13:45:29` · **cmd** — Search for the IDF evidence in allowed sources
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== 'sanhita' / IDF in the CSV notes columns? ==="
+grep -il "sanhita" results/*.csv || echo "  not in any CSV"
+echo
+echo "=== in RESULTS.md? ==="
+grep -in "sanhita\|idf 4.12\|idf 2.79" results/RESULTS.md | head -5 || echo "  not in RESULTS.md"
+echo
+echo "=== in EXPLAIN.md (not an allowed source, checking anyway) ==="
+grep -in "sanhita" results/EXPLAIN.md | head -3
+echo
+echo "=== what lexical-evidence metrics DO exist in hybrid_comparison.csv ==="
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/hybrid_comparison.csv')
+for m in sorted(d
+… [truncated, 140 more chars]
+```
+
+`2026-09-02 13:46:05` · **cmd** — Inspect routing and robustness headline rows
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import pandas as pd
+pd.set_option('display.width',200); pd.set_option('display.max_colwidth',22)
+def show(f,q,cols=('metric','query_set','definition','stage','k','value','n','ci_lo','ci_hi','cluster_ci_lo','cluster_ci_hi')):
+    d=pd.read_csv('results/'+f); s=d.query(q) if isinstance(q,str) else q(d)
+    print('---',f,'|',q if isinstance(q,str) else '', f'({len(s)} rows)')
+    print(s[list(cols)].to_string(index=False))
+show('routing_confusion.csv', \"metric.str.startswith('over_representation_ratio_') and query_set=='layman_situation'
+… [truncated, 150 more chars]
+```
+
+`2026-09-02 13:46:34` · **cmd** — Disambiguate robustness restrictions and ablation signal rows
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/robustness.csv')
+s=d[d.metric=='layman_rate']
+for i,(_,r) in enumerate(s.iterrows()):
+    print(f'{i:2} n={r.n!s:>4} val={r.value!s:<12} notes={str(r.notes)[:110]}')
+" 2>&1 | head -20
+echo
+echo "=== ablation auroc_signal rows ==="
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/ablation.csv')
+s=d[(d.metric=='auroc_signal')&(d.definition=='retrieved@k')]
+print(s[['metric','definition','stage','value','n','ci_lo','ci_hi','notes']].to_string(index=False,max_colwidth=40))
+… [truncated, 1 more chars]
+```
+
+`2026-09-02 13:49:10` · **cmd** — Generate the supervisor brief and glance page
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe experiments/make_supervisor_brief.py 2>&1 | tail -20
+```
+
+`2026-09-02 13:49:35` · **cmd** — Fix the stage filter and regenerate
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+from pathlib import Path
+p = Path("experiments/make_supervisor_brief.py")
+s = p.read_text(encoding="utf-8")
+old = '''    for dd, key in [("retrieved@15", "gap_ret"), ("cited", "gap_cit"),
+                    ("grounded", "gap_gro")]:
+        g[key] = pick(R, metric="paired_gap_ipc_minus_bns", definition=dd,
+                      query_set="paired_recodification", notes="restriction=none")'''
+new = '''    for dd, st, key in [("retrieved@15", "raw_15", "gap_ret"),
+                        ("cited", None, "gap_cit"),
+               
+… [truncated, 455 more chars]
+```
+
+`2026-09-02 13:49:54` · **cmd** — Inspect calibration rows to fix the filter
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/calibration.csv')
+s=d[d.metric.isin(['coverage_at_risk_0.10','ece'])]
+print(s[['metric','query_set','definition','stage','value','n','ci_lo','ci_hi','notes']].to_string(index=False,max_colwidth=46))"
+```
+
+`2026-09-02 13:50:24` · **cmd** — Fix calibration filters, add ECE, regenerate
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+from pathlib import Path
+p = Path("experiments/make_supervisor_brief.py")
+s = p.read_text(encoding="utf-8")
+
+old = '''    g["cov_comp"] = pick(K, metric="coverage_at_risk_0.10", definition="retrieved@15",
+                         notes="composite")
+    g["cov_max"] = pick(K, metric="coverage_at_risk_0.10", definition="retrieved@15",
+                        notes="max_score")'''
+new = '''    for sc, tag in [("composite", "comp"), ("max_score", "max")]:
+        g[f"cov_{tag}"] = pick(K, metric="coverage_at_risk_0.10",
+            
+… [truncated, 766 more chars]
+```
+
+`2026-09-02 13:50:44` · **cmd** — Check the brief's length and bottom line
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== sizes ==="
+wc -l -w docs/SUPERVISOR_BRIEF.md docs/NUMBERS_AT_A_GLANCE.md
+echo
+echo "=== bottom line, verbatim ==="
+sed -n '/## 1 Â· Bottom line/,/^---$/p' docs/SUPERVISOR_BRIEF.md
+echo
+echo "=== the IDF omission is stated? ==="
+grep -n "NOT QUOTED HERE\|not in any results CSV\|not in any CSV" docs/SUPERVISOR_BRIEF.md docs/NUMBERS_AT_A_GLANCE.md
+```
+
+`2026-09-02 13:51:11` · **cmd** — Independently verify every glance number exists in a CSV
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+"""Independent verifier: does every value in NUMBERS_AT_A_GLANCE appear in a CSV?
+Deliberately does NOT import make_supervisor_brief -- re-reads both from disk."""
+import glob, re
+from pathlib import Path
+import pandas as pd
+
+vals = set()
+for f in glob.glob("results/*.csv"):
+    d = pd.read_csv(f)
+    for c in ("value", "ci_lo", "ci_hi", "cluster_ci_lo", "cluster_ci_hi"):
+        for v in pd.to_numeric(d[c], errors="coerce").dropna():
+            vals.add(round(float(v), 4))
+
+def known(x, tol=5e-4):
+    return any(abs(x - v) <= 
+… [truncated, 622 more chars]
+```
+
+`2026-09-02 13:51:35` · **cmd** — Confirm the two flagged values exist in the CSV
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/hybrid_comparison.csv')
+r=d[(d.metric=='corpus_top1_accuracy')&(d.stage=='bm25')&(d.query_set=='paired_numbered_bns_named')]
+print(r[['metric','query_set','stage','value','n','ci_lo','ci_hi']].to_string(index=False))
+v=float(r.value.iloc[0]); hi=float(r.ci_hi.iloc[0])
+print()
+print(f'  value {v!r} -> displayed as {v*100:.1f}%   (0.8485*100 = 84.85, rounds down in binary)')
+print(f'  ci_hi {hi!r} -> displayed as {hi*100:.1f}%')
+print('  both ARE in the CSV; the verifier tolerance was 5e-4 and t
+… [truncated, 26 more chars]
+```
