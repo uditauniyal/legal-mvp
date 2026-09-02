@@ -12985,3 +12985,301 @@ print("filter_applied vals:", df.filter_applied.astype(str).value_counts().to_di
 print("ungrounded nan:", df.ungrounded_rate.isna().sum())
 EOF
 ```
+
+`2026-09-03 02:18:39` · **cmd** — Commit the report additions
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"
+cat > "$SP/wemsg.txt" <<'ENDM'
+Report: worked example, table of contents, two formatting fixes
+
+No existing prose rewritten, no number recomputed.
+
+REMOVED, as asked: the byline line, and the sentence "Written for a reader with
+no prior exposure to this project."
+
+NEW SECTION 5.5, "One query, all the way through" -- one real logged query,
+req_id 8134c48bf465, query_id L0021, rendered from its log record by
+worked_example(). Every value is read from 
+… [truncated, 2445 more chars]
+```
+
+`2026-09-03 02:21:01` · **cmd** — Run workbook builder
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe experiments/make_workbook.py 2>&1 | tail -60
+```
+
+`2026-09-03 02:21:21` · **cmd** — Verify workbook structure and Parameters content
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe - <<'EOF'
+import openpyxl
+wb=openpyxl.load_workbook("results/TESTING_WORKBOOK.xlsx")
+print("sheets:",wb.sheetnames)
+for ws in wb:
+    print(f"-- {ws.title}: dims={ws.dimensions} freeze={ws.freeze_panes} autofilter={ws.auto_filter.ref} bold_hdr={ws['A1'].font.bold}")
+ws=wb["Per-query results"]
+hdr=[c.value for c in ws[1]]
+i=hdr.index("tier_recomputed_from_composite")
+import collections
+print("tier:",collections.Counter(r[i].value for r in ws.iter_rows(min_row=2)))
+j=hdr.index("gold_in_raw_15"); print("gold_in_raw_15:",collections.Counter(r[
+… [truncated, 416 more chars]
+```
+
+`2026-09-03 02:21:42` · **cmd** — Spot check Questions and Summary sheets
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe - <<'EOF'
+import openpyxl, collections
+wb=openpyxl.load_workbook("results/TESTING_WORKBOOK.xlsx")
+ws=wb["Questions"]; hdr=[c.value for c in ws[1]]; print(hdr)
+rows=[dict(zip(hdr,[c.value for c in r])) for r in ws.iter_rows(min_row=2)]
+for r in [rows[0],rows[200],rows[299],rows[400]]:
+    print({k:(str(v)[:70]) for k,v in r.items()})
+print("certainty:",collections.Counter((r["query_set"],r["gold_certainty"]) for r in rows))
+print("reachable:",collections.Counter((r["query_set"],r["gold_reachable_in_index"]) for r in rows))
+print()
+ws=wb["Su
+… [truncated, 280 more chars]
+```
+
+`2026-09-03 02:22:07` · **cmd** — Check cell data types and column widths
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe - <<'EOF'
+import openpyxl
+wb=openpyxl.load_workbook("results/TESTING_WORKBOOK.xlsx")
+for name,cols in [("Summary",["value","n","ci_lo_95"]),("Questions",["gold_reachable_in_index"]),("Per-query results",["composite","n_citations","gold_in_raw_15"])]:
+    ws=wb[name]; hdr=[c.value for c in ws[1]]
+    for col in cols:
+        i=hdr.index(col)
+        c=[r[i] for r in ws.iter_rows(min_row=2,max_row=3)]
+        print(name,col,[(x.value,x.data_type,type(x.value).__name__) for x in c])
+# widths
+for ws in wb:
+    print(ws.title, {k:round(v.width,
+… [truncated, 48 more chars]
+```
+
+`2026-09-03 02:23:18` · **cmd** — Rebuild workbook and re-verify environment
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe experiments/make_workbook.py 2>&1 | tail -30; echo "=== final checks ==="; ./venv/Scripts/python.exe -c "import fastapi,starlette,app;print(fastapi.__version__,starlette.__version__)"; ./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -3; ls -l results/TESTING_WORKBOOK.xlsx
+```
+
+`2026-09-03 02:23:38` · **cmd** — Check entity default values in logs
+```bash
+cd /c/Users/uniya/legal-mvp; ./venv/Scripts/python.exe - <<'EOF'
+import sys; sys.path.insert(0,".")
+from experiments.metrics_lib import load_logs
+df=load_logs()
+d=df[df.entity_default_used]
+print("entity_default_used rows:",len(d))
+print(d.entity_coverage.value_counts().to_dict())
+print("query_set x intervention:")
+print(df.groupby([df.query_set.astype(str),df.intervention]).size().to_dict())
+EOF
+```
+
+### 2026-09-03 02:24:17 · prompt
+
+<task-notification>
+<task-id>a899dd81dddc23b26</task-id>
+<tool-use-id>toolu_019fhaaqWXewW7Muy3ui9vy3</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\c8aaaee6-3806-45fb-84f3-d19ddd3bbdce\tasks\a899dd81dddc23b26.output</output-file>
+<status>completed</status>
+<summary>Agent "Build the testing workbook" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Done. All three environment checks passed and the workbook is built.
+
+## Install verification
+
+**pip freeze diff** â€” exactly two additions, nothing upgraded or removed:
+```
++ et_xmlfile==2.0.0
++ openpyxl==3.1.5
+```
+**Import check**: `fastapi 0.115.0`, `starlette 0.38.6`, `app` imports. Unchanged.
+**Test suite**: `237 passed in 17.16s`. Re-run after the workbook build: still 237 passed.
+
+## Deliverable
+
+`C:\Users\uniya\legal-mvp\experiments\make_workbook.py` â†’ `C:\Users\uniya\legal-mvp\results\TESTING_WORKBOOK.xlsx` (130,777 bytes)
+
+| Sheet | Rows | Cols |
+|---|---|---|
+| `Questions` | 518 | 10 |
+| `Per-query results` | 621 | 22 |
+| `Parameters` | 62 | 3 |
+| `Summary` | 170 | 13 |
+
+All four sheets: frozen header row, autofilter over the full used range, bold header, computed widths capped at 60, wrap on free-text columns. Numeric cells are written as numbers and booleans as booleans (sortable/filterable); only `NOT AVAILABLE` is text.
+
+## Reachability cross-check â€” all MATCH
+
+| query set | mine | published `gold_reachable_ceiling` |
+|---|---|---|
+| generated_retrieval | 200/200 = 1.000000 | 1.000000 (n=200) |
+| paired_recodification | 75/99 = 0.757576 | 0.757576 (n=99) |
+| paired_dated_conflict | 73/99 = 0.737374 | 0.737374 (n=99) |
+| layman_situation | 96/120 = 0.800000 | 0.800000 (n=120) |
+| ALL | 444/518 = 0.857143 | 0.857143 (n=518) |
+
+No disagreement. The script prints this table on every run.
+
+## NOT AVAILABLE cells
+
+| Cells | Why |
+|---|---|
+| `Questions.era_condition` Ã— 299 | The generated (200) and paired (99) sets have no `applicable_regime` field at all â€” era is not a dimension of those sets. Only the dated (99) and layman (120) sets carry it. |
+| `Per-query results.*` Ã— 4 rows | `SMOKE01, G0107, G0190, D0094` carry no `expected_sections`, so `query_set` and all six gold/correctness columns are unanswerable rather than FALSE. Matches `robustness.csv` `n_rows_unlabelled_dropped=4`. |
+| `Per-query results.ungrounded_rate` Ã— 1 | One logged record has no `verifier.ungrounded_rate`. |
+| `Summary.ci_lo_95 / ci_hi_95` Ã— 30, `cluster_ci_*` Ã— 74 | The source CSV rows are blank there (`coverage_at_risk`, supplementary per-set ECE, and the un-clustered arms). Copied as absent, not imputed. |
+| `Summary.retrieval_stage` Ã— 50 | Source rows have an empty `stage` (answer-side metrics: `cited`, `grounded`). |
+| `Summary.variant` Ã— 41 | My added disambiguation column; those rows carry no `signal=` / `score=` / `restriction=` tag in `notes` because the metric is already unique. |
+
+## Cross-checks that landed on published values
+
+Independent of the ceiling check, Sheet 2 reproduces: gold in `raw_15` TRUE = **327** (= `calibration.csv n_positives retrieved@k raw_15`), `correct_cited` TRUE = **533** (= `n_positives cited`), `correct_grounded` TRUE = **27** (= the "~27 positives" in the `metrics_lib.correctness_label` docstring).
+
+## Things worth flagging
+
+1. **Tier recompute confirms the bug's size.** Recomputed from the logged composite via `agents.answer.tier_for_confidence`: **HIGH 350 / MEDIUM 257 / LOW 14**. The logged `answer.prompt_variant` says HIGH on all 621. So 271 of 621 deduplicated rows (43.6%) were mislabelled â€” consistent with the 369/859 figure in the `agents/answer.py:82-87` docstring. The column is named `tier_recomputed_from_composite` and two `Parameters` rows explain it and cite the line.
+
+2. **The dated set's own metadata con
+… [truncated, 2256 more chars]
+
+`2026-09-03 02:24:58` · **cmd** — Verify the workbook and check the gold-certainty conflict
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys; sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+import openpyxl
+wb = openpyxl.load_workbook("results/TESTING_WORKBOOK.xlsx")
+print("sheets:", wb.sheetnames)
+for ws in wb:
+    print(f"\n  {ws.title}: {ws.max_row-1} data rows x {ws.max_column} cols")
+    print(f"    freeze={ws.freeze_panes}  autofilter={ws.auto_filter.ref}")
+    print("    headers:", [c.value for c in ws[1]][:12])
+ws = wb["Questions"]
+print("\n  Questions, first 3 rows:")
+for r in ws.iter_rows(min_row=2, max_row=4, values_only=True):
+    pri
+… [truncated, 464 more chars]
+```
+
+`2026-09-03 02:25:27` · **cmd** — Find the certainty rule in the workbook script
+```bash
+cd /c/Users/uniya/legal-mvp
+grep -n "certainty\|construction\|judgement" experiments/make_workbook.py | head -20
+```
+
+`2026-09-03 02:25:56` · **cmd** — Correct the certainty rule to read the data's own field
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys
+from pathlib import Path
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+p = Path("experiments/make_workbook.py"); s = p.read_text(encoding="utf-8")
+
+old = '''# NOTE: the dated set's own gold_status field says "certain_by_construction".'''
+# replace the whole block from the NOTE through the dict
+import re
+start = s.index("# NOTE: the dated set")
+end = s.index('"layman_situation":      "judgement",') + len('"layman_situation":      "judgement",')
+block = s[start:end]
+new_block = '''# CORRECTED 3 Sept. An ear
+… [truncated, 1550 more chars]
+```
+
+`2026-09-03 02:26:28` · **cmd** — Rebuild the workbook and check the corrected certainty column
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe experiments/make_workbook.py 2>&1 | tail -16
+echo
+./venv/Scripts/python.exe -c "
+import openpyxl, collections
+wb=openpyxl.load_workbook('results/TESTING_WORKBOOK.xlsx')
+ws=wb['Questions']
+hdr=[c.value for c in ws[1]]
+print('  Questions headers:', hdr)
+ci=hdr.index('gold_certainty'); si=hdr.index('gold_status_as_recorded') if 'gold_status_as_recorded' in hdr else None
+qi=hdr.index('query_set')
+c=collections.Counter()
+for r in ws.iter_rows(min_row=2, values_only=True):
+    c[(r[qi], r[ci], r[si] if si is not None else '')]+=1
+print()
+for k,v 
+… [truncated, 73 more chars]
+```
+
+`2026-09-03 02:26:44` · **cmd** — Inspect the damaged region
+```bash
+cd /c/Users/uniya/legal-mvp; sed -n '86,115p' experiments/make_workbook.py
+```
+
+`2026-09-03 02:27:21` · **cmd** — Remove the orphaned brace and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+from pathlib import Path
+p = Path("experiments/make_workbook.py"); s = p.read_text(encoding="utf-8")
+# remove the orphaned brace and the now-stale comment lines above the block
+s = s.replace('''    "uncontroversial":         "judgement",
+}
+}''', '''    "uncontroversial":         "judgement",
+}''')
+s = s.replace('''#   construction  the query was generated FROM a known section, so that
+#                 section is the answer by definition (generated, paired)
+#   judgement     someone decided which section governs a described
+#   
+… [truncated, 440 more chars]
+```
+
+`2026-09-03 02:28:01` · **cmd** — Confirm the corrected certainty split
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import openpyxl, collections
+wb=openpyxl.load_workbook('results/TESTING_WORKBOOK.xlsx')
+ws=wb['Questions']
+hdr=[c.value for c in ws[1]]
+print('  headers:', hdr)
+qi,ci=hdr.index('query_set'),hdr.index('gold_certainty')
+si=hdr.index('gold_status_as_recorded') if 'gold_status_as_recorded' in hdr else None
+c=collections.Counter()
+for r in ws.iter_rows(min_row=2, values_only=True):
+    c[(r[qi], r[ci], r[si] if si is not None else '-')]+=1
+print()
+for k,v in sorted(c.items()): print(f'    {k[0]:<24} {k[1]:<13} {str(k[2]):<26} {v}')
+print()
+
+… [truncated, 220 more chars]
+```
+
+`2026-09-03 02:28:18` · **cmd** — Find the same error in the report
+```bash
+cd /c/Users/uniya/legal-mvp
+grep -n "required legal judgement\|Two of the four question sets" experiments/project_text.py
+```
+
+`2026-09-03 02:28:32` · **cmd** — Read the passage to correct
+```bash
+cd /c/Users/uniya/legal-mvp
+sed -n '458,470p' experiments/project_text.py
+```
+
+`2026-09-03 02:30:00` · **cmd** — Rebuild the report with the correction and verify
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"
+./venv/Scripts/python.exe "$SP/fix_certainty.py" && ./venv/Scripts/python.exe experiments/make_project_report.py 2>&1 | grep -E "contents|PDF:|DROPPED"
+echo
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys, collections, fitz
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+doc = fitz.open("docs/PROJECT_REPORT.pdf")
+w = collections.defaultdict(list)
+for i, pg in enumerate(doc):
+    for im in pg.get_images(full=True): w[im[0]].append(i+1)
+sp
+… [truncated, 1034 more chars]
+```

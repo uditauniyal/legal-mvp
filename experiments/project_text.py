@@ -458,13 +458,19 @@ correct. Every figure here names its stage.
 Four sets, 518 unique questions, each with its correct statutory section
 recorded **before** any system output was seen.
 
-The generated set of {g['rec_generated_retrieval'].n} questions and the paired
-set of {g['rec_paired_recodification'].n} are certain by construction: each was
-built from a known section, so the section is the answer by definition. The
-dated-conflict set of {g['rec_paired_dated_conflict'].n} and the layman set of
-{g['rec_layman_situation'].n} required legal judgement — deciding which section
-governs a described situation — and that judgement was made by one person.
-Section 8 treats this as the largest threat to everything reported here.
+Three of the four sets are certain by construction, meaning no judgement was
+involved in deciding the answer. The generated set of
+{g['rec_generated_retrieval'].n} and the paired set of
+{g['rec_paired_recodification'].n} were each built from a known section, so that
+section is the answer by definition. The dated-conflict set of
+{g['rec_paired_dated_conflict'].n} is also construction: given a verified pair
+of matching provisions and a date, which of the two governs follows mechanically
+from the commencement date of 1 July 2024.
+
+Only the layman set of {g['rec_layman_situation'].n} required judgement —
+reading a described situation and deciding which section governs it — and that
+judgement was made by one person. Section 8 treats this as the largest threat to
+everything reported here.
 
 The paired set is the experiment rather than merely the data: it asks the same
 legal question twice, once with the old code's number and once with the new
@@ -768,8 +774,9 @@ described in section 4 exists.
 
 Stated as a reviewer would state them.
 
-1. **All ground truth was decided by one person.** Two of the four question sets
-   required legal judgement about which section governs a described situation. No
+1. **All ground truth was decided by one person.** One of the four question sets,
+   the layman set, required legal judgement about which section governs a
+   described situation; the other three are certain by construction. No
    independent expert has validated any label. This is the largest threat to
    every finding in this report.
 2. **A ceiling caps every retrieval figure.** Only {pc('ceiling_all')}
