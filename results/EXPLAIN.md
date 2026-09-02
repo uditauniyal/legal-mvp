@@ -4035,3 +4035,162 @@ than either alone.
 Also: the deployed and corrected scores differ on **all 617 rows**, with none
 coinciding. They would coincide only where `gap_penalty` is exactly 0.5, i.e.
 `score_gap` exactly 0.15, and not one query in 617 lands there.
+
+---
+
+## Statutory self-naming
+Output file: results/self_naming.csv
+Regenerate with: `./venv/Scripts/python.exe experiments/exp10_self_naming.py`
+Verify with: `./venv/Scripts/python.exe experiments/check10_self_naming_check.py`
+Owner: main agent, 2 September 2026. The one piece of new analysis authorised
+after Wave 4.
+
+### 1. ELI5 — what does this measure?
+
+Wave 3 found something strange: exact-word search finds BNS-named questions
+almost perfectly (97.0%) and IPC-named questions **not at all** (0.0%). The
+explanation offered was that the 2023 BNS says its own name inside its own text
+while the 1860 IPC does not — so searching for "Indian Penal Code" leads you
+somewhere else.
+
+That explanation was written as prose. It had no numbers in any results file, so
+the paper could not cite it. This measures it.
+
+Two terms you need. **Document frequency (df)** is simply: in how many of the
+1,899 stored passages does this word appear? **Inverse document frequency (idf)**
+converts that into how *informative* the word is — a word in 30 passages is a
+strong clue, a word in 1,500 tells you almost nothing.
+
+Worked example with the real numbers. The word `sanhita` appears in **30**
+passages. All 30 are BNS. If you search for it, you land in the BNS every single
+time. The word `penal` appears in **110** passages — but only **23** are IPC,
+while **82** are CrPC. So searching for "penal" points at the *procedure* code
+3.6 times more often than at the Penal Code itself.
+
+### 2. Technically
+
+All 1,899 chunks scrolled read-only from Qdrant, tokenised with the same regex
+`\d+[a-z]{0,2}(?:\([0-9a-z]+\))*|[a-z]+` used by `exp07_hybrid.py`, so counts are
+directly comparable with the BM25 arm rather than being a second private
+tokenisation.
+
+    idf = ln( (N - df + 0.5) / (df + 0.5) ),   N = 1899
+
+This is the Okapi BM25 form, which `rank_bm25` uses and which Wave 3 therefore
+reported. Choosing plain `ln(N/df)` instead would give 4.15 for `sanhita` where
+Wave 3 recorded 4.12, silently contradicting the existing figure.
+
+Reported per term: df overall, df within each corpus, idf, and *concentration* —
+of all chunks containing the word, the largest share belonging to one statute.
+Rates carry 95% Wilson intervals. Also a per-statute *self-naming rate*: of a
+statute's own chunks, the fraction containing its own distinctive name.
+
+A discovery sweep reports any token with df >= 20 and concentration >= 0.95 that
+was not pre-specified.
+
+### 3. What the number came out as
+
+N = 1,899 chunks. CrPC 742, IPC 595, BNS 424, CPA 138.
+
+| Term | df | idf | IPC | BNS | CrPC | CPA | concentration |
+|---|---|---|---|---|---|---|---|
+| `sanhita` | 30 | **4.116** | 0 | **30** | 0 | 0 | **1.000 (BNS)** |
+| `bharatiya` | 8 | 5.405 | 0 | 8 | 0 | 0 | 1.000 (BNS) |
+| `nagarik` | 6 | 5.674 | 0 | 6 | 0 | 0 | 1.000 (BNS) |
+| `suraksha` | 6 | 5.674 | 0 | 6 | 0 | 0 | 1.000 (BNS) |
+| `nyaya` | 2 | 6.632 | 0 | 2 | 0 | 0 | 1.000 (BNS) |
+| **`penal`** | **110** | **2.785** | **23** | 2 | **82** | 3 | **0.745 (CrPC)** |
+| `indian` | 129 | 2.615 | 29 | 2 | 95 | 3 | 0.736 (CrPC) |
+| `code` | 303 | 1.660 | 60 | 1 | 231 | 11 | 0.762 (CrPC) |
+| `procedure` | 143 | 2.505 | 8 | 2 | 106 | 27 | 0.741 (CrPC) |
+| `criminal` | 241 | 1.927 | 63 | 52 | 121 | 5 | 0.502 (CrPC) |
+| `consumer` | 55 | 3.504 | 0 | 0 | 0 | 55 | 1.000 (CPA) |
+| `evidence` | 178 | 2.266 | 18 | 23 | 133 | 4 | 0.747 (CrPC) |
+| `adhiniyam` | 0 | — | — | — | — | — | absent |
+| `sakshya` | 0 | — | — | — | — | — | absent |
+
+Self-naming rate — of a statute's own chunks, how many name it. n is that
+statute's chunk count; 95% Wilson.
+
+| Statute | distinctive token | rate | 95% CI | any title token |
+|---|---|---|---|---|
+| CPA | `consumer` | **39.9%** | [32.1, 48.2] | 58.0% |
+| CrPC | `procedure` | 14.3% | [12.0, 17.0] | 42.7% |
+| BNS | `sanhita` | **7.1%** | [5.0, 9.9] | 7.1% |
+| **IPC** | `penal` | **3.9%** | **[2.6, 5.7]** | 12.1% |
+
+Where `penal` actually lives — n = 110 chunks containing it:
+
+| Corpus | chunks with `penal` | of its own chunks | share of all `penal` chunks |
+|---|---|---|---|
+| **CrPC** | **82** of 742 | **11.1%** [9.0, 13.5] | **74.5%** |
+| IPC | 23 of 595 | 3.9% [2.6, 5.7] | 20.9% |
+| CPA | 3 of 138 | 2.2% [0.7, 6.2] | 2.7% |
+| BNS | 2 of 424 | 0.5% [0.1, 1.7] | 1.8% |
+
+Definition: n/a — this is a property of the index, not of a query. Stage:
+`index`.
+
+### 4. How to read it
+
+Concentration near 1.0 means the word is a near-perfect signpost to one statute.
+Concentration near that statute's share of the index means the word carries no
+routing information at all.
+
+`sanhita` at 1.000 is the best possible case. `penal` at 0.745 **pointing at the
+CrPC** is worse than useless for finding the IPC — it is actively misleading.
+
+A suspicious result would be `sanhita` appearing outside the BNS, or `penal`
+concentrating in the IPC, either of which would contradict Wave 3's BM25
+measurements and mean one of the two is wrong.
+
+### 5. What this means for the paper
+
+**This closes the last gap between a headline claim and a machine-readable
+source.** The mechanism behind the dense/lexical inversion is now measured,
+checked and reproducible.
+
+It also states the mechanism more precisely than the prose did. The prose said
+"the BNS names itself and the IPC does not". The measurement says something
+sharper: **both statutes name themselves rarely — BNS 7.1%, IPC 3.9% — but
+`sanhita` is a perfect discriminator while `penal` is an anti-discriminator.**
+The 1860 drafters had no need to write "penal" inside the Penal Code, whereas the
+CrPC refers to it constantly, as cross-references. So the IPC's own name is,
+statistically, a CrPC word.
+
+That is a claim about how statutes are drafted and how they age, and it
+generalises beyond this corpus: any recodification will produce a new statute
+that names itself and an old one whose name lives mainly in the documents that
+cite it.
+
+### 6. What broke while computing this
+
+Nothing broke. All six checks in `check10_self_naming_check.py` passed on the
+first run, including the two independent tokenisers agreeing on all nine tested
+terms.
+
+### 7. What I could not compute, and why
+
+`adhiniyam` and `sakshya` are absent from the index. That is correct rather than
+a failure: they belong to the Bharatiya Sakshya Adhiniyam, which is deliberately
+not ingested. They are reported with df = 0 rather than omitted.
+
+Term *frequency within* a chunk was not computed, only presence. BM25 uses term
+frequency as well as document frequency, so these numbers explain the direction
+of the effect but do not fully reconstruct BM25's ranking.
+
+### 8. What surprised me
+
+**The discovery sweep found almost no additional self-naming tokens.** With
+concentration >= 0.95 and df >= 20 it returned procedural vocabulary — `thinks`
+(88), `pleader` (46), `thereupon` (41), `magistrates` (37), `metropolitan` (35),
+`triable` (31) — all 100% CrPC. These are register markers, not names. The CrPC
+is lexically distinctive because it is *written differently*, not because it
+identifies itself.
+
+Two exceptions worth noting: `unfair` (21) and `consumers` (20) are 100% CPA, and
+`extraordinary` (103) is 98.1% BNS.
+
+And the sharpest single number: **`penal` appears in 11.1% of CrPC chunks and
+only 3.9% of IPC chunks.** The Code of Criminal Procedure says "penal" almost
+three times as often, proportionally, as the Penal Code does.

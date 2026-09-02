@@ -1,0 +1,212 @@
+metric,query_set,definition,stage,k,value,n,ci_lo,ci_hi,cluster_ci_lo,cluster_ci_hi,notes
+document_frequency,ALL,sanhita,index,,30.0,1899,,,,,term='sanhita'
+document_frequency_rate,ALL,sanhita,index,,0.01579778830963665,1899,0.011088092730703655,0.02246250000338729,,,term='sanhita'; share of all 1899 indexed chunks
+idf_okapi,ALL,sanhita,index,,4.1157,1899,,,,,"term='sanhita'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=30; the rank_bm25 BM25Okapi form"
+concentration,ALL,sanhita,index,,1.0,30,,,,,term='sanhita'; largest single-statute share; top=BNS
+document_frequency_in_corpus,BNS,sanhita,index,,30.0,424,,,,,term='sanhita'; 30 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,sanhita,index,,0.07075471698113207,424,0.05000817977071118,0.09920938086074607,,,term='sanhita'
+document_frequency_in_corpus,CPA,sanhita,index,,0.0,138,,,,,term='sanhita'; 0 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,sanhita,index,,0.0,138,0.0,0.02708276447793977,,,term='sanhita'
+document_frequency_in_corpus,IPC,sanhita,index,,0.0,595,,,,,term='sanhita'; 0 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,sanhita,index,,0.0,595,0.0,0.006414817755020747,,,term='sanhita'
+document_frequency_in_corpus,CRPC,sanhita,index,,0.0,742,,,,,term='sanhita'; 0 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,sanhita,index,,0.0,742,0.0,0.00515050320286809,,,term='sanhita'
+document_frequency,ALL,nyaya,index,,2.0,1899,,,,,term='nyaya'
+document_frequency_rate,ALL,nyaya,index,,0.00105318588730911,1899,0.00028886908614651676,0.0038320516485475216,,,term='nyaya'; share of all 1899 indexed chunks
+idf_okapi,ALL,nyaya,index,,6.632,1899,,,,,"term='nyaya'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=2; the rank_bm25 BM25Okapi form"
+concentration,ALL,nyaya,index,,1.0,2,,,,,term='nyaya'; largest single-statute share; top=BNS
+document_frequency_in_corpus,BNS,nyaya,index,,2.0,424,,,,,term='nyaya'; 2 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,nyaya,index,,0.0047169811320754715,424,0.0012945208936770928,0.017033433681081275,,,term='nyaya'
+document_frequency_in_corpus,CPA,nyaya,index,,0.0,138,,,,,term='nyaya'; 0 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,nyaya,index,,0.0,138,0.0,0.02708276447793977,,,term='nyaya'
+document_frequency_in_corpus,IPC,nyaya,index,,0.0,595,,,,,term='nyaya'; 0 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,nyaya,index,,0.0,595,0.0,0.006414817755020747,,,term='nyaya'
+document_frequency_in_corpus,CRPC,nyaya,index,,0.0,742,,,,,term='nyaya'; 0 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,nyaya,index,,0.0,742,0.0,0.00515050320286809,,,term='nyaya'
+document_frequency,ALL,penal,index,,110.0,1899,,,,,term='penal'
+document_frequency_rate,ALL,penal,index,,0.057925223802001054,1899,0.04828382255816369,0.06935154731706125,,,term='penal'; share of all 1899 indexed chunks
+idf_okapi,ALL,penal,index,,2.7847,1899,,,,,"term='penal'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=110; the rank_bm25 BM25Okapi form"
+concentration,ALL,penal,index,,0.7455,110,,,,,term='penal'; largest single-statute share; top=CRPC
+document_frequency_in_corpus,BNS,penal,index,,2.0,424,,,,,term='penal'; 2 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,penal,index,,0.0047169811320754715,424,0.0012945208936770928,0.017033433681081275,,,term='penal'
+document_frequency_in_corpus,CPA,penal,index,,3.0,138,,,,,term='penal'; 3 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,penal,index,,0.021739130434782608,138,0.0074203938401732755,0.06196312000829085,,,term='penal'
+document_frequency_in_corpus,IPC,penal,index,,23.0,595,,,,,term='penal'; 23 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,penal,index,,0.03865546218487395,595,0.0258941931178754,0.05733561351658911,,,term='penal'
+document_frequency_in_corpus,CRPC,penal,index,,82.0,742,,,,,term='penal'; 82 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,penal,index,,0.1105121293800539,742,0.08992804385425762,0.1351083319560628,,,term='penal'
+document_frequency,ALL,code,index,,303.0,1899,,,,,term='code'
+document_frequency_rate,ALL,code,index,,0.15955766192733017,1899,0.14377705051010553,0.17671284421810524,,,term='code'; share of all 1899 indexed chunks
+idf_okapi,ALL,code,index,,1.6602,1899,,,,,"term='code'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=303; the rank_bm25 BM25Okapi form"
+concentration,ALL,code,index,,0.7624,303,,,,,term='code'; largest single-statute share; top=CRPC
+document_frequency_in_corpus,BNS,code,index,,1.0,424,,,,,term='code'; 1 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,code,index,,0.0023584905660377358,424,0.00041645288807178136,0.01323687289894734,,,term='code'
+document_frequency_in_corpus,CPA,code,index,,11.0,138,,,,,term='code'; 11 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,code,index,,0.07971014492753623,138,0.04508994136063797,0.13709557080922447,,,term='code'
+document_frequency_in_corpus,IPC,code,index,,60.0,595,,,,,term='code'; 60 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,code,index,,0.10084033613445378,595,0.07914808108842272,0.12765366417819046,,,term='code'
+document_frequency_in_corpus,CRPC,code,index,,231.0,742,,,,,term='code'; 231 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,code,index,,0.3113207547169811,742,0.27904780380053595,0.3455372917477162,,,term='code'
+document_frequency,ALL,adhiniyam,index,,0.0,1899,,,,,term='adhiniyam'; ABSENT from the index
+document_frequency,ALL,bharatiya,index,,8.0,1899,,,,,term='bharatiya'
+document_frequency_rate,ALL,bharatiya,index,,0.00421274354923644,1899,0.0021361962828527585,0.00829108273742633,,,term='bharatiya'; share of all 1899 indexed chunks
+idf_okapi,ALL,bharatiya,index,,5.4051,1899,,,,,"term='bharatiya'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=8; the rank_bm25 BM25Okapi form"
+concentration,ALL,bharatiya,index,,1.0,8,,,,,term='bharatiya'; largest single-statute share; top=BNS
+document_frequency_in_corpus,BNS,bharatiya,index,,8.0,424,,,,,term='bharatiya'; 8 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,bharatiya,index,,0.018867924528301886,424,0.00959099459852805,0.036784732702665794,,,term='bharatiya'
+document_frequency_in_corpus,CPA,bharatiya,index,,0.0,138,,,,,term='bharatiya'; 0 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,bharatiya,index,,0.0,138,0.0,0.02708276447793977,,,term='bharatiya'
+document_frequency_in_corpus,IPC,bharatiya,index,,0.0,595,,,,,term='bharatiya'; 0 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,bharatiya,index,,0.0,595,0.0,0.006414817755020747,,,term='bharatiya'
+document_frequency_in_corpus,CRPC,bharatiya,index,,0.0,742,,,,,term='bharatiya'; 0 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,bharatiya,index,,0.0,742,0.0,0.00515050320286809,,,term='bharatiya'
+document_frequency,ALL,nagarik,index,,6.0,1899,,,,,term='nagarik'
+document_frequency_rate,ALL,nagarik,index,,0.00315955766192733,1899,0.0014488334486663576,0.0068763261430843815,,,term='nagarik'; share of all 1899 indexed chunks
+idf_okapi,ALL,nagarik,index,,5.6744,1899,,,,,"term='nagarik'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=6; the rank_bm25 BM25Okapi form"
+concentration,ALL,nagarik,index,,1.0,6,,,,,term='nagarik'; largest single-statute share; top=BNS
+document_frequency_in_corpus,BNS,nagarik,index,,6.0,424,,,,,term='nagarik'; 6 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,nagarik,index,,0.014150943396226415,424,0.006501214093381662,0.030525255632333693,,,term='nagarik'
+document_frequency_in_corpus,CPA,nagarik,index,,0.0,138,,,,,term='nagarik'; 0 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,nagarik,index,,0.0,138,0.0,0.02708276447793977,,,term='nagarik'
+document_frequency_in_corpus,IPC,nagarik,index,,0.0,595,,,,,term='nagarik'; 0 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,nagarik,index,,0.0,595,0.0,0.006414817755020747,,,term='nagarik'
+document_frequency_in_corpus,CRPC,nagarik,index,,0.0,742,,,,,term='nagarik'; 0 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,nagarik,index,,0.0,742,0.0,0.00515050320286809,,,term='nagarik'
+document_frequency,ALL,suraksha,index,,6.0,1899,,,,,term='suraksha'
+document_frequency_rate,ALL,suraksha,index,,0.00315955766192733,1899,0.0014488334486663576,0.0068763261430843815,,,term='suraksha'; share of all 1899 indexed chunks
+idf_okapi,ALL,suraksha,index,,5.6744,1899,,,,,"term='suraksha'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=6; the rank_bm25 BM25Okapi form"
+concentration,ALL,suraksha,index,,1.0,6,,,,,term='suraksha'; largest single-statute share; top=BNS
+document_frequency_in_corpus,BNS,suraksha,index,,6.0,424,,,,,term='suraksha'; 6 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,suraksha,index,,0.014150943396226415,424,0.006501214093381662,0.030525255632333693,,,term='suraksha'
+document_frequency_in_corpus,CPA,suraksha,index,,0.0,138,,,,,term='suraksha'; 0 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,suraksha,index,,0.0,138,0.0,0.02708276447793977,,,term='suraksha'
+document_frequency_in_corpus,IPC,suraksha,index,,0.0,595,,,,,term='suraksha'; 0 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,suraksha,index,,0.0,595,0.0,0.006414817755020747,,,term='suraksha'
+document_frequency_in_corpus,CRPC,suraksha,index,,0.0,742,,,,,term='suraksha'; 0 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,suraksha,index,,0.0,742,0.0,0.00515050320286809,,,term='suraksha'
+document_frequency,ALL,criminal,index,,241.0,1899,,,,,term='criminal'
+document_frequency_rate,ALL,criminal,index,,0.12690889942074776,1899,0.1126868964415424,0.14263729600228953,,,term='criminal'; share of all 1899 indexed chunks
+idf_okapi,ALL,criminal,index,,1.9268,1899,,,,,"term='criminal'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=241; the rank_bm25 BM25Okapi form"
+concentration,ALL,criminal,index,,0.5021,241,,,,,term='criminal'; largest single-statute share; top=CRPC
+document_frequency_in_corpus,BNS,criminal,index,,52.0,424,,,,,term='criminal'; 52 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,criminal,index,,0.12264150943396226,424,0.09476321770639091,0.1572961762553297,,,term='criminal'
+document_frequency_in_corpus,CPA,criminal,index,,5.0,138,,,,,term='criminal'; 5 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,criminal,index,,0.036231884057971016,138,0.015573587422489675,0.08201042600632402,,,term='criminal'
+document_frequency_in_corpus,IPC,criminal,index,,63.0,595,,,,,term='criminal'; 63 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,criminal,index,,0.10588235294117647,595,0.08363776299703027,0.13318332864516255,,,term='criminal'
+document_frequency_in_corpus,CRPC,criminal,index,,121.0,742,,,,,term='criminal'; 121 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,criminal,index,,0.16307277628032346,742,0.13823835747707816,0.19137788457337204,,,term='criminal'
+document_frequency,ALL,procedure,index,,143.0,1899,,,,,term='procedure'
+document_frequency_rate,ALL,procedure,index,,0.07530279094260137,1899,0.06427283081101502,0.0880475096349277,,,term='procedure'; share of all 1899 indexed chunks
+idf_okapi,ALL,procedure,index,,2.5047,1899,,,,,"term='procedure'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=143; the rank_bm25 BM25Okapi form"
+concentration,ALL,procedure,index,,0.7413,143,,,,,term='procedure'; largest single-statute share; top=CRPC
+document_frequency_in_corpus,BNS,procedure,index,,2.0,424,,,,,term='procedure'; 2 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,procedure,index,,0.0047169811320754715,424,0.0012945208936770928,0.017033433681081275,,,term='procedure'
+document_frequency_in_corpus,CPA,procedure,index,,27.0,138,,,,,term='procedure'; 27 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,procedure,index,,0.1956521739130435,138,0.13809186846509675,0.2696976403475623,,,term='procedure'
+document_frequency_in_corpus,IPC,procedure,index,,8.0,595,,,,,term='procedure'; 8 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,procedure,index,,0.013445378151260505,595,0.0068283842555457094,0.026304690501020696,,,term='procedure'
+document_frequency_in_corpus,CRPC,procedure,index,,106.0,742,,,,,term='procedure'; 106 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,procedure,index,,0.14285714285714285,742,0.11951610998661825,0.1698771065868589,,,term='procedure'
+document_frequency,ALL,consumer,index,,55.0,1899,,,,,term='consumer'
+document_frequency_rate,ALL,consumer,index,,0.028962611901000527,1899,0.022318768844048906,0.03750831674664642,,,term='consumer'; share of all 1899 indexed chunks
+idf_okapi,ALL,consumer,index,,3.5036,1899,,,,,"term='consumer'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=55; the rank_bm25 BM25Okapi form"
+concentration,ALL,consumer,index,,1.0,55,,,,,term='consumer'; largest single-statute share; top=CPA
+document_frequency_in_corpus,BNS,consumer,index,,0.0,424,,,,,term='consumer'; 0 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,consumer,index,,0.0,424,8.673617379884035e-19,0.008978696999279879,,,term='consumer'
+document_frequency_in_corpus,CPA,consumer,index,,55.0,138,,,,,term='consumer'; 55 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,consumer,index,,0.39855072463768115,138,0.32067874131695673,0.4819177616205963,,,term='consumer'
+document_frequency_in_corpus,IPC,consumer,index,,0.0,595,,,,,term='consumer'; 0 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,consumer,index,,0.0,595,0.0,0.006414817755020747,,,term='consumer'
+document_frequency_in_corpus,CRPC,consumer,index,,0.0,742,,,,,term='consumer'; 0 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,consumer,index,,0.0,742,0.0,0.00515050320286809,,,term='consumer'
+document_frequency,ALL,protection,index,,32.0,1899,,,,,term='protection'
+document_frequency_rate,ALL,protection,index,,0.01685097419694576,1899,0.011961469966012212,0.02369124219660708,,,term='protection'; share of all 1899 indexed chunks
+idf_okapi,ALL,protection,index,,4.0511,1899,,,,,"term='protection'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=32; the rank_bm25 BM25Okapi form"
+concentration,ALL,protection,index,,0.5312,32,,,,,term='protection'; largest single-statute share; top=CPA
+document_frequency_in_corpus,BNS,protection,index,,6.0,424,,,,,term='protection'; 6 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,protection,index,,0.014150943396226415,424,0.006501214093381662,0.030525255632333693,,,term='protection'
+document_frequency_in_corpus,CPA,protection,index,,17.0,138,,,,,term='protection'; 17 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,protection,index,,0.12318840579710146,138,0.07835319924938501,0.18843381166152617,,,term='protection'
+document_frequency_in_corpus,IPC,protection,index,,5.0,595,,,,,term='protection'; 5 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,protection,index,,0.008403361344537815,595,0.003594601955899439,0.019519126425087345,,,term='protection'
+document_frequency_in_corpus,CRPC,protection,index,,4.0,742,,,,,term='protection'; 4 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,protection,index,,0.005390835579514825,742,0.002098328347977298,0.013778314982083593,,,term='protection'
+document_frequency,ALL,indian,index,,129.0,1899,,,,,term='indian'
+document_frequency_rate,ALL,indian,index,,0.0679304897314376,1899,0.057463301584398704,0.08014220286184558,,,term='indian'; share of all 1899 indexed chunks
+idf_okapi,ALL,indian,index,,2.6153,1899,,,,,"term='indian'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=129; the rank_bm25 BM25Okapi form"
+concentration,ALL,indian,index,,0.7364,129,,,,,term='indian'; largest single-statute share; top=CRPC
+document_frequency_in_corpus,BNS,indian,index,,2.0,424,,,,,term='indian'; 2 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,indian,index,,0.0047169811320754715,424,0.0012945208936770928,0.017033433681081275,,,term='indian'
+document_frequency_in_corpus,CPA,indian,index,,3.0,138,,,,,term='indian'; 3 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,indian,index,,0.021739130434782608,138,0.0074203938401732755,0.06196312000829085,,,term='indian'
+document_frequency_in_corpus,IPC,indian,index,,29.0,595,,,,,term='indian'; 29 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,indian,index,,0.04873949579831933,595,0.03414722773661885,0.0691212716490049,,,term='indian'
+document_frequency_in_corpus,CRPC,indian,index,,95.0,742,,,,,term='indian'; 95 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,indian,index,,0.1280323450134771,742,0.10589254518893959,0.15400378603475745,,,term='indian'
+document_frequency,ALL,sakshya,index,,0.0,1899,,,,,term='sakshya'; ABSENT from the index
+document_frequency,ALL,evidence,index,,178.0,1899,,,,,term='evidence'
+document_frequency_rate,ALL,evidence,index,,0.0937335439705108,1899,0.08143255142120553,0.10767487902398332,,,term='evidence'; share of all 1899 indexed chunks
+idf_okapi,ALL,evidence,index,,2.2664,1899,,,,,"term='evidence'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=178; the rank_bm25 BM25Okapi form"
+concentration,ALL,evidence,index,,0.7472,178,,,,,term='evidence'; largest single-statute share; top=CRPC
+document_frequency_in_corpus,BNS,evidence,index,,23.0,424,,,,,term='evidence'; 23 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,evidence,index,,0.054245283018867926,424,0.03641526254804844,0.08007989656923409,,,term='evidence'
+document_frequency_in_corpus,CPA,evidence,index,,4.0,138,,,,,term='evidence'; 4 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,evidence,index,,0.028985507246376812,138,0.011328415839915482,0.07215534779872344,,,term='evidence'
+document_frequency_in_corpus,IPC,evidence,index,,18.0,595,,,,,term='evidence'; 18 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,evidence,index,,0.030252100840336135,595,0.019220121372285973,0.0473107746362125,,,term='evidence'
+document_frequency_in_corpus,CRPC,evidence,index,,133.0,742,,,,,term='evidence'; 133 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,evidence,index,,0.1792452830188679,742,0.15332102232508682,0.20847364010694175,,,term='evidence'
+document_frequency,ALL,act,index,,471.0,1899,,,,,term='act'
+document_frequency_rate,ALL,act,index,,0.2480252764612954,1899,0.22912306828614706,0.26794485843844507,,,term='act'; share of all 1899 indexed chunks
+idf_okapi,ALL,act,index,,1.1085,1899,,,,,"term='act'; ln((N-df+0.5)/(df+0.5)) with N=1899, df=471; the rank_bm25 BM25Okapi form"
+concentration,ALL,act,index,,0.3333,471,,,,,term='act'; largest single-statute share; top=CRPC
+document_frequency_in_corpus,BNS,act,index,,114.0,424,,,,,term='act'; 114 of 424 chunks in BNS
+document_frequency_rate_in_corpus,BNS,act,index,,0.2688679245283019,424,0.2288798954619729,0.313006483339581,,,term='act'
+document_frequency_in_corpus,CPA,act,index,,46.0,138,,,,,term='act'; 46 of 138 chunks in CPA
+document_frequency_rate_in_corpus,CPA,act,index,,0.3333333333333333,138,0.2601376270722827,0.41555662775369717,,,term='act'
+document_frequency_in_corpus,IPC,act,index,,154.0,595,,,,,term='act'; 154 of 595 chunks in IPC
+document_frequency_rate_in_corpus,IPC,act,index,,0.25882352941176473,595,0.22525691582256216,0.29548434921221256,,,term='act'
+document_frequency_in_corpus,CRPC,act,index,,157.0,742,,,,,term='act'; 157 of 742 chunks in CRPC
+document_frequency_rate_in_corpus,CRPC,act,index,,0.21159029649595687,742,0.18372591834176913,0.24242558485341623,,,term='act'
+self_naming_rate_distinctive,BNS,sanhita,index,,0.07075471698113207,424,0.05000817977071118,0.09920938086074607,,,distinctive token 'sanhita'; 30 of 424 own chunks contain it; 95% Wilson
+self_naming_rate_any_title_token,BNS,bharatiya|nyaya|sanhita,index,,0.07075471698113207,424,0.05000817977071118,0.09920938086074607,,,"any of ['bharatiya', 'nyaya', 'sanhita']; 30 of 424 own chunks"
+self_naming_rate_distinctive,CPA,consumer,index,,0.39855072463768115,138,0.32067874131695673,0.4819177616205963,,,distinctive token 'consumer'; 55 of 138 own chunks contain it; 95% Wilson
+self_naming_rate_any_title_token,CPA,consumer|protection|act,index,,0.5797101449275363,138,0.4962908332602018,0.6588119144317209,,,"any of ['consumer', 'protection', 'act']; 80 of 138 own chunks"
+self_naming_rate_distinctive,CRPC,procedure,index,,0.14285714285714285,742,0.11951610998661825,0.1698771065868589,,,distinctive token 'procedure'; 106 of 742 own chunks contain it; 95% Wilson
+self_naming_rate_any_title_token,CRPC,code|criminal|procedure,index,,0.4272237196765499,742,0.39209521284093535,0.46310189544196206,,,"any of ['code', 'criminal', 'procedure']; 317 of 742 own chunks"
+self_naming_rate_distinctive,IPC,penal,index,,0.03865546218487395,595,0.0258941931178754,0.05733561351658911,,,distinctive token 'penal'; 23 of 595 own chunks contain it; 95% Wilson
+self_naming_rate_any_title_token,IPC,indian|penal|code,index,,0.12100840336134454,595,0.09720552241149186,0.1496736083574398,,,"any of ['indian', 'penal', 'code']; 72 of 595 own chunks"
+penal_chunks_by_corpus,IPC,penal,index,,23.0,595,,,,,23 of 595 chunks in IPC contain 'penal'; 20.9% of all 110 chunks containing it
+penal_share_of_all_occurrences,IPC,penal,index,,0.2091,110,,,,,"of the 110 chunks containing 'penal', 23 are IPC"
+penal_chunks_by_corpus,BNS,penal,index,,2.0,424,,,,,2 of 424 chunks in BNS contain 'penal'; 1.8% of all 110 chunks containing it
+penal_share_of_all_occurrences,BNS,penal,index,,0.0182,110,,,,,"of the 110 chunks containing 'penal', 2 are BNS"
+penal_chunks_by_corpus,CRPC,penal,index,,82.0,742,,,,,82 of 742 chunks in CRPC contain 'penal'; 74.5% of all 110 chunks containing it
+penal_share_of_all_occurrences,CRPC,penal,index,,0.7455,110,,,,,"of the 110 chunks containing 'penal', 82 are CRPC"
+penal_chunks_by_corpus,CPA,penal,index,,3.0,138,,,,,3 of 138 chunks in CPA contain 'penal'; 2.7% of all 110 chunks containing it
+penal_share_of_all_occurrences,CPA,penal,index,,0.0273,110,,,,,"of the 110 chunks containing 'penal', 3 are CPA"
+discovered_concentrated_token,CRPC,thinks,index,,1.0,88,,,,,"token='thinks'; df=88; idf=3.0189; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,pleader,index,,1.0,46,,,,,"token='pleader'; df=46; idf=3.6854; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,thereupon,index,,1.0,41,,,,,"token='thereupon'; df=41; idf=3.8018; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,ditto,index,,1.0,40,,,,,"token='ditto'; df=40; idf=3.8268; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,magistrates,index,,1.0,37,,,,,"token='magistrates'; df=37; idf=3.9053; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,authorise,index,,1.0,36,,,,,"token='authorise'; df=36; idf=3.9329; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,metropolitan,index,,1.0,35,,,,,"token='metropolitan'; df=35; idf=3.9612; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,forthwith,index,,1.0,34,,,,,"token='forthwith'; df=34; idf=3.9903; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,triable,index,,1.0,31,,,,,"token='triable'; df=31; idf=4.0829; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,examined,index,,1.0,30,,,,,"token='examined'; df=30; idf=4.1157; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,examine,index,,1.0,26,,,,,"token='examine'; df=26; idf=4.2584; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,appellate,index,,1.0,25,,,,,"token='appellate'; df=25; idf=4.2974; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,attachment,index,,1.0,24,,,,,"token='attachment'; df=24; idf=4.3380; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,behaviour,index,,1.0,23,,,,,"token='behaviour'; df=23; idf=4.3802; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,revision,index,,1.0,23,,,,,"token='revision'; df=23; idf=4.3802; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CPA,unfair,index,,1.0,21,,,,,"token='unfair'; df=21; idf=4.4702; concentration=1.0000 in CPA; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CPA,consumers,index,,1.0,20,,,,,"token='consumers'; df=20; idf=4.5183; concentration=1.0000 in CPA; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,surety,index,,1.0,20,,,,,"token='surety'; df=20; idf=4.5183; concentration=1.0000 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,CRPC,session,index,,0.9903,103,,,,,"token='session'; df=103; idf=2.8540; concentration=0.9903 in CRPC; discovered by sweep, not pre-specified"
+discovered_concentrated_token,BNS,extraordinary,index,,0.9806,103,,,,,"token='extraordinary'; df=103; idf=2.8540; concentration=0.9806 in BNS; discovered by sweep, not pre-specified"
+index_chunks,ALL,,index,,1899.0,1899,,,,,total indexed chunks scrolled
+index_chunks_in_corpus,BNS,,index,,424.0,1899,,,,,BNS share of the index
+index_chunks_in_corpus,CPA,,index,,138.0,1899,,,,,CPA share of the index
+index_chunks_in_corpus,IPC,,index,,595.0,1899,,,,,IPC share of the index
+index_chunks_in_corpus,CRPC,,index,,742.0,1899,,,,,CRPC share of the index
