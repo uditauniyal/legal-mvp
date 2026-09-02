@@ -11677,3 +11677,114 @@ cd /c/Users/uniya/legal-mvp
 cd /c/Users/uniya/legal-mvp
 ./venv/Scripts/python.exe experiments/check10_self_naming_check.py 2>&1 | tail -45
 ```
+
+`2026-09-02 14:16:22` · **cmd** — Commit Task 0
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"
+cat "$SP/exp10_block.md" >> results/EXPLAIN.md
+cat > "$SP/t0msg.txt" <<'ENDM'
+exp10: the self-naming mechanism is now measured, not prose
+
+Closes the gap flagged when the supervisor brief was built: the IDF evidence
+behind the dense/lexical inversion existed only as prose in EXPLAIN.md and in no
+results file, so the paper could not cite its strongest mechanism.
+
+experiments/exp10_self_naming.py -> results/self_naming.csv (211 rows, standard
+schema).
+… [truncated, 2053 more chars]
+```
+
+`2026-09-02 14:17:01` · **cmd** — Check what calibration.csv supports for figures 7 and 8
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/calibration.csv')
+print('=== reliability_bin_accuracy rows ===')
+s=d[d.metric=='reliability_bin_accuracy']
+print(len(s),'rows; sample:')
+print(s[['query_set','definition','stage','k','value','n','notes']].head(4).to_string(index=False,max_colwidth=70))
+print()
+print('=== risk-coverage related ===')
+for m in ['aurc','coverage_at_risk_0.10','risk_at_full_coverage']:
+    t=d[d.metric==m]
+    print(f'  {m}: {len(t)} rows')
+print()
+print('=== any full curve points? ===')
+print([m for m in d.metric.
+… [truncated, 61 more chars]
+```
+
+`2026-09-02 14:17:21` · **cmd** — Inspect reliability bin notes for mean score
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/calibration.csv')
+s=d[d.metric=='reliability_bin_accuracy']
+for n in s.notes.head(3): print(repr(n)); print()
+print('--- k column values (bin index?) ---', sorted(s.k.unique())[:12])
+print('--- distinct definitions:', s.definition.unique())"
+```
+
+`2026-09-02 14:22:24` · **cmd** — Generate the technical report
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe experiments/make_technical_report.py 2>&1 | tail -25
+```
+
+`2026-09-02 14:22:38` · **cmd** — Find the chance baseline rows
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import pandas as pd
+d=pd.read_csv('results/hybrid_comparison.csv')
+s=d[d.metric=='chance_baseline_corpus_share']
+print(s[['metric','query_set','definition','stage','value','n','notes']].to_string(index=False,max_colwidth=60))"
+```
+
+`2026-09-02 14:23:00` · **cmd** — Fix chance baseline filter and regenerate
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+from pathlib import Path
+p = Path("experiments/make_technical_report.py")
+s = p.read_text(encoding="utf-8")
+old = '''        g[f"chance_{side}"] = pick("hybrid_comparison.csv",
+                                   metric="chance_baseline_corpus_share",
+                                   query_set=f"paired_numbered_{side}_named")'''
+new = '''        g[f"chance_{side}"] = pick("hybrid_comparison.csv",
+                                   metric="chance_baseline_corpus_share",
+                                   query_set="INDEX",
+     
+… [truncated, 244 more chars]
+```
+
+`2026-09-02 14:23:26` · **cmd** — Verify HTML is self-contained and every number is sourced
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== outputs ==="
+ls -la docs/TECHNICAL_REPORT.md docs/TECHNICAL_REPORT.html | awk '{printf "  %-34s %8s bytes\n",$9,$5}'
+ls figures/ | sed 's/^/  fig: /'
+echo
+echo "=== HTML self-contained? (no external refs) ==="
+grep -o 'src="[^"]\{0,40\}' docs/TECHNICAL_REPORT.html | sort -u | head -5
+echo "  external http refs: $(grep -c 'src="http\|href="http' docs/TECHNICAL_REPORT.html || echo 0)"
+echo "  base64 images embedded: $(grep -c 'data:image/png;base64' docs/TECHNICAL_REPORT.html)"
+echo
+echo "=== independent verification: every number in BOTH docs present in a C
+… [truncated, 966 more chars]
+```
+
+`2026-09-02 14:23:41` · **cmd** — Check the executive summary and structure
+```bash
+cd /c/Users/uniya/legal-mvp
+sed -n '/## 1 Â· Executive summary/,/^---$/p' docs/TECHNICAL_REPORT.md | head -40
+echo "..."
+echo "=== section headings present ==="
+grep -n '^## ' docs/TECHNICAL_REPORT.md
+echo
+echo "=== glossary term count ==="
+sed -n '/## 2 Â· Glossary/,/## 3 Â·/p' docs/TECHNICAL_REPORT.md | grep -c '^\*\*'
+```
