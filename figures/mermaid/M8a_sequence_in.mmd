@@ -1,0 +1,24 @@
+sequenceDiagram
+    actor User
+    participant API as FastAPI
+    participant Intake as Intake
+    participant Router as Router
+    participant Retriever as Retriever
+    participant QD as Qdrant
+    participant OAI as OpenRouter
+
+    User->>API: POST /query
+    API->>Intake: analyze(query)
+    Note over Intake: LLM triage produces CaseContext<br/>Paralegal regex override
+
+    Intake->>Router: CaseContext
+    Note over Router: Regex corpus routing<br/>Entity extraction<br/>Query rewriting
+
+    Router->>Retriever: QueryPlan
+    Retriever->>OAI: Embed query
+    OAI-->>Retriever: 1536-dimension vector
+
+    Retriever->>QD: Search(vector, limit=15, optional filter)
+    QD-->>Retriever: 15 candidate passages
+
+    Note over Retriever: Fallback if 0 results<br/>Entity reranking<br/>Adaptive filtering<br/>Composite confidence

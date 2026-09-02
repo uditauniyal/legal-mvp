@@ -65,9 +65,13 @@ MERMAID = [
     ("M7_ingestion",
      "M7 — Ingestion, run once. PDFs become text, text becomes passages, "
      "passages become vectors, vectors go into the database."),
-    ("M8_sequence",
-     "M8 — The same path in time order, showing which component talks to which "
-     "and in what sequence."),
+    ("M8a_sequence_in",
+     "M8a — The same path in time order, first half: the question arrives, is "
+     "triaged, routed, embedded, and searched against the database. Split in two "
+     "so the labels stay legible at page width."),
+    ("M8b_sequence_out",
+     "M8b — Second half: retrieved passages become a cited answer and a PDF, "
+     "which return to the user."),
 ]
 
 CHROME_CANDIDATES = [

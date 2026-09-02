@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant Retriever as Retriever
+    participant Answer as Answer
+    participant Reporter as Reporter
+    participant API as FastAPI
+    actor User
+    participant OAI as OpenRouter
+
+    Retriever->>Answer: RetrievalResult (passages + confidence)
+    Note over Answer: Refusal gate check<br/>Tier-based prompt selection<br/>GREEN / YELLOW / RED
+
+    Answer->>OAI: System prompt + evidence + query
+    OAI-->>Answer: Cited JSON answer
+
+    Answer->>Reporter: AnswerData
+    Note over Reporter: PDF generation<br/>Unicode sanitisation
+
+    Reporter-->>API: answer, citations, confidence, report_url
+    API-->>User: JSON response and optional PDF

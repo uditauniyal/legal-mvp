@@ -405,7 +405,9 @@ Ingestion, run once, converts PDFs into the indexed passages.
 
 And the whole path, end to end:
 
-{fig('M8_sequence')}
+{fig('M8a_sequence_in')}
+
+{fig('M8b_sequence_out')}
 
 ---
 

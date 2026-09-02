@@ -1,7 +1,8 @@
-flowchart TD
+flowchart LR
     IN["QueryPlan from Router<br/>(rewritten query + corpus filter + entities)"]
 
     subgraph Pipeline["🎯 7-Step Retrieval Pipeline"]
+        direction LR
         S1["<b>Step 1 — Embed</b><br/>Query → 1536-dim vector<br/><i>text-embedding-3-small</i>"]
         S2["<b>Step 2 — Search</b><br/>Qdrant cosine similarity<br/>limit=15, optional corpus filter"]
         S3["<b>Step 3 — Fallback</b><br/>If filtered search = 0 results<br/>→ retry without filter"]

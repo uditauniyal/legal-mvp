@@ -1,6 +1,6 @@
 # When the code changes: retrieval failure across India's 2024 statutory recodification
 
-**Udita Uniyal · Banasthali Vidyapith · 3 September 2026 · commit `1e9af64`**
+**Udita Uniyal · Banasthali Vidyapith · 3 September 2026 · commit `b720937`**
 
 A report on a legal question-answering system, what was measured in it, and
 what those measurements mean. Written for a reader with no prior exposure to
@@ -300,9 +300,14 @@ Ingestion, run once, converts PDFs into the indexed passages.
 
 And the whole path, end to end:
 
-![M8_sequence](../figures/M8_sequence.png)
+![M8a_sequence_in](../figures/M8a_sequence_in.png)
 
-*M8 — The same path in time order, showing which component talks to which and in what sequence.*
+*M8a — The same path in time order, first half: the question arrives, is triaged, routed, embedded, and searched against the database. Split in two so the labels stay legible at page width.*
+
+
+![M8b_sequence_out](../figures/M8b_sequence_out.png)
+
+*M8b — Second half: retrieved passages become a cited answer and a PDF, which return to the user.*
 
 
 ---
@@ -427,7 +432,7 @@ removing substantive criminal law and concentrating procedure.
 
 ![F5_funnel](../figures/F5_funnel.png)
 
-*F5 — The adaptive score filter costs every query set a little and the layman set half of what it had. But the layman line starts at 15%: the filter is not the main problem, the retrieval is.*
+*F5 — Recall@15 is the share of questions whose correct section was present. The adaptive score filter costs every query set a little and the layman set half of what it had. But the layman line starts at 15%: the filter is not the main problem, the retrieval is. Correctness definition retrieved@k; shaded bands are 95% Wilson intervals.*
 
 
 That filter costs the layman questions half of what they had: recall falls from
@@ -533,7 +538,7 @@ raw similarity and spend the effort elsewhere.
 
 ![F6_ablation](../figures/F6_ablation.png)
 
-*F6 — The deployed composite (red) is beaten by three of its own ingredients. One term is inverted and scores below chance. Correcting the sign lifts the blend (blue) but it still loses to a single raw similarity (green).*
+*F6 — The deployed composite (red) is beaten by three of its own ingredients. One term is inverted and scores below chance. Correcting the sign lifts the blend (blue) but it still loses to a single raw similarity (green). Measured under correctness definition retrieved@k at retrieval stage raw_15.*
 
 
 The measure is AUROC: pick one right answer and one wrong answer at random, and

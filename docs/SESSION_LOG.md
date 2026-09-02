@@ -12232,3 +12232,259 @@ txt=Path("docs/PROJECT_REPORT.md").read_text(encoding="utf-8")
 sec3 = txt.split("## 3 Â· Where this began")[1].split("## 4 Â· 
 … [truncated, 594 more chars]
 ```
+
+`2026-09-03 01:30:48` · **cmd** — Check the PDF and commit
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import fitz
+d=fitz.open('docs/PROJECT_REPORT.pdf')
+imgs=sum(len(p.get_images()) for p in d)
+print(f'  PDF: {d.page_count} pages, {imgs} embedded images, {round(len(open(\"docs/PROJECT_REPORT.pdf\",\"rb\").read())/1024)} KB')
+print('  first page:', repr(d[0].get_text()[:70].strip()))
+"
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"
+cat > "$SP/pdfmsg.txt" <<'ENDM'
+PROJECT_REPORT: adds the before/pivot/after narrative, and ships as PDF
+
+docs/PROJECT_REPORT.pdf -- 28 p
+… [truncated, 5121 more chars]
+```
+
+### 2026-09-03 01:32:20 · prompt
+
+wheres the pdf?
+
+### 2026-09-03 01:37:56 · prompt
+
+The report content is good. The FIGURE RENDERING is broken and that is the
+only thing to fix. Do not rewrite any prose. Do not recompute any number.
+
+PROBLEM 1 â€” vertical flowcharts split across PDF pages.
+M2 (intake), M4 (retrieval, split across THREE pages), M5 (answer) are
+`flowchart TD` (top-down), so they render taller than a page and break.
+
+  Fix: convert M2, M3, M4, M5, M6 to `flowchart LR` (left-to-right) so they
+  are wide rather than tall. M4 has seven steps in a column â€” lay it out as a
+  single horizontal row of seven boxes.
+
+PROBLEM 2 â€” no page-break protection.
+  Fix: in the HTML CSS, add to every figure block:
+      figure { page-break-inside: avoid; break-inside: avoid; }
+      figure img { max-height: 21cm; width: auto; max-width: 100%; }
+  So a figure either fits on the page or moves to the next one whole.
+
+PROBLEM 3 â€” M8, the sequence diagram, is illegible at page width.
+  Fix: render it at 2x resolution and give it its own landscape page, or split
+  it into two sequence diagrams (question in â†’ retrieval, retrieval â†’ answer).
+
+PROBLEM 4 â€” matplotlib text collisions. Three charts have overlapping text:
+  F2: the x-axis label "share of queries whose top-15..." collides with the
+      "chance 22.3%" annotation. Move the chance annotations above the bars.
+  F6: the title overlaps itself â€” "definition retrieved@k" collides with
+      "AUROC". Shorten the title and put the definition in the caption.
+  F5: the legend sits on top of the data lines. Move it outside the axes.
+  Fix all three with a larger figsize, explicit `bbox_inches='tight'`, and
+  `plt.tight_layout()` after every plot.
+
+PROBLEM 5 â€” verify before declaring done.
+  Render the HTML to PDF yourself (headless Chrome or weasyprint), then check
+  page by page that no figure spans a page boundary and no text overlaps any
+  other text. Report the page count and confirm each of the 17 figures sits
+  whole on one page.
+
+Nothing else changes. Commit when the PDF is clean.
+
+`2026-09-03 01:38:10` · **cmd** — Read the diagram sources that need reorienting
+```bash
+cd /c/Users/uniya/legal-mvp
+for f in M2_intake_agent M4_retrieval_pipeline M6_confidence; do
+  echo "===== $f ====="; cat "figures/mermaid/$f.mmd"; echo
+done
+```
+
+`2026-09-03 01:38:35` · **cmd** — Read remaining diagrams and measure current aspect ratios
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "===== M3 ====="; cat figures/mermaid/M3_router_agent.mmd
+echo; echo "===== M5 ====="; cat figures/mermaid/M5_answer_agent.mmd
+echo; echo "===== M8 (first 20 lines, $(wc -l < figures/mermaid/M8_sequence.mmd) total) ====="
+head -20 figures/mermaid/M8_sequence.mmd
+echo
+echo "=== current rendered sizes (w x h) ==="
+./venv/Scripts/python.exe -c "
+from PIL import Image
+import glob,os
+for f in sorted(glob.glob('figures/M*.png'))+sorted(glob.glob('figures/F*.png')):
+    w,h=Image.open(f).size
+    print(f'  {os.path.basename(f):26} {w:5} x {h:5}   ratio {w/h:.2f}')" 2>
+… [truncated, 31 more chars]
+```
+
+`2026-09-03 01:38:58` · **cmd** — Read the rest of the sequence diagram
+```bash
+cd /c/Users/uniya/legal-mvp; sed -n '20,41p' figures/mermaid/M8_sequence.mmd
+```
+
+`2026-09-03 01:40:22` · **cmd** — Reorient diagrams, split the sequence diagram, re-render
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys
+from pathlib import Path
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+d = Path("figures/mermaid")
+
+# --- reorient the five tall flowcharts: top-down -> left-to-right -----------
+for name in ("M2_intake_agent", "M3_router_agent", "M4_retrieval_pipeline",
+             "M5_answer_agent", "M6_confidence"):
+    f = d / f"{name}.mmd"
+    t = f.read_text(encoding="utf-8")
+    t = t.replace("flowchart TD", "flowchart LR", 1)
+    f.write_text(t, encoding="utf-8")
+    print(f"  {name}: TD -> LR")
+
+# M4 has seven s
+… [truncated, 2737 more chars]
+```
+
+`2026-09-03 01:41:21` · **cmd** — Fix chart collisions, page-break CSS, and swap in the split sequence diagrams
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys
+from pathlib import Path
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+# ---------- 1. matplotlib: tight_layout centrally, in save() ---------------
+p = Path("experiments/make_technical_report.py"); s = p.read_text(encoding="utf-8")
+
+s = s.replace('''def save(fig, fid: str, caption: str) -> None:
+    path = FIGDIR / f"{fid}.png"
+    fig.savefig(path, facecolor="white")''',
+'''def save(fig, fid: str, caption: str) -> None:
+    path = FIGDIR / f"{fid}.png"
+    try:
+        fig.tight_layout()
+    except Exc
+… [truncated, 4845 more chars]
+```
+
+`2026-09-03 01:41:53` · **cmd** — Point the report at the split diagrams and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+grep -n "M8_sequence" experiments/project_text.py
+./venv/Scripts/python.exe - <<'PYEOF'
+from pathlib import Path
+p = Path("experiments/project_text.py"); s = p.read_text(encoding="utf-8")
+old = "{fig('M8_sequence')}"
+new = "{fig('M8a_sequence_in')}\n\n{fig('M8b_sequence_out')}"
+assert s.count(old) == 1, s.count(old)
+p.write_text(s.replace(old, new), encoding="utf-8")
+print("  project_text.py -> M8a + M8b")
+PYEOF
+rm -f figures/M8_sequence.png figures/mermaid/M8_sequence.mmd
+./venv/Scripts/python.exe experiments/make_project_report.py 2>&1 | tail -12
+```
+
+`2026-09-03 01:42:27` · **cmd** — Verify the PDF page by page for split figures and text collisions
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+"""Page-by-page check: no figure split across pages, no text overlapping text."""
+import sys, collections
+import fitz
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+doc = fitz.open("docs/PROJECT_REPORT.pdf")
+print(f"pages: {doc.page_count}")
+
+# --- 1. does any image appear on more than one page? (= it was split) -------
+where = collections.defaultdict(list)
+for i, page in enumerate(doc):
+    for img in page.get_images(full=True):
+        where[img[0]].append(i + 1)          # img[0] is the xref
+split = {x: p for x, 
+… [truncated, 1752 more chars]
+```
+
+`2026-09-03 01:42:52` · **cmd** — Report each figure's page and printed size
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys, fitz
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+doc = fitz.open("docs/PROJECT_REPORT.pdf")
+PT = 2.54 / 72     # points -> cm
+print("  figure                       page   printed size (cm)")
+print("  " + "-" * 58)
+seen = []
+for i, page in enumerate(doc):
+    for b in page.get_image_info(xrefs=True):
+        r = fitz.Rect(b["bbox"])
+        seen.append((b.get("xref"), i + 1, r.width * PT, r.height * PT))
+# map xref -> which figure, by matching pixel dimensions
+from PIL import Image
+import glob, os
+dims 
+… [truncated, 399 more chars]
+```
+
+`2026-09-03 01:43:48` · **cmd** — Move the F6 annotation inside the axes and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+from pathlib import Path
+p = Path("experiments/make_technical_report.py"); s = p.read_text(encoding="utf-8")
+old = '''    ax.axvline(0.5, color=INK, ls="--", lw=1)
+    ax.text(0.5, len(items) - 0.4, " 0.5 = coin flip", fontsize=7.5, color=INK)
+    ax.set_yticks(y); ax.set_yticklabels([i[0] for i in items])'''
+new = '''    ax.axvline(0.5, color=INK, ls="--", lw=1)
+    # sits INSIDE the axes, below the last row -- it used to collide with the title
+    ax.set_ylim(-0.95, len(items) - 0.35)
+    ax.text(0.505, -0.62, "0.5 = coin flip
+… [truncated, 357 more chars]
+```
+
+`2026-09-03 01:44:44` · **cmd** — Fix F5 clipping and label overlap, rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+from pathlib import Path
+p = Path("experiments/make_technical_report.py"); s = p.read_text(encoding="utf-8")
+
+old = '''    for qs, lab in sets:
+        vals, los, his = [], [], []
+        for st in stages:
+            r = pick("retrieval_metrics.csv", metric="recall_at_k", k="15.0",
+                     definition="retrieved@k", stage=st, query_set=qs)
+            vals.append(r.v); los.append(float(r.r["ci_lo"]))
+            his.append(float(r.r["ci_hi"]))
+        x = np.arange(3)
+        ax.plot(x, vals, "-o", markersize=5, lw=
+… [truncated, 2555 more chars]
+```
+
+`2026-09-03 01:45:27` · **cmd** — Final page-by-page verification of the PDF
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys, collections, fitz
+from PIL import Image
+import glob, os
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+doc = fitz.open("docs/PROJECT_REPORT.pdf")
+PT = 2.54 / 72
+dims = {Image.open(f).size: os.path.basename(f) for f in glob.glob("figures/*.png")}
+
+where = collections.defaultdict(list)
+for i, pg in enumerate(doc):
+    for img in pg.get_images(full=True):
+        where[img[0]].append(i + 1)
+split = {x: p for x, p in where.items() if len(p) > 1}
+
+over = 0
+for i, pg in enumerate(doc):
+    for b in pg.get_image
+… [truncated, 1454 more chars]
+```

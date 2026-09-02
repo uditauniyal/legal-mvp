@@ -47,7 +47,11 @@ plt.rcParams.update({"font.size": 9, "axes.edgecolor": INK,
 
 def save(fig, fid: str, caption: str) -> None:
     path = FIGDIR / f"{fid}.png"
-    fig.savefig(path, facecolor="white")
+    try:
+        fig.tight_layout()
+    except Exception:
+        pass                      # F1 draws on a bare canvas; leave it alone
+    fig.savefig(path, facecolor="white", bbox_inches="tight")
     plt.close(fig)
     FIGS.append((fid, path.name, caption))
     print(f"  {fid}  {path.name}")
@@ -109,11 +113,12 @@ def f2_ipc_bns(g):
     for y, (lab, r, ch) in zip(ys, rows):
         errbars(ax, [y], [r.v], [float(r.r["ci_lo"])], [float(r.r["ci_hi"])], CBLUE)
         ax.plot([ch.v], [y], marker="|", markersize=18, color=CRED, mew=2)
-        ax.text(r.v, y + 0.17, f"{r.v*100:.1f}%", ha="center", fontsize=9,
+        ax.text(r.v, y + 0.22, f"{r.v*100:.1f}%", ha="center", fontsize=9,
                 fontweight="bold", color=CBLUE)
-        ax.text(ch.v, y - 0.24, f"chance {ch.v*100:.1f}%", ha="center",
+        ax.text(ch.v, y + 0.22, f"chance {ch.v*100:.1f}%", ha="center",
                 fontsize=7.5, color=CRED)
     ax.set_yticks(ys); ax.set_yticklabels([r[0] for r in rows])
+    ax.set_ylim(-0.55, 1.55)
     ax.set_xlim(0, 1.05); ax.set_xlabel(
         "share of queries whose top-15 passages are dominated by the named statute")
     ax.xaxis.set_major_formatter(lambda v, p: f"{v*100:.0f}%")
@@ -203,8 +208,9 @@ def f5_funnel(g):
             ("paired_recodification", "paired IPC/BNS"),
             ("paired_dated_conflict", "dated conflict"),
             ("layman_situation", "layman")]
-    fig, ax = plt.subplots(figsize=(7.6, 3.3))
+    fig, ax = plt.subplots(figsize=(8.8, 3.3))
     stages = ["raw_15", "reranked_15", "filtered_n"]
+    ends = []
     for qs, lab in sets:
         vals, los, his = [], [], []
         for st in stages:
@@ -216,22 +222,31 @@ def f5_funnel(g):
         ax.plot(x, vals, "-o", markersize=5, lw=1.6,
                 label=f"{lab} (n={r.n})")
         ax.fill_between(x, los, his, alpha=0.12)
-        ax.text(2.06, vals[-1], f"{vals[-1]*100:.1f}%", va="center", fontsize=8)
+        ends.append(vals[-1])
+    # end-of-line labels, nudged apart so close series do not overprint
+    for i, v in enumerate(sorted(ends)):
+        yy = v
+        for prev in sorted(ends)[:i]:
+            if abs(yy - prev) < 0.045:
+                yy = prev + 0.045
+        ax.text(2.06, yy, f"{v*100:.1f}%", va="center", fontsize=8)
     ax.set_xticks(range(3))
     ax.set_xticklabels(["raw_15\n(as Qdrant returned)",
                         "reranked_15\n(reordered)",
                         "filtered_n\n(reached the model)"])
-    ax.set_ylabel("Recall@15 — share with the gold section present")
+    ax.set_ylabel("Recall@15")
     ax.yaxis.set_major_formatter(lambda v, p: f"{v*100:.0f}%")
-    ax.set_ylim(0, 0.9); ax.set_xlim(-0.15, 2.5)
+    ax.set_ylim(0, 0.92); ax.set_xlim(-0.15, 2.3)
     ax.grid(color=GRID, lw=0.6); ax.set_axisbelow(True)
-    ax.legend(frameon=False, fontsize=8)
-    ax.set_title("Retrieval funnel: what survives each stage  "
-                 "(definition retrieved@k, shaded 95% Wilson CI)", fontsize=9.5)
+    ax.legend(frameon=False, fontsize=8, loc="center left",
+              bbox_to_anchor=(1.01, 0.5))
+    ax.set_title("Retrieval funnel: what survives each stage", fontsize=9.5)
     save(fig, "F5_funnel",
-         "F5 — The adaptive score filter costs every query set a little and the "
-         "layman set half of what it had. But the layman line starts at 15%: the "
-         "filter is not the main problem, the retrieval is.")
+         "F5 — Recall@15 is the share of questions whose correct section was "
+         "present. The adaptive score filter costs every query set a little and "
+         "the layman set half of what it had. But the layman line starts at 15%: "
+         "the filter is not the main problem, the retrieval is. Correctness "
+         "definition retrieved@k; shaded bands are 95% Wilson intervals.")
 
 
 def f6_ablation(g):
@@ -242,24 +257,27 @@ def f6_ablation(g):
              ("composite AS DEPLOYED", g["sig_composite"], CRED),
              ("entity_coverage", g["sig_entity_coverage"], CGREY),
              ("gap_term as deployed (inverted)", g["sig_gap_term"], CRED)]
-    fig, ax = plt.subplots(figsize=(7.8, 3.4))
+    fig, ax = plt.subplots(figsize=(8.4, 3.7))
     y = np.arange(len(items))[::-1]
     for yy, (lab, r, col) in zip(y, items):
         errbars(ax, [yy], [r.v], [float(r.r["ci_lo"])], [float(r.r["ci_hi"])], col)
         ax.text(r.v, yy + 0.22, f"{r.v:.3f}", ha="center", fontsize=8, color=col)
     ax.axvline(0.5, color=INK, ls="--", lw=1)
-    ax.text(0.5, len(items) - 0.4, " 0.5 = coin flip", fontsize=7.5, color=INK)
+    # sits INSIDE the axes, below the last row -- it used to collide with the title
+    ax.set_ylim(-0.95, len(items) - 0.35)
+    ax.text(0.505, -0.62, "0.5 = coin flip", fontsize=7.5, color=INK,
+            ha="left", va="center")
     ax.set_yticks(y); ax.set_yticklabels([i[0] for i in items])
     ax.set_xlim(0.15, 0.92); ax.set_xlabel("AUROC — higher separates right from wrong better")
     ax.grid(axis="x", color=GRID, lw=0.6); ax.set_axisbelow(True)
-    ax.set_title(f"Confidence signals, n={g['sig_composite'].n}, "
-                 f"definition retrieved@k, stage raw_15 (95% bootstrap CI)",
-                 fontsize=9.5)
+    ax.set_title(f"Confidence signals   (n={g['sig_composite'].n}, "
+                 f"95% bootstrap CI)", fontsize=9.5)
     save(fig, "F6_ablation",
          "F6 — The deployed composite (red) is beaten by three of its own "
          "ingredients. One term is inverted and scores below chance. Correcting "
          "the sign lifts the blend (blue) but it still loses to a single raw "
-         "similarity (green).")
+         "similarity (green). Measured under correctness definition retrieved@k "
+         "at retrieval stage raw_15.")
 
 
 def f7_reliability(g):

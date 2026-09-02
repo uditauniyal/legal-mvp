@@ -665,16 +665,21 @@ th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;
  vertical-align:top}
 th{background:#f5f7fa;font-weight:600}
 tbody tr:nth-child(even){background:#fafbfc}
-figure{margin:1.4em 0;text-align:center}
-img{max-width:100%;height:auto;border:1px solid var(--line)}
+figure{margin:1.4em 0;text-align:center;page-break-inside:avoid;
+ break-inside:avoid}
+figure img{max-width:100%;max-height:21cm;width:auto;height:auto;
+ border:1px solid var(--line)}
+img{max-width:100%;height:auto}
 .caption{font-size:12.8px;color:var(--mut);font-style:italic;margin:-.4em 0 1.6em;
  font-family:-apple-system,Segoe UI,Roboto,sans-serif}
 ul,ol{margin:0 0 1em;padding-left:1.5em}
 li{margin:.3em 0}
 strong{font-weight:700}
 @media print{body{padding:0;font-size:10.5pt}main{max-width:none}
- h2{page-break-after:avoid}figure,table{page-break-inside:avoid}
- h3{page-break-after:avoid}}
+ h2{page-break-after:avoid}h3{page-break-after:avoid}
+ figure,table{page-break-inside:avoid;break-inside:avoid}
+ figure img{max-height:20cm;width:auto}
+ .caption{page-break-before:avoid;break-before:avoid}}
 """
     return (f"<!doctype html><html lang='en'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
