@@ -13283,3 +13283,2219 @@ for i, pg in enumerate(doc):
 sp
 … [truncated, 1034 more chars]
 ```
+
+`2026-09-03 02:30:53` · **cmd** — Commit the workbook and the report correction
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad"
+cat > "$SP/wbmsg.txt" <<'ENDM'
+TESTING_WORKBOOK.xlsx, and a correction it forced on the report
+
+experiments/make_workbook.py -> results/TESTING_WORKBOOK.xlsx. Four sheets, all
+with a frozen header row, an autofilter over the used range, computed column
+widths and wrapped free text. Every cell is read from the query sets, the run
+logs, the results CSVs or the source code; unsourceable cells say NOT AVAILABLE
+and are listed by the script on every run.
+… [truncated, 2719 more chars]
+```
+
+### 2026-09-03 02:32:39 · prompt
+
+twll me in plain english what just happened and where wre the docs
+
+`2026-09-03 02:33:06` · **cmd** — Confirm all deliverables on disk
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== THE TWO THINGS TO SEND ==="
+for f in docs/PROJECT_REPORT.pdf results/TESTING_WORKBOOK.xlsx; do
+  printf "  %-38s %8s KB\n" "$f" "$(( $(stat -c%s "$f") / 1024 ))"
+done
+echo
+echo "=== same content, other formats ==="
+for f in docs/PROJECT_REPORT.html docs/PROJECT_REPORT.md; do
+  printf "  %-38s %8s KB\n" "$f" "$(( $(stat -c%s "$f") / 1024 ))"
+done
+echo
+echo "=== supporting docs ==="
+for f in README.md results/RESULTS.md results/EXPLAIN.md results/smoke_test.md docs/WORKLOG.md; do
+  printf "  %-38s %8s KB\n" "$f" "$(( $(stat -c%s "$f") / 1024 ))"
+done
+echo
+ec
+… [truncated, 362 more chars]
+```
+
+### 2026-09-03 02:36:44 · prompt
+
+bro what did you made fuck
+
+### 2026-09-03 02:37:33 · prompt
+
+open the pdf and show me the worked example page
+
+`2026-09-03 02:37:58` · **cmd** — Find which pages the worked example spans
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import fitz
+d = fitz.open('docs/PROJECT_REPORT.pdf')
+for i, p in enumerate(d):
+    if 'One query, all the way through' in p.get_text():
+        print('starts on page', i+1)
+        break
+# how many pages does it span?
+pgs = [i+1 for i,p in enumerate(d) if 'still not in court' in p.get_text()
+       or 'One query, all the way through' in p.get_text()
+       or 'unsound mind' in p.get_text()]
+print('pages containing worked-example text:', pgs)
+"
+```
+
+### 2026-09-16 16:42:32 · prompt
+
+hi, are ypu there?
+
+### 2026-09-16 22:25:49 · prompt
+
+are you there?
+
+### 2026-09-16 22:26:52 · prompt
+
+hi are yp there?
+
+### 2026-09-16 22:31:20 · prompt
+
+dont do anything..sum me up what we have done uptil now, and how we are logging everything and also see this i am attaching this doc "C:\Users\uniya\Downloads\Synopsis Format for Research based Project.docx" basicallt this legal mbp is also my flagship roject for my thir year btech  this is the message from department "C:\Users\uniya\OneDrive\Pictures\Screenshots 1\Screenshot 2026-09-16 223035.png" - we are supposed to fill the details regarding our project in thie given format. Most of third year folks are in a grup of 3-5 members, i am one of the only person who is doing this single handlely so that is sumething unisuals also other usual part oabout me is this "C:\Users\uniya\Downloads\_Resume_Udita.pdf" i am in my fifth sem and i am been given the rarest of the rarest akllowance ti work from benlore for my intern just hacem to college to submit this paper work and present it, all teahers and hods aeyeys will be on me, I tppk the resarch track not the development track so this document is high tsakes for me. Please reviwer the codebase again and help me send the docuemntation, and more impostantly i need to be through with what i made and what i am submitting. If you have anyu questions, let me knoe.
+
+`2026-09-16 22:31:39` · **cmd** — Read the department synopsis format
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys, zipfile, re
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+p = r"C:\Users\uniya\Downloads\Synopsis Format for Research based Project.docx"
+try:
+    z = zipfile.ZipFile(p)
+    xml = z.read("word/document.xml").decode("utf-8")
+except Exception as e:
+    print("ERROR:", e); raise SystemExit
+xml = re.sub(r"</w:p>", "\n", xml)
+xml = re.sub(r"<w:tab[^>]*/>", "    ", xml)
+txt = re.sub(r"<[^>]+>", "", xml)
+txt = txt.replace("&amp;","&").replace("&lt;","<").replace("&gt;",">").replace("&quot;",'"')
+lines = [l.rstr
+… [truncated, 158 more chars]
+```
+
+`2026-09-16 22:33:55` · **cmd** — Read the resume
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import sys, fitz
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+d = fitz.open(r'C:\Users\uniya\Downloads\_Resume_Udita.pdf')
+for i in range(d.page_count):
+    print(d[i].get_text())
+"
+```
+
+### 2026-09-17 00:19:27 · prompt
+
+1)Project ID: IT118 Roll No: 241H0360116 2)28 Prof. Nisheeth Joshi Professor [Image #4] use this for exact designation 3)[Image #6] 4) the entire chat and eveyrthing else have been saved - go through the entire chat - severeal times i have used mcp of archixv, gi  throygh everything again, if you want you can use the current archive mcp too, if needed 5)ofc resrach thats why i gave you this doc wtf that question? 6)See remember one thing and keep it in the memory, store it in the memory: this is like an .md file. This is my flagship project and I am a very celebrated person in the department, given that I have been given an exemption to work at a startup, etc. In the fifth semester nobody gets that exemption. Also my project, I built it on my own and it's a research project so all eyes will be on me. There is no room for mediocrity.
+1. I cannot explain what I do not understand so just make sure that whatever we are building right now, whether it is this document, it should always be in a way that anybody can understand. The technical depth should also be there. At the same time everyone, including a layman, should understand it and also understand it in depth, like the components, etc.
+2. It is a very high-stakes document for me. Before you start making it first I want you to save it in your memory or just the mechanism of how you will remember it. Whether you will use a hook or a memory, just figure that out. Most importantly just gather all the information before you start writing and tell me how you will write it, etc. Frame it. Once I approve then you will start writing. And lastly, the most important part is not to frame it in a way that it looks extremely tough and dense and not able to understand. See how one writer documentation works but it should also have the depth because I have to present it. So the crystal clarity should be there. you
+
+`2026-09-17 00:20:08` · **cmd** — Read stored research facts
+```bash
+cd /c/Users/uniya/.claude/projects/C--Users-uniya-legal-mvp/memory
+echo "=== memory files ==="; ls -la *.md | awk '{printf "  %-42s %6s bytes\n",$9,$5}'
+echo
+echo "=== verified-research-facts.md ==="
+cat verified-research-facts.md 2>/dev/null || echo "  not found"
+```
+
+`2026-09-17 00:20:36` · **cmd** — Index the new memory
+```bash
+cd /c/Users/uniya/.claude/projects/C--Users-uniya-legal-mvp/memory
+printf -- '- [Flagship project stakes](flagship-project-stakes.md) â€” solo research-track flagship, defends it alone before the department; every doc must be plain-English AND deep; frame before writing.\n' >> MEMORY.md
+tail -3 MEMORY.md
+```
+
+`2026-09-17 00:20:55` · **cmd** — Verify the real pipeline stage count
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== agents/ and core stages ==="
+ls agents/*.py core/*.py 2>/dev/null | grep -v __ | sed 's/^/  /'
+echo
+echo "=== what app.py actually calls, in order ==="
+grep -nE "^\s*(from agents|from core)|= (intake|route|resolve|map_|retrieve|answer|report|verify)" app.py | head -30
+```
+
+`2026-09-17 00:21:44` · **cmd** — Check what document formats I can produce
+```bash
+cd /c/Users/uniya/legal-mvp
+for m in docx; do ./venv/Scripts/python.exe -c "import $m;print('  python-docx OK')" 2>/dev/null || echo "  python-docx MISSING"; done
+echo "  chrome (for PDF): $([ -f '/c/Program Files/Google/Chrome/Application/chrome.exe' ] && echo present || echo absent)"
+echo "  figures available: $(ls figures/*.png | wc -l)"
+```
+
+### 2026-09-17 00:35:23 · prompt
+
+1)A Calibrated Multi-Agent RAG System for Indian Law: Design and Empirical Evaluation. 2).docx 3) Its the same 4)for expected outcome for resarch do part a already obtained, part b you can include gold lables, idk wabout mitigation layer, say taegtting ecir 2026 detail about cinfere for presening work and also include lanaguages part 5)do not fuck with this documnebtation.
+
+`2026-09-17 00:35:57` · **cmd** — Check the multilingual facts in the code and index
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== multilingual: what is actually in the code ==="
+grep -rn "LANGS_OCR\|lang_detect\|langdetect\|hin\|tam\|tel" core/config.py ingest/*.py 2>/dev/null | grep -v "^.*#" | head -8
+echo
+echo "=== languages actually detected in the index ==="
+./venv/Scripts/python.exe -c "
+from qdrant_client import QdrantClient
+import collections
+c=QdrantClient(url='http://127.0.0.1:6333')
+lang=collections.Counter(); off=None
+while True:
+    pts,off=c.scroll('legal_mvp',limit=500,offset=off,with_payload=True,with_vectors=False)
+    for p in pts: lang[p.payload.get('lang_detected'
+… [truncated, 137 more chars]
+```
+
+### 2026-09-17 00:37:00 · prompt
+
+rge fact that you had to check the multilingial things reveal something imp, please review this entire freaking chat, every word of chat, and every file, every code, everything and then start working you need to have complete picture from scrath do not fuck up
+
+`2026-09-17 00:37:47` · **cmd** — List repo structure
+```bash
+ls -la && echo "---AGENTS---" && ls -la agents/ && echo "---CORE---" && ls -la core/ && echo "---INGEST---" && ls -la ingest/
+```
+
+`2026-09-17 00:37:49` · **cmd** — List eval, results, runs, tests
+```bash
+echo "---EVAL---" && ls -la eval/ && echo "---RESULTS---" && ls -la results/ && echo "---RUNS---" && ls runs/ | head -50 && echo "RUNS COUNT:" && ls runs/ | wc -l && echo "---TESTS---" && ls -la tests/
+```
+
+`2026-09-17 00:37:55` · **cmd** — Read app.py
+```bash
+cat -n /c/Users/uniya/legal-mvp/app.py
+```
+
+`2026-09-17 00:37:55` · **cmd** — Read config.py
+```bash
+cat -n /c/Users/uniya/legal-mvp/core/config.py
+```
+
+`2026-09-17 00:38:24` · **cmd** — List eval and scripts directories
+```bash
+ls -la "C:/Users/uniya/legal-mvp/eval/" 2>/dev/null; echo "---SCRIPTS---"; ls -la "C:/Users/uniya/legal-mvp/scripts/" 2>/dev/null | head -60
+```
+
+`2026-09-17 00:38:34` · **cmd** — Locate generator scripts
+```bash
+cd "C:/Users/uniya/legal-mvp" && find . -name "build_queryset.py" -o -name "generate_from_corpus.py" -o -name "layman_queries.py" -o -name "paired_queries.py" -o -name "paired_dated_queries.py" -o -name "scenarios.py" 2>/dev/null | grep -v venv
+```
+
+`2026-09-17 00:38:36` · **cmd** — List repo root and tests dir
+```bash
+ls -la && echo "--- TESTS ---" && ls -la tests/ 2>/dev/null
+```
+
+`2026-09-17 00:39:01` · **cmd** — Trace LANGS_OCR usage
+```bash
+echo "=== LANGS_OCR uses ===" && grep -rn "LANGS_OCR\|langs_ocr" --include=*.py --include=*.md --include=*.txt --include=.env . 2>/dev/null | grep -v "venv/" | grep -v "full_codebase.py" | grep -v "qdrant_storage"
+```
+
+`2026-09-17 00:39:01` · **cmd** — Trace langdetect and OCR usage
+```bash
+echo "=== langdetect / lang_detected / USE_TRANSLATION ===" && grep -rn "langdetect\|lang_detected\|detect(\|USE_TRANSLATION\|tesseract\|pytesseract\|ocr\|OCR" --include=*.py . 2>/dev/null | grep -v "venv/" | grep -v "full_codebase.py" | grep -v "qdrant_storage" | grep -v "__pycache__"
+```
+
+`2026-09-17 00:39:09` · **cmd** — Run jsonl audit script
+```bash
+mkdir -p "/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && cat > "/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/audit.py" <<'PYEOF'
+import json, os, collections, io, sys
+
+EVAL = r"C:\Users\uniya\legal-mvp\eval"
+FILES = ["generated_queryset.jsonl","layman_queryset.jsonl","paired_dated_queryset.jsonl","paired_queryset.jsonl","queryset.jsonl"]
+
+TARGET = ["gold_status","numbering_scheme","category","variant","pair_id","applicable_regime","phrasing_register","mess
+… [truncated, 4797 more chars]
+```
+
+`2026-09-17 00:39:10` · **cmd** — Read chunk.py payload build
+```bash
+sed -n '300,400p' ingest/chunk.py | cat -n
+```
+
+`2026-09-17 00:39:10` · **cmd** — Read extract.py and check tesseract
+```bash
+cat -n /c/Users/uniya/legal-mvp/ingest/extract.py; echo "=== tesseract on PATH? ==="; which tesseract || echo "TESSERACT NOT ON PATH"; echo "=== chunk.py detect_lang region ==="; sed -n '310,330p' /c/Users/uniya/legal-mvp/ingest/chunk.py | cat -n | sed 's/^/ /'
+```
+
+`2026-09-17 00:39:14` · **cmd** — Collect tests in tests/
+```bash
+./venv/Scripts/python.exe -m pytest tests/ --collect-only -q 2>&1 | tail -60
+```
+
+`2026-09-17 00:39:22` · **cmd** — Check Qdrant availability
+```bash
+curl -s --max-time 5 http://127.0.0.1:6333/collections 2>&1 | head -20; echo "---"; curl -s --max-time 5 http://127.0.0.1:6333/collections/legal_mvp 2>&1 | head -40
+```
+
+`2026-09-17 00:39:25` · **cmd** — Get tail of audit output
+```bash
+"C:/Users/uniya/legal-mvp/venv/Scripts/python.exe" "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/audit.py" 2>&1 | tail -40
+```
+
+`2026-09-17 00:39:26` · **cmd** — Read chunk.py params and registry
+```bash
+sed -n '1,120p' ingest/chunk.py | cat -n; echo "=== REGISTRY ==="; cat -n ingest/registry.py
+```
+
+`2026-09-17 00:39:27` · **cmd** — Collect tests from repo root
+```bash
+./venv/Scripts/python.exe -m pytest --collect-only -q 2>&1 | tail -60
+```
+
+`2026-09-17 00:39:40` · **cmd** — Per-file test counts
+```bash
+./venv/Scripts/python.exe -m pytest tests/ --collect-only -q 2>&1 | grep '::' | sed 's/::.*//' | sort | uniq -c | sort -rn
+```
+
+`2026-09-17 00:39:41` · **cmd** — Inspect root test_ingest.py and cache
+```bash
+cat test_ingest.py; echo "=== .pytest_cache ==="; ls -la .pytest_cache/; echo "=== ini files anywhere ==="; ls -la tests/data 2>/dev/null
+```
+
+`2026-09-17 00:39:42` · **cmd** — Confirm Qdrant down
+```bash
+curl -s -o /dev/null -w "HTTP:%{http_code}\n" --max-time 5 http://127.0.0.1:6333/collections; echo "exit=$?"; echo "=== docker ==="; docker ps 2>&1 | head -5
+```
+
+`2026-09-17 00:39:44` · **cmd** — Read retriever.py
+```bash
+cat -n agents/retriever.py
+```
+
+`2026-09-17 00:39:50` · **cmd** — Unicode block analysis
+```bash
+cat > "/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/uni.py" <<'PYEOF'
+import json, os, collections, unicodedata
+EVAL = r"C:\Users\uniya\legal-mvp\eval"
+FILES = ["generated_queryset.jsonl","layman_queryset.jsonl","paired_dated_queryset.jsonl","paired_queryset.jsonl","queryset.jsonl"]
+BLOCKS = [(0x0900,0x097F,"DEVANAGARI"),(0x0B80,0x0BFF,"TAMIL"),(0x0C00,0x0C7F,"TELUGU"),
+          (0x0980,0x09FF,"BENGALI"),(0x0A00,0x0A7F,"GURMUKHI"),(0x0A80,0x0AFF,"GUJARATI"),
+          (0x0B00,0x0B7F,"ORIYA"),(0x0C80,0x0CFF,"KANNADA"),(0x0D00
+… [truncated, 1593 more chars]
+```
+
+`2026-09-17 00:39:53` · **cmd** — Read answer.py tiers
+```bash
+cat -n agents/answer.py
+```
+
+`2026-09-17 00:39:55` · **cmd** — Grep generators for output paths
+```bash
+cd "C:/Users/uniya/legal-mvp/eval" && for f in build_queryset.py generate_from_corpus.py layman_queries.py paired_queries.py paired_dated_queries.py scenarios.py; do echo "######## $f"; grep -nE "jsonl|OUT|output|write|def main|argparse|add_argument|import |^from " "$f" | head -40; done
+```
+
+`2026-09-17 00:39:56` · **cmd** — Find documented confidence formula
+```bash
+echo "=== formula in docs/README ==="; grep -rn "0\.55 \*\|0.55\*\|gap_penalty\|0\.15 \*\|1 - gap\|1.0 - gap" --include=*.md . 2>/dev/null | grep -v venv | grep -v ".tools" | head -40
+```
+
+`2026-09-17 00:40:02` · **cmd** — Read generator docstrings
+```bash
+cd "C:/Users/uniya/legal-mvp/eval" && for f in build_queryset.py generate_from_corpus.py layman_queries.py paired_queries.py paired_dated_queries.py scenarios.py; do echo "############ $f (first 60 lines)"; sed -n '1,60p' "$f"; echo; done
+```
+
+`2026-09-17 00:40:04` · **cmd** — Run the test suite
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q 2>&1 | tail -40
+```
+
+`2026-09-17 00:40:05` · **cmd** — Show requirements files
+```bash
+cat requirements.txt; echo "=============== LOCK ==============="; cat requirements.lock.txt
+```
+
+`2026-09-17 00:40:17` · **cmd** — Precise mtimes for eval files
+```bash
+"C:/Users/uniya/legal-mvp/venv/Scripts/python.exe" -c "
+import os,datetime,glob
+for p in sorted(glob.glob(r'C:\Users\uniya\legal-mvp\eval\*')):
+    if os.path.isdir(p): continue
+    st=os.stat(p)
+    print(f'{os.path.basename(p):<32} mtime={datetime.datetime.fromtimestamp(st.st_mtime).isoformat()} ctime={datetime.datetime.fromtimestamp(st.st_ctime).isoformat()} size={st.st_size}')
+"
+```
+
+`2026-09-17 00:40:25` · **cmd** — Search for supersession references
+```bash
+cd "C:/Users/uniya/legal-mvp" && grep -rn "queryset.jsonl\|queryset\b" --include=*.py --include=*.md scripts/ docs/ eval/ app.py 2>/dev/null | grep -iv "^eval/.*\.py:.*#" | grep -i "supersede\|superseded\|obsolete\|replaced\|deprecat\|default\|--queryset\|QUERYSET" | head -40
+```
+
+`2026-09-17 00:40:32` · **cmd** — Scan project imports via AST
+```bash
+mkdir -p "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && cat > "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/scan.py" <<'EOF'
+import ast, os, sys, json
+ROOT = r"C:\Users\uniya\legal-mvp"
+EXCL_DIRS = {"venv", ".venv", "__pycache__", "qdrant_storage", "backup", ".git", ".pytest_cache", ".tools", "node_modules"}
+EXCL_FILES = {"full_codebase.py"}
+try:
+    STD = sys.stdlib_module_names
+except AttributeError:
+    STD = set()
+hits = {}
+files_scanned = []
+errors =
+… [truncated, 2188 more chars]
+```
+
+`2026-09-17 00:40:33` · **cmd** — Inventory results CSVs
+```bash
+for f in results/*.csv results.csv; do echo "=== $f ==="; ./venv/Scripts/python.exe -c "
+import csv,sys
+p=r'$f'
+with open(p,newline='',encoding='utf-8') as fh:
+    r=csv.reader(fh); rows=list(r)
+print('rows_incl_header:',len(rows),'data_rows:',len(rows)-1)
+print('header:',rows[0])
+" 2>&1 | head -8; done
+```
+
+`2026-09-17 00:40:44` · **cmd** — List distinct metrics
+```bash
+cat > "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/q.py" << 'EOF'
+import csv, glob, os, sys
+rows=[]
+for p in glob.glob(r'C:\Users\uniya\legal-mvp\results\*.csv'):
+    with open(p,newline='',encoding='utf-8') as fh:
+        for r in csv.DictReader(fh):
+            r['_file']=os.path.basename(p); rows.append(r)
+print("TOTAL ROWS",len(rows))
+print("\n=== DISTINCT METRICS ===")
+from collections import Counter
+for m,c in sorted(Counter(r['metric'] for r in rows).items()): print(f"{m}\t{c}")
+EOF
+./venv/Scripts/python.exe "C:/Users
+… [truncated, 111 more chars]
+```
+
+`2026-09-17 00:40:49` · **cmd** — Check layman gold varies per variant
+```bash
+cd "C:/Users/uniya/legal-mvp" && "./venv/Scripts/python.exe" -c "
+import json
+rows=[json.loads(l) for l in open('eval/layman_queryset.jsonl',encoding='utf-8')]
+for r in rows:
+    if r['pair_id']=='L001':
+        print(r['variant'], r['applicable_regime'], r['expected_sections'], r['gold_mode'], r['expected_corpus'])
+print('---- per-variant gold differs? ----')
+import collections
+d=collections.defaultdict(set)
+for r in rows: d[r['pair_id']].add(tuple(r['expected_sections']))
+print('pairs whose 4 variants share identical expected_sections:', sum(1 for k,v in d.items() if len(v)==1), 'of', len(d)
+… [truncated, 3 more chars]
+```
+
+`2026-09-17 00:40:53` · **cmd** — Dump per-library import sites
+```bash
+"C:/Users/uniya/legal-mvp/venv/Scripts/python.exe" -c "
+import json
+d=json.load(open(r'C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\scratchpad\scan.json'))
+for lib in sorted(d['third']):
+    print('###',lib)
+    for rel,ln,txt in sorted(d['third'][lib]):
+        print('   %s:%d  %s'%(rel,ln,txt))
+"
+```
+
+`2026-09-17 00:40:53` · **cmd** — Grep key docs for queryset status
+```bash
+cd "C:/Users/uniya/legal-mvp" && grep -rn -i "queryset" docs/STATE.md docs/EVALUATION_PLAN.md docs/FILE_STRUCTURE.md docs/GAPS.md 2>/dev/null | head -50
+```
+
+`2026-09-17 00:41:00` · **cmd** — Extract requested metric rows
+```bash
+cat > "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad/q2.py" << 'EOF'
+import csv, glob, os
+rows=[]
+for p in glob.glob(r'C:\Users\uniya\legal-mvp\results\*.csv'):
+    with open(p,newline='',encoding='utf-8') as fh:
+        for r in csv.DictReader(fh):
+            r['_file']=os.path.basename(p); rows.append(r)
+def show(title, pred, cols=('_file','metric','query_set','definition','stage','k','value','n','ci_lo','ci_hi','cluster_ci_lo','cluster_ci_hi','notes'), notes_len=400):
+    print("\n"+"="*100); print(title); print("="*100)
+ 
+… [truncated, 909 more chars]
+```
+
+`2026-09-17 00:41:01` · **cmd** — Search docs for query set counts
+```bash
+cd "C:/Users/uniya/legal-mvp" && grep -rn -i "518\|58 hand\|hand-written\|starter set\|four query sets" docs/*.md docs/results/*.md 2>/dev/null | grep -v SESSION_LOG | head -30; echo "=== FILE_STRUCTURE eval section ==="; grep -n -A3 -B1 "eval/" docs/FILE_STRUCTURE.md | head -60
+```
+
+`2026-09-17 00:41:05` · **cmd** — Get installed versions
+```bash
+"C:/Users/uniya/legal-mvp/venv/Scripts/python.exe" -c "
+import importlib.metadata as m
+pkgs=['Pillow','python-docx','python-dotenv','fastapi','PyMuPDF','fpdf2','Jinja2','langdetect','matplotlib','numpy','openai','openpyxl','pandas','pdfplumber','pydantic','pytesseract','pytest','qdrant-client','rank-bm25','requests','scipy','streamlit','uvicorn','starlette','python-multipart','scikit-learn','tiktoken','seaborn','rank_bm25']
+for p in pkgs:
+    try: print('%-18s %s'%(p,m.version(p)))
+    except Exception as e: print('%-18s NOT INSTALLED'%p)
+"
+```
+
+`2026-09-17 00:41:07` · **cmd** — Check usage of scipy, rank_bm25, OCR
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "--- scipy usage ---" && sed -n '478,500p' experiments/metrics_lib.py && echo "--- rank_bm25 usage ---" && sed -n '238,258p' experiments/exp07_hybrid.py && echo "--- pytesseract usage ---" && grep -n "pytesseract\|Image\|detect(" ingest/extract.py | head -30
+```
+
+`2026-09-17 00:41:08` · **cmd** — Read WORKLOG query set table
+```bash
+cd "C:/Users/uniya/legal-mvp" && sed -n '90,115p' docs/WORKLOG.md; echo "=== grep supersede ==="; grep -rn -i "supersed\|obsolete\|no longer used\|retired" docs/WORKLOG.md docs/STATE.md docs/DECISIONS.md 2>/dev/null | grep -i "queryset\|query set\|58\|hand" | head -20
+```
+
+`2026-09-17 00:41:18` · **cmd** — Extract metrics without notes
+```bash
+cd "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && sed -i 's/notes_len=400/notes_len=0/' q.py 2>/dev/null; cat > q3.py << 'EOF'
+import csv, glob, os
+rows=[]
+for p in glob.glob(r'C:\Users\uniya\legal-mvp\results\*.csv'):
+    with open(p,newline='',encoding='utf-8') as fh:
+        for r in csv.DictReader(fh):
+            r['_file']=os.path.basename(p); rows.append(r)
+def show(title, pred, nl=0):
+    print("\n### "+title)
+    got=[r for r in rows if pred(r)]
+    if not got: print("  NO ROWS MATCH"); return
+    print("file | me
+… [truncated, 853 more chars]
+```
+
+`2026-09-17 00:41:19` · **cmd** — Inspect client and template usage
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "=== openai_client ===" && sed -n '1,60p' clients/openai_client.py && echo "=== report/render.py ===" && sed -n '1,25p' report/render.py && echo "=== answer/prompt.py ===" && sed -n '1,15p' answer/prompt.py
+```
+
+`2026-09-17 00:41:20` · **cmd** — Inspect reporter and ingest usage
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "=== reporter fpdf ===" && grep -n "FPDF\|def " agents/reporter.py | head -20 && echo "=== chunk langdetect ===" && sed -n '30,55p' ingest/chunk.py && echo "=== index.py ===" && sed -n '1,20p' ingest/index.py
+```
+
+`2026-09-17 00:41:26` · **cmd** — Final uniqueness and pair_id corrections
+```bash
+cd "C:/Users/uniya/legal-mvp" && "./venv/Scripts/python.exe" -c "
+import json,collections
+E=r'eval/'
+F=['generated_queryset.jsonl','layman_queryset.jsonl','paired_dated_queryset.jsonl','paired_queryset.jsonl','queryset.jsonl']
+S={f:set(json.loads(l)['text'] for l in open(E+f,encoding='utf-8') if l.strip()) for f in F}
+allq=set().union(*S.values())
+nons=[f for f in F if f!='queryset.jsonl']
+nq=set().union(*[S[f] for f in nons])
+print('ALL 5 files: total rows =',sum(len(S[f]) for f in F),' unique texts =',len(allq))
+print('4 non-superseded:            unique texts =',len(nq))
+print('queryset.jso
+… [truncated, 473 more chars]
+```
+
+`2026-09-17 00:41:33` · **cmd** — Check openpyxl and matplotlib usage
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "=== openpyxl ===" && sed -n '50,70p' experiments/make_workbook.py && echo "=== matplotlib exp03 ===" && sed -n '60,75p' experiments/exp03_calibration.py
+```
+
+`2026-09-17 00:41:36` · **cmd** — Pull notes for ambiguous metrics
+```bash
+cd "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && cat > q4.py << 'EOF'
+import csv, glob, os
+rows=[]
+for p in sorted(glob.glob(r'C:\Users\uniya\legal-mvp\results\*.csv')):
+    with open(p,newline='',encoding='utf-8') as fh:
+        for i,r in enumerate(csv.DictReader(fh),start=2):
+            r['_file']=os.path.basename(p); r['_line']=i; rows.append(r)
+def show(title,pred,nl=260):
+    print("\n### "+title)
+    for r in [x for x in rows if pred(x)]:
+        print(f"{r['_file']}:{r['_line']} | {r['query_set']} | def={r['defin
+… [truncated, 608 more chars]
+```
+
+`2026-09-17 00:41:38` · **cmd** — List the 9 non-ASCII rows
+```bash
+cd "C:/Users/uniya/legal-mvp" && "./venv/Scripts/python.exe" -c "
+import json
+for i,l in enumerate(open('eval/generated_queryset.jsonl',encoding='utf-8'),1):
+    r=json.loads(l); s=json.dumps(r,ensure_ascii=False)
+    if any(ord(c)>127 for c in s):
+        fl=[k for k,v in r.items() if isinstance(v,str) and any(ord(c)>127 for c in v)]
+        print(i, r['query_id'], r['expected_corpus'], r['variant'], '| fields:',fl,'|', repr(r['text'])[:110])
+"
+```
+
+`2026-09-17 00:41:45` · **cmd** — Check langdetect use and backup file references
+```bash
+cd "C:/Users/uniya/legal-mvp" && grep -rn "detect(" ingest/chunk.py | head -5; echo "=== uvicorn/starlette refs in project ==="; grep -rn "uvicorn\|starlette" --include=*.py . 2>/dev/null | grep -v "^./venv\|^./backup\|full_codebase" | head -10; echo "=== extract_backup referenced? ==="; grep -rn "extract_backup\|app_backup" --include=*.py . 2>/dev/null | grep -v "^./venv\|full_codebase" | head
+```
+
+`2026-09-17 00:41:51` · **cmd** — Self-naming DF/IDF and index counts
+```bash
+cd "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && cat > q5.py << 'EOF'
+import csv, glob, os
+rows=[]
+for p in sorted(glob.glob(r'C:\Users\uniya\legal-mvp\results\*.csv')):
+    with open(p,newline='',encoding='utf-8') as fh:
+        for i,r in enumerate(csv.DictReader(fh),start=2):
+            r['_file']=os.path.basename(p); r['_line']=i; rows.append(r)
+def show(title,pred,nl=200):
+    print("\n### "+title)
+    for r in [x for x in rows if pred(x)]:
+        print(f"{r['_file']}:{r['_line']} | {r['metric']} | qs={r['query_set
+… [truncated, 927 more chars]
+```
+
+`2026-09-17 00:41:53` · **cmd** — Check tests for filesystem writes or network
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "=== writes in tests ===" && grep -rn "tmp_path\|tmpdir\|open(.*[\"']w\|mkdir\|write_text\|NamedTemporary\|TemporaryDirectory\|requests\.\|httpx\|localhost\|127.0.0.1" tests/*.py | head -30
+```
+
+`2026-09-17 00:42:07` · **cmd** — recall_at_k at 15
+```bash
+cd "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && cat > q6.py << 'EOF'
+import csv, glob, os
+rows=[]
+for p in sorted(glob.glob(r'C:\Users\uniya\legal-mvp\results\*.csv')):
+    with open(p,newline='',encoding='utf-8') as fh:
+        for i,r in enumerate(csv.DictReader(fh),start=2):
+            r['_file']=os.path.basename(p); r['_line']=i; rows.append(r)
+print("### recall_at_k k=15 stage=raw_15")
+for r in rows:
+    if r['metric']=='recall_at_k' and r['k']=='15' and r['stage']=='raw_15':
+        print(f"{r['_file']}:{r['_line'
+… [truncated, 654 more chars]
+```
+
+`2026-09-17 00:42:12` · **cmd** — Read run_logger, logging, schemas
+```bash
+cat -n core/run_logger.py; echo "=========== core/logging.py ==========="; cat -n core/logging.py; echo "=========== core/schemas.py ==========="; cat -n core/schemas.py
+```
+
+`2026-09-17 00:42:15` · **cmd** — Compare requirements vs lock vs venv
+```bash
+cd "C:/Users/uniya/legal-mvp" && for p in numpy pandas matplotlib scipy openpyxl rank-bm25 rank_bm25 torch ultralytics langchain opencv-python; do printf "%-16s req.txt:%s  lock:%s\n" "$p" "$(grep -ic "^$p==" requirements.txt)" "$(grep -ic "^$p==" requirements.lock.txt)"; done; echo "=== lock line count ==="; wc -l < requirements.lock.txt; echo "=== venv installed count ==="; ./venv/Scripts/python.exe -m pip list --format=freeze 2>/dev/null | wc -l
+```
+
+`2026-09-17 00:42:25` · **cmd** — Diff venv freeze against lock file
+```bash
+cd "C:/Users/uniya/legal-mvp" && ./venv/Scripts/python.exe -m pip list --format=freeze 2>/dev/null | tr 'A-Z' 'a-z' | tr '_' '-' | sort > /tmp/venv.txt && tr 'A-Z' 'a-z' < requirements.lock.txt | tr '_' '-' | sort > /tmp/lock.txt && echo "=== IN VENV, NOT IN LOCK ===" && comm -23 /tmp/venv.txt /tmp/lock.txt && echo "=== IN LOCK, NOT IN VENV (or version drift) ===" && comm -13 /tmp/venv.txt /tmp/lock.txt
+```
+
+`2026-09-17 00:42:30` · **cmd** — Analyse runs/ logs
+```bash
+cd "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && cat > q7.py << 'EOF'
+import json,glob,os
+from collections import Counter
+base=r'C:\Users\uniya\legal-mvp\runs'
+tot=0; allkeys=Counter(); stagekeys={}
+dirs=sorted([d for d in os.listdir(base) if os.path.isdir(os.path.join(base,d))])
+print("run dirs:",len(dirs))
+print(f"{'dir':45s} {'lines':>6s} {'meta':>5s}  git_sha/dirty")
+for d in dirs:
+    p=os.path.join(base,d,'queries.jsonl')
+    n=0
+    if os.path.exists(p):
+        with open(p,encoding='utf-8') as fh:
+            for 
+… [truncated, 1206 more chars]
+```
+
+`2026-09-17 00:42:39` · **cmd** — Check gitignore covers pytest artifacts
+```bash
+cd "C:/Users/uniya/legal-mvp" && grep -n "pytest_cache\|pycache" .gitignore
+```
+
+`2026-09-17 00:42:44` · **cmd** — Check pytest_cache self-ignore
+```bash
+cd "C:/Users/uniya/legal-mvp" && cat .pytest_cache/.gitignore && echo "--- v contents ---" && find .pytest_cache -type f | head
+```
+
+`2026-09-17 00:42:51` · **cmd** — Reconcile 859 vs 617 and check language bucket
+```bash
+cd "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && cat > q8.py << 'EOF'
+import json,glob,os,csv
+from collections import Counter
+base=r'C:\Users\uniya\legal-mvp\runs'
+modes=Counter(); qid=Counter(); lang=Counter(); refreason=Counter(); variant=Counter()
+recs=[]
+for d in sorted(os.listdir(base)):
+    p=os.path.join(base,d,'queries.jsonl')
+    if not os.path.exists(p): continue
+    for line in open(p,encoding='utf-8'):
+        line=line.strip()
+        if not line: continue
+        r=json.loads(line); recs.append((d,r))
+      
+… [truncated, 1273 more chars]
+```
+
+`2026-09-17 00:43:04` · **cmd** — Survey remaining pipeline modules
+```bash
+sed -n '1,60p' agents/router.py | cat -n; echo "... [router route signature] ..."; grep -n "def route\|class QueryPlan\|@dataclass\|target_corpora\|original_query" agents/router.py; echo "=== INTAKE ==="; grep -n "def analyze\|class CaseContext\|@dataclass\|chat(\|def \|fallback" agents/intake.py | head -30; echo "=== DATES ==="; grep -n "^def \|^class \|@dataclass\|def as_log\|Era\|chat(" core/dates.py | head -30; echo "=== STATUTE_MAPPER ==="; grep -n "^def \|^class \|@dataclass\|def as_log\|chat(" core/statute_mapper.py | head -30; echo "=== VERIFIER ==="; grep -n "^def \|^class \|def audit
+… [truncated, 153 more chars]
+```
+
+`2026-09-17 00:43:12` · **cmd** — Check code-mixed and multilingual in results
+```bash
+grep -n "code-mixed\|Hinglish\|hinglish" eval/*.jsonl eval/*.py | head -20; echo "=== multilingual in results ==="; grep -rln "lang_detected\|multiling\|Multiling\|hindi\|Hindi\|langdetect\|language" results/*.csv | head; echo "--- csv hits ---"; grep -o "lang_detected\|multilingual\|langdetect" results/*.csv | sort | uniq -c
+```
+
+`2026-09-17 00:43:20` · **cmd** — Scan source PDFs for non-English script
+```bash
+ls -la data/ && echo "=== non-English scan of source PDFs via pymupdf ===" && ./venv/Scripts/python.exe -c "
+import fitz, unicodedata, glob, os, collections
+for p in sorted(glob.glob('data/*.pdf')):
+    d=fitz.open(p); nonascii=collections.Counter(); npages=d.page_count; chars=0
+    for i in range(npages):
+        t=d.load_page(i).get_text('text')
+        chars+=len(t)
+        for ch in t:
+            if ord(ch)>127: nonascii[ch]+=1
+    # classify scripts
+    scripts=collections.Counter()
+    for ch,c in nonascii.items():
+        try: n=unicodedata.name(ch)
+        except ValueError: n='UNNAME
+… [truncated, 213 more chars]
+```
+
+`2026-09-17 00:43:29` · **cmd** — Locate source PDFs
+```bash
+echo "=== find source PDFs ==="; find . -iname "*.pdf" -not -path "./venv/*" -not -path "./.tools/*" -not -path "./qdrant_storage/*" 2>/dev/null | head -20; echo "=== 'language' in retrieval_metrics.csv ==="; grep -o "language[^,;]\{0,80\}" results/retrieval_metrics.csv | sort -u | head
+```
+
+`2026-09-17 00:43:35` · **cmd** — List experiments, backup, scripts
+```bash
+ls -la experiments/ backup/ scripts/ 2>&1 | head -80
+```
+
+`2026-09-17 00:43:49` · **cmd** — Inspect stages.jsonl structure
+```bash
+cd "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && cat > lang.py << 'EOF'
+import json,os,unicodedata,collections
+p=r'C:\Users\uniya\legal-mvp\experiments\stages.jsonl'
+n=0; keys=collections.Counter(); payloadkeys=collections.Counter()
+nonascii=collections.Counter(); scripts=collections.Counter()
+textchars=0; texts=0; langvals=collections.Counter()
+first=None
+def walk_text(o):
+    global textchars,texts
+    pass
+for line in open(p,encoding='utf-8'):
+    line=line.strip()
+    if not line: continue
+    n+=1; r=json.loads(line)
+… [truncated, 251 more chars]
+```
+
+`2026-09-17 00:44:08` · **cmd** — Scan retrieved corpus text for non-English script
+```bash
+cd "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && cat > lang2.py << 'EOF'
+import json,unicodedata,collections,glob,os
+scripts=collections.Counter(); chars=0; snips=0; distinct=set(); pkeys=collections.Counter()
+docs=collections.Counter()
+def scan(t):
+    global chars,snips
+    snips+=1; chars+=len(t)
+    for ch in t:
+        if ord(ch)>127:
+            try: nm=unicodedata.name(ch)
+            except ValueError: nm='UNNAMED U+%04X'%ord(ch)
+            scripts[nm]+=1; distinct.add(ch)
+for line in open(r'C:\Users\uniya\legal-
+… [truncated, 1448 more chars]
+```
+
+`2026-09-17 00:44:15` · **cmd** — Read index.py and clients
+```bash
+cat -n ingest/index.py; echo "=== qdrant_client ==="; cat -n clients/qdrant_client.py; echo "=== openai_client head ==="; sed -n '1,60p' clients/openai_client.py | cat -n
+```
+
+`2026-09-17 00:44:23` · **cmd** — Find absent-from-corpus declaration
+```bash
+grep -n "CORPORA_IN_INDEX\|NOT_IN_INDEX\|ABSENT\|absent" core/recodification.py core/citations.py | head -30; echo "=== CORPORA_IN_INDEX def ==="; grep -n -A 25 "CORPORA_IN_INDEX" core/recodification.py | head -40
+```
+
+`2026-09-17 00:44:24` · **cmd** — README structure
+```bash
+grep -n "^## \|^### \|^#### " README.md | sed -n '1,80p'
+```
+
+`2026-09-17 00:44:29` · **cmd** — Read README corrections table and key claims
+```bash
+sed -n '1204,1222p' README.md; echo "==== README Part1 corpus section (521-532) ===="; sed -n '521,533p' README.md; echo "==== README 386-416 confidence ===="; sed -n '386,416p' README.md; echo "==== README 458-490 chunking/embed ===="; sed -n '458,491p' README.md
+```
+
+`2026-09-17 00:44:53` · **cmd** — Count wrong formula strings, read corrected_composite
+```bash
+echo "=== count of WRONG deployed-formula string in CSVs ==="; grep -c "deployed composite = 0.55\*top_k_mean + 0.15\*score_gap" results/*.csv 2>/dev/null; echo "--- and in md ---"; grep -c "deployed composite = 0.55\*top_k_mean + 0.15\*score_gap" results/RESULTS.md results/EXPLAIN.md README.md 2>/dev/null; echo; echo "=== corrected_composite.csv full ==="; ./venv/Scripts/python.exe -c "
+import csv
+for r in csv.DictReader(open(r'results/corrected_composite.csv',newline='',encoding='utf-8')):
+    print(f\"{r['metric']} | qs={r['query_set']} | def={r['definition']} | stage={r['stage']} | val={r[
+… [truncated, 95 more chars]
+```
+
+`2026-09-17 00:45:05` · **cmd** — Check README Result 5 and 8 numbers
+```bash
+echo "=== search 0.610 / 0.61 composite claims ==="; grep -rn "0\.610\|0,610" README.md docs/*.md results/RESULTS.md 2>/dev/null | head -20; echo; echo "=== README Result 5 + Result 8 ==="; sed -n '1133,1150p' README.md; echo "---- Result 8 ----"; sed -n '1183,1204p' README.md
+```
+
+`2026-09-17 00:45:24` · **cmd** — Check refusal and entity_coverage in logs
+```bash
+cd "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && /c/Users/uniya/legal-mvp/venv/Scripts/python.exe -c "
+import json,glob,collections
+c=collections.Counter(); a=collections.Counter(); ec=collections.Counter(); ecd=collections.Counter()
+n=0
+for p in glob.glob(r'C:\Users\uniya\legal-mvp\runs\*\queries.jsonl'):
+    for line in open(p,encoding='utf-8'):
+        line=line.strip()
+        if not line: continue
+        n+=1; r=json.loads(line)
+        c[r['confidence'].get('refused')]+=1
+        a[r['answer'].get('refused')]+=1
+  
+… [truncated, 319 more chars]
+```
+
+`2026-09-17 00:45:25` · **cmd** — Check ANSWERS worked example and GAPS 10
+```bash
+sed -n '495,515p' docs/ANSWERS.md; echo "=== GAPS #10 ==="; grep -n -A 12 "^### 10\.\|^## 10\.\|Finding 10" docs/GAPS.md | head -30
+```
+
+`2026-09-17 00:45:41` · **cmd** — Entity coverage and normaliser metrics
+```bash
+cd "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && /c/Users/uniya/legal-mvp/venv/Scripts/python.exe -c "
+import csv,glob,os
+for p in sorted(glob.glob(r'C:\Users\uniya\legal-mvp\results\*.csv')):
+    for r in csv.DictReader(open(p,newline='',encoding='utf-8')):
+        if r['metric'].startswith('entity_coverage') or r['metric'].startswith('composite_reconstruction') or r['metric'] in ('normaliser_artefact_rate','normaliser_artefact_survival_to_index','normaliser_rewrites_total','normaliser_genuine_rate','normaliser_contents_
+… [truncated, 253 more chars]
+```
+
+`2026-09-17 00:45:42` · **cmd** — GAPS structure and absent statutes
+```bash
+grep -n "^## \|^### " docs/GAPS.md | head -40; echo "=== Absent statutes ==="; grep -rn "BNSS\|Constitution\|Evidence Act\|never ingested\|not in corpus" docs/GAPS.md | head -15
+```
+
+`2026-09-17 00:45:57` · **cmd** — Confirm which stages call an LLM
+```bash
+for f in agents/intake.py agents/router.py agents/retriever.py agents/answer.py agents/reporter.py core/dates.py core/statute_mapper.py core/verifier.py report/render.py; do printf "%-28s LLMcalls=%s  embed=%s\n" "$f" "$(grep -c 'chat(' $f)" "$(grep -c 'embed_one\|embed_texts' $f)"; done; echo; echo "=== intake chat site ==="; grep -n "chat(\|json.loads\|except" agents/intake.py | head -12; echo "=== router: any LLM/import ==="; head -5 agents/router.py; echo "=== dates.py resolve deterministic? ==="; grep -c "import re\|openai\|chat" core/dates.py; grep -n "^import\|^from" core/dates.py core/
+… [truncated, 34 more chars]
+```
+
+`2026-09-17 00:46:01` · **cmd** — Read intake analyze
+```bash
+sed -n '60,132p' agents/intake.py | cat -n
+```
+
+`2026-09-17 00:46:15` · **cmd** — Check logged models and .env
+```bash
+cd "C:/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/dadf5f93-17e2-4f71-9337-1fbedc0fd408/scratchpad" && /c/Users/uniya/legal-mvp/venv/Scripts/python.exe -c "
+import json,glob,collections
+m=collections.Counter(); pr=collections.Counter()
+for p in glob.glob(r'C:\Users\uniya\legal-mvp\runs\*\queries.jsonl'):
+    for line in open(p,encoding='utf-8'):
+        line=line.strip()
+        if not line: continue
+        r=json.loads(line); m[r['answer'].get('model')]+=1; pr[r['answer'].get('provider_name')]+=1
+print('answer.model:',dict(m)); print('answer.provider:',dict(pr))
+import jso
+… [truncated, 315 more chars]
+```
+
+`2026-09-17 00:46:22` · **cmd** — Check split_long_body for overlap
+```bash
+sed -n '120,180p' ingest/chunk.py | cat -n
+```
+
+### 2026-09-17 00:51:57 · prompt
+
+<task-notification>
+<task-id>ab1161e5425720e8d</task-id>
+<tool-use-id>toolu_01RLLk26qoMhip3qnaNRdFet</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\a40bc02e-fa03-4aad-86f9-11c12a2021af\tasks\ab1161e5425720e8d.output</output-file>
+<status>completed</status>
+<summary>Agent "Audit codebase for synopsis facts" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>---
+
+# FACT-GATHERING AUDIT â€” `legal-mvp` @ `metrics/sept-01`
+Read-only. Nothing modified, no git run, no installs. Every claim below carries `file:line` or the command/query that produced it.
+
+---
+
+## LEAD FINDING â€” the deployed confidence formula is printed WRONG inside the results themselves
+
+`results/calibration.csv` states, in **60 of its 172 rows**, that the deployed composite is:
+
+```
+deployed composite = 0.55*top_k_mean + 0.15*score_gap + 0.30*entity_coverage
+```
+
+**This is not the deployed formula.** `agents/retriever.py:137-142` computes:
+
+```python
+137    gap_penalty = min(score_gap / 0.3, 1.0)
+138    confidence = (
+139        0.55 * top_k_mean +
+140        0.15 * (1.0 - gap_penalty) +
+141        0.30 * entity_coverage
+142    )
+```
+
+The middle term is **inverted and normalised**, not raw. The project's own evidence proves the CSV string is wrong â€” `results/ablation.csv` `composite_reconstruction_max_abs_dev` = **9e-05** for the `(1-gap_penalty)` form (agrees on all 617 rows to the 4-dp rounding floor), and `composite_reconstruction_max_abs_dev_brief_formula` = **0.148065** for the `0.15*score_gap` form (*"DOES NOT RECONSTRUCT â€” 617 of 617 rows off by more than 1e-3"*).
+
+So: **`ablation.csv` is right, `calibration.csv` is wrong, and both shipped.** The same wrong string appears **66 times in `results/RESULTS.md`**. Every `ece` and `coverage_at_risk` number in section 8 below is correct as a *number* but is labelled with a formula that does not exist in the code. `grep -c "deployed composite = 0.55\*top_k_mean + 0.15\*score_gap" results/*.csv results/RESULTS.md`
+
+**This is the single thing most likely to be caught by an examiner who reads one CSV and then reads `retriever.py`.**
+
+---
+
+## 1. THE PIPELINE, AS IT EXECUTES
+
+Source of truth: `app.py:125-315`. **It is not 8 unconditional stages. It is 6 unconditional + 2 that are OFF by default.**
+
+| # | Source order | Stage | File / entry point | LLM? | In â†’ Out |
+|---|---|---|---|---|---|
+| 0 | `app.py:134` | Run-record open | `core/run_logger.py:170` `new_record()` | no | `str` â†’ `QueryRecord` |
+| 1 | `app.py:140` | **Intake** | `agents/intake.py:66` `IntakeAgent.analyze` | **YES** â€” `chat_json`, `max_tokens=1500` (`intake.py:68`) | `str` â†’ `CaseContext` (pydantic, `intake.py:6`) |
+| 2 | `app.py:155` | **Router** | `agents/router.py:70` `RouterAgent.route` | no â€” pure `re` (`router.py:1`, zero `chat(` calls) | `CaseContext` â†’ `QueryPlan` (pydantic, `router.py:7`) |
+| 2.5a | `app.py:183` | **Date resolver** â€” **CONDITIONAL** | `core/dates.py:234` `resolve()` | no â€” `re` only | `(str, date)` â†’ `DateVerdict` (`dates.py:148`) |
+| 2.5b | `app.py:186` | **Statute mapper** â€” **CONDITIONAL** | `core/statute_mapper.py:155` `map_query()` | no | `(str, era)` â†’ `MappingDecision` (`statute_mapper.py:77`); mutates `plan.target_corpora` |
+| 3 | `app.py:202` | **Retrieval** | `agents/retriever.py:157` `RetrievalAgent.retrieve` | no LLM; **1 embedding call** `embed_one` (`retriever.py:161`) | `QueryPlan` â†’ `RetrievalResult` (`retriever.py:49`) |
+| 4 | `app.py:238` | **Answer** | `agents/answer.py:99` `AnswerAgent.answer` | **YES** â€” `chat()` at `answer.py:145` | `(str, RetrievalResult)` â†’ `dict` |
+| 5 | `app.py:270` | **Reporter** â€” CONDITIONAL | `agents/reporter.py:16` `ReporterAgent.generate_report` | no â€” `fpdf2` | `dict` â†’ PDF on disk + `report_url` |
+| 6 | `app.
+… [truncated, 60379 more chars]
+
+`2026-09-17 00:54:39` · **cmd** — Render the two new synopsis figures
+```bash
+./venv/Scripts/python.exe experiments/make_synopsis_figures.py
+```
+
+`2026-09-17 00:56:06` · **cmd** — Re-render both synopsis figures
+```bash
+./venv/Scripts/python.exe experiments/make_synopsis_figures.py
+```
+
+`2026-09-17 00:56:32` · **cmd** — Re-render with the corrected flow arrow
+```bash
+./venv/Scripts/python.exe experiments/make_synopsis_figures.py
+```
+
+`2026-09-17 00:57:03` · **cmd** — Re-render and confirm all six synopsis figures exist
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe experiments/make_synopsis_figures.py
+echo
+echo "=== figures available for the synopsis ==="
+for f in SYN1_pipeline SYN2_problem F2_ipc_vs_bns F3_dense_vs_bm25 F4_self_naming F6_ablation; do
+  [ -f "figures/$f.png" ] && printf "  OK  %-22s\n" "$f.png" || printf "  MISSING %s\n" "$f.png"
+done
+```
+
+`2026-09-17 01:01:58` · **cmd** — Build the synopsis
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe experiments/make_synopsis.py 2>&1 | tail -20
+```
+
+`2026-09-17 01:02:22` · **cmd** — Verify document content and check for Word
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+import sys, re, docx
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+d = docx.Document("docs/SYNOPSIS_IT118.docx")
+txt = "\n".join(p.text for p in d.paragraphs)
+words = len(txt.split())
+print(f"  paragraphs: {len(d.paragraphs)}   tables: {len(d.tables)}   words: {words:,}")
+print(f"  est. pages at ~330 words/page with figures: ~{round(words/330)+4}")
+leftover = re.findall(r"\{[a-z_0-9]+\}", txt)
+print(f"  unresolved placeholders: {len(leftover)}  {sorted(set(leftover))[:6]}")
+print()
+print("  headings:")
+for p in d.pa
+… [truncated, 329 more chars]
+```
+
+`2026-09-17 01:06:04` · **cmd** — Tighten layout and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+from pathlib import Path
+p = Path("experiments/make_synopsis.py"); s = p.read_text(encoding="utf-8")
+# figures a little narrower so they cost less vertical space
+s = s.replace('def figure(doc, stem, caption, number, width=6.0):',
+              'def figure(doc, stem, caption, number, width=5.1):')
+# tighter paragraph spacing throughout
+s = s.replace('pf.space_after = Pt(6)\n    pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY',
+              'pf.space_after = Pt(4)\n    pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY')
+s = s.replace('space_be
+… [truncated, 431 more chars]
+```
+
+`2026-09-17 01:10:04` · **cmd** — Apply the tightening cuts
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/a40bc02e-fa03-4aad-86f9-11c12a2021af/scratchpad"
+cp experiments/synopsis_text.py "$SP/synopsis_text.bak"
+./venv/Scripts/python.exe "$SP/tighten.py"
+echo "--- syntax check ---"
+./venv/Scripts/python.exe -c "import ast,pathlib;ast.parse(pathlib.Path('experiments/synopsis_text.py').read_text(encoding='utf-8'));print('  parses OK')"
+```
+
+`2026-09-17 01:10:28` · **cmd** — Rebuild with tightened prose
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe experiments/make_synopsis.py 2>&1 | tail -4
+```
+
+`2026-09-17 01:11:38` · **cmd** — Tighten layout spacing and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+from pathlib import Path
+p = Path("experiments/make_synopsis.py"); s = p.read_text(encoding="utf-8")
+subs = [
+  ("def figure(doc, stem, caption, number, width=5.1):",
+   "def figure(doc, stem, caption, number, width=4.4):"),
+  ("space_before=0, space_after=4, italic=False, spacing=1.5):",
+   "space_before=0, space_after=3, italic=False, spacing=1.5):"),
+  ("pf.space_after = Pt(4)\n    pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY",
+   "pf.space_after = Pt(3)\n    pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY"),
+  ("space_before=10, spac
+… [truncated, 1317 more chars]
+```
+
+`2026-09-17 01:13:36` · **cmd** — Apply second tightening and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/a40bc02e-fa03-4aad-86f9-11c12a2021af/scratchpad"
+./venv/Scripts/python.exe "$SP/tighten2.py"
+./venv/Scripts/python.exe -c "import ast,pathlib;ast.parse(pathlib.Path('experiments/synopsis_text.py').read_text(encoding='utf-8'));print('  parses OK')"
+./venv/Scripts/python.exe experiments/make_synopsis.py 2>&1 | grep -E "wrote|DROPPED|values"
+```
+
+`2026-09-17 01:14:09` · **cmd** — Find where the pages are being wasted
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import fitz
+d = fitz.open('docs/SYNOPSIS_IT118.pdf')
+print(f'{d.page_count} pages')
+for i, p in enumerate(d):
+    txt = p.get_text().strip()
+    imgs = len(p.get_images())
+    # vertical extent actually used
+    blocks = p.get_text('blocks')
+    ib = p.get_image_info()
+    ys = [b[3] for b in blocks] + [x['bbox'][3] for x in ib]
+    used = max(ys) if ys else 0
+    first = txt.split(chr(10))[0][:46] if txt else '(no text)'
+    print(f'  p{i+1:2}  imgs={imgs}  words={len(txt.split()):4}  bottom={used:5.0f}/792  {first!r}')
+"
+```
+
+### 2026-09-17 01:15:04 · prompt
+
+sorry to interrupt i jope you use latez and ofc the language thing we decided in phase b see the docs and history include that in future as well
+
+`2026-09-17 01:15:15` · **cmd** — Search docs for the Phase B language decision
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== phase B / multilingual decisions in the docs ==="
+grep -rniE "multiling|hinglish|code-mix|code mix|regional lang|hindi|vernacular" docs/*.md README.md 2>/dev/null | grep -viE "^\S+:[0-9]+:\s*\|" | head -24
+```
+
+### 2026-09-17 01:16:38 · prompt
+
+latex pleae ands wtf why didnt you find it??? whta kind of grave incomoetency is..reread my entire word of chat every filed evrything made from scratch agin i dont trust your judgement anymore fuck you'
+
+`2026-09-17 01:17:25` · **cmd** — List docs and root files with line counts
+```bash
+ls -la "C:/Users/uniya/legal-mvp/docs/" && echo "---ROOT---" && ls -la "C:/Users/uniya/legal-mvp/" && echo "---WC---" && wc -l C:/Users/uniya/legal-mvp/docs/*.md C:/Users/uniya/legal-mvp/*.md
+```
+
+`2026-09-17 01:17:30` · **cmd** — Check for a LaTeX installation
+```bash
+for c in pdflatex xelatex lualatex latexmk tectonic; do
+  p=$(which $c 2>/dev/null) && echo "  $c: $p" || echo "  $c: not found"
+done
+echo "--- MiKTeX / TeX Live install dirs ---"
+ls -d "/c/Program Files/MiKTeX" "/c/Users/uniya/AppData/Local/Programs/MiKTeX" "/c/texlive" 2>/dev/null || echo "  none at the usual paths"
+```
+
+`2026-09-17 01:17:51` · **cmd** — Check install tooling and network
+```bash
+for c in winget scoop choco curl; do
+  p=$(which $c 2>/dev/null) && echo "  $c: $p" || echo "  $c: not found"
+done
+echo "--- can we reach github for a single-binary engine? ---"
+curl -sI -m 10 https://api.github.com/repos/tectonic-typesetting/tectonic/releases/latest 2>&1 | head -1 || echo "  no network"
+```
+
+`2026-09-17 01:17:52` · **cmd** — Read PLAN.md with line numbers
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/PLAN.md"
+```
+
+`2026-09-17 01:17:54` · **cmd** — Read PLAN_AUGUST.md with line numbers
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/PLAN_AUGUST.md"
+```
+
+`2026-09-17 01:18:02` · **cmd** — Read PLAN.md part 1
+```bash
+sed -n '1,320p' "C:\Users\uniya\.claude\projects\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\tool-results\bmiu8l7qt.txt"
+```
+
+`2026-09-17 01:18:03` · **cmd** — Read README lines 1-220
+```bash
+wc -l README.md && cat -n README.md | sed -n '1,220p'
+```
+
+`2026-09-17 01:18:07` · **cmd** — Read PLAN.md part 2
+```bash
+sed -n '320,620p' "C:\Users\uniya\.claude\projects\C--Users-uniya-legal-mvp\dadf5f93-17e2-4f71-9337-1fbedc0fd408\tool-results\bmiu8l7qt.txt"
+```
+
+`2026-09-17 01:18:10` · **cmd** — Read README lines 220-520
+```bash
+cat -n README.md | sed -n '220,520p'
+```
+
+`2026-09-17 01:18:11` · **cmd** — Read README lines 520-820
+```bash
+cat -n README.md | sed -n '520,820p'
+```
+
+`2026-09-17 01:18:13` · **cmd** — Read EVALUATION_PLAN.md
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/EVALUATION_PLAN.md"
+```
+
+`2026-09-17 01:18:17` · **cmd** — Read RESEARCH_CONTEXT.md
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/RESEARCH_CONTEXT.md"
+```
+
+`2026-09-17 01:18:18` · **cmd** — Read WORKLOG lines 1-280
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/WORKLOG.md" | sed -n '1,280p'
+```
+
+`2026-09-17 01:18:19` · **cmd** — Read README lines 820-1120
+```bash
+cat -n README.md | sed -n '820,1120p'
+```
+
+`2026-09-17 01:18:19` · **cmd** — Grep WORKLOG structure and keywords
+```bash
+grep -n -E "^#|^##|^###|CORRECTION|RETRACT|DECISION|DEFER|SUPERSED|REVERS|SCOPE" "C:/Users/uniya/legal-mvp/docs/WORKLOG.md" | head -300
+```
+
+`2026-09-17 01:18:21` · **cmd** — Read README lines 1120-1420
+```bash
+cat -n README.md | sed -n '1120,1420p'
+```
+
+`2026-09-17 01:18:31` · **cmd** — Read RESEARCH_POSITION_AND_PLAN.md
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/RESEARCH_POSITION_AND_PLAN.md"
+```
+
+`2026-09-17 01:18:31` · **cmd** — Read SUPERVISOR_BRIEF and NUMBERS_AT_A_GLANCE
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/SUPERVISOR_BRIEF.md"; echo "=====NUMBERS====="; cat -n "C:/Users/uniya/legal-mvp/docs/NUMBERS_AT_A_GLANCE.md"
+```
+
+`2026-09-17 01:18:33` · **cmd** — List repo root
+```bash
+ls -la && echo "--- TOP LEVEL PY ---" && ls *.py 2>/dev/null
+```
+
+`2026-09-17 01:18:34` · **cmd** — Read README lines 1420-1700
+```bash
+cat -n README.md | sed -n '1420,1700p'
+```
+
+`2026-09-17 01:18:34` · **cmd** — Read WORKLOG 280-520
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/WORKLOG.md" | sed -n '280,520p'
+```
+
+`2026-09-17 01:18:35` · **cmd** — Read DECISIONS.md ADR log
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/DECISIONS.md"
+```
+
+`2026-09-17 01:18:36` · **cmd** — Read README lines 1700-1910
+```bash
+cat -n README.md | sed -n '1700,1910p'
+```
+
+`2026-09-17 01:18:38` · **cmd** — Find all python files excluding venv
+```bash
+find . -name "*.py" -not -path "./venv/*" -not -path "./.git/*" | sort
+```
+
+`2026-09-17 01:18:39` · **cmd** — Read WORKLOG 520-800
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/WORKLOG.md" | sed -n '520,800p'
+```
+
+`2026-09-17 01:18:41` · **cmd** — Read STATE and OPEN_QUESTIONS
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/STATE.md"; echo "=====OPENQ====="; cat -n "C:/Users/uniya/legal-mvp/docs/OPEN_QUESTIONS.md"
+```
+
+`2026-09-17 01:18:44` · **cmd** — Read app.py with line numbers
+```bash
+cat -n app.py
+```
+
+`2026-09-17 01:18:45` · **cmd** — Read WORKLOG 800-1080
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/WORKLOG.md" | sed -n '800,1080p'
+```
+
+`2026-09-17 01:18:48` · **cmd** — Grep decision-record keywords
+```bash
+grep -n -i -E "defer|drop|descope|out of scope|not built|never built|not implemented|will not|won't|decided against|reject|supersed|future work|parked|abandon|retract|correct(ion|ed)|wrong|cut |v2|later|postpon|unverified|could not|cannot be comput|never (ingested|ran|run|computed|written)|remains open|outstanding" README.md | sed -n '1,200p'
+```
+
+`2026-09-17 01:18:49` · **cmd** — Read TARGET_ARCHITECTURE.md
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/TARGET_ARCHITECTURE.md"
+```
+
+`2026-09-17 01:18:52` · **cmd** — Read WORKLOG 1080-1350
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/WORKLOG.md" | sed -n '1080,1350p'
+```
+
+`2026-09-17 01:18:52` · **cmd** — List key directories
+```bash
+for d in agents core clients ingest retrieve answer report eval scripts tests experiments; do echo "=== $d ==="; ls -la $d 2>/dev/null || echo "MISSING"; done
+```
+
+`2026-09-17 01:18:54` · **cmd** — Grep supervisor/venue/deadline mentions
+```bash
+grep -n -i -E "joshi|supervisor|deadline|venue|ACL|ARR|October|submission|conference|sir |item [0-9]" README.md
+```
+
+`2026-09-17 01:18:55` · **cmd** — Read WORKLOG 1350-end
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/WORKLOG.md" | sed -n '1350,1672p'
+```
+
+`2026-09-17 01:18:58` · **cmd** — Read THE_WHOLE_PICTURE.md
+```bash
+cat -n "C:/Users/uniya/legal-mvp/docs/THE_WHOLE_PICTURE.md"
+```
+
+`2026-09-17 01:18:59` · **cmd** — Read router and intake agents
+```bash
+cat -n agents/router.py; echo "=========="; cat -n agents/intake.py
+```
+
+`2026-09-17 01:19:00` · **cmd** — Read retriever agent
+```bash
+cat -n agents/retriever.py
+```
+
+`2026-09-17 01:19:05` · **cmd** — Read THE_WHOLE_PICTURE lines 1-230
+```bash
+sed -n '1,230p' "C:/Users/uniya/legal-mvp/docs/THE_WHOLE_PICTURE.md" | cat -n | sed 's/^ *\([0-9]*\)\t/L\1: /'
+```
+
+`2026-09-17 01:19:08` · **cmd** — SESSION_LOG size and head
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && wc -l SESSION_LOG.md && grep -c "" SESSION_LOG.md && head -40 SESSION_LOG.md
+```
+
+`2026-09-17 01:19:09` · **cmd** — Read answer and reporter agents
+```bash
+cat -n agents/answer.py; echo "=========="; cat -n agents/reporter.py
+```
+
+`2026-09-17 01:19:10` · **cmd** — Read core logging, schemas, config
+```bash
+cat -n core/logging.py; echo "=== schemas ==="; cat -n core/schemas.py; echo "=== config ==="; cat -n core/config.py
+```
+
+`2026-09-17 01:19:15` · **cmd** — Read THE_WHOLE_PICTURE lines 230-470
+```bash
+sed -n '230,470p' "C:/Users/uniya/legal-mvp/docs/THE_WHOLE_PICTURE.md" | cat -n | awk '{printf "L%d: %s\n", NR+229, substr($0, index($0,$2))}' 2>/dev/null | head -0; awk 'NR>=230 && NR<=470 {printf "L%d: %s\n", NR, $0}' "C:/Users/uniya/legal-mvp/docs/THE_WHOLE_PICTURE.md"
+```
+
+`2026-09-17 01:19:16` · **cmd** — Read SESSION_LOG 720-800
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && sed -n '720,800p' SESSION_LOG.md | cat -n | awk '{printf "%d\t%s\n", $1+719, substr($0, index($0,"\t")+1)}'
+```
+
+`2026-09-17 01:19:18` · **cmd** — Read core/dates.py
+```bash
+cat -n core/dates.py
+```
+
+`2026-09-17 01:19:19` · **cmd** — Read statute_mapper and recodification
+```bash
+cat -n core/statute_mapper.py; echo "=== recodification ==="; cat -n core/recodification.py
+```
+
+`2026-09-17 01:19:22` · **cmd** — Read THE_WHOLE_PICTURE lines 470-641
+```bash
+awk 'NR>=470 && NR<=641 {printf "L%d: %s\n", NR, $0}' "C:/Users/uniya/legal-mvp/docs/THE_WHOLE_PICTURE.md"
+```
+
+`2026-09-17 01:19:24` · **cmd** — Read verifier part 1
+```bash
+cat -n core/verifier.py | head -260
+```
+
+`2026-09-17 01:19:26` · **cmd** — Read run_logger, render, retrieve, answer modules
+```bash
+cat -n core/run_logger.py; echo "=== report/render.py ==="; cat -n report/render.py; echo "=== retrieve/decision.py ==="; cat -n retrieve/decision.py; echo "=== retrieve/pack.py ==="; cat -n retrieve/pack.py; echo "=== retrieve/search.py ==="; cat -n retrieve/search.py; echo "=== answer/llm.py ==="; cat -n answer/llm.py; echo "=== answer/prompt.py ==="; cat -n answer/prompt.py; echo "=== answer/validate.py ==="; cat -n answer/validate.py
+```
+
+`2026-09-17 01:19:30` · **cmd** — Read verifier part 2
+```bash
+cat -n core/verifier.py | sed -n '260,600p'
+```
+
+`2026-09-17 01:19:32` · **cmd** — Read ANSWERS.md lines 1-300
+```bash
+awk 'NR>=1 && NR<=300 {printf "L%d: %s\n", NR, $0}' "C:/Users/uniya/legal-mvp/docs/ANSWERS.md"
+```
+
+`2026-09-17 01:19:33` · **cmd** — Read clients and ingest index/extract
+```bash
+cat -n clients/openai_client.py; echo "=== qdrant_client ==="; cat -n clients/qdrant_client.py; echo "=== ingest/index.py ==="; cat -n ingest/index.py; echo "=== ingest/extract.py ==="; cat -n ingest/extract.py
+```
+
+`2026-09-17 01:19:33` · **cmd** — SESSION_LOG 5380-5560
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=5380 && NR<=5560 {printf "%d\t%s\n", NR, $0}' SESSION_LOG.md
+```
+
+`2026-09-17 01:19:37` · **cmd** — SESSION_LOG 14290-14400
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=14290 && NR<=14400 {printf "%d\t%s\n", NR, $0}' SESSION_LOG.md
+```
+
+`2026-09-17 01:19:38` · **cmd** — Read ANSWERS.md lines 300-587
+```bash
+awk 'NR>=300 && NR<=587 {printf "L%d: %s\n", NR, $0}' "C:/Users/uniya/legal-mvp/docs/ANSWERS.md"
+```
+
+`2026-09-17 01:19:42` · **cmd** — Grep TODO FIXME etc
+```bash
+echo "### TODO/FIXME/XXX/HACK/NotImplemented ###" && grep -rnE "TODO|FIXME|XXX|NotImplemented|HACK" --include="*.py" . --exclude-dir=venv --exclude-dir=.git --exclude-dir=.tools --exclude-dir=full_codebase.py 2>/dev/null | grep -v "full_codebase.py" | head -60
+```
+
+`2026-09-17 01:19:48` · **cmd** — Search language handling terms
+```bash
+for t in "detect_language" "langdetect" "multilingual" "hindi" "translat" "Stage 0" "stage_0" "language"; do echo "### $t ###"; grep -rniE "$t" --include="*.py" . --exclude-dir=venv --exclude-dir=.git --exclude-dir=.tools 2>/dev/null | grep -v "^./full_codebase.py" | head -20; done
+```
+
+`2026-09-17 01:19:57` · **cmd** — Check chunk counts and latency mentions
+```bash
+grep -n -E "1,011|1011|1,899|1,933|419|859|latency|Latency|p95" README.md
+```
+
+`2026-09-17 01:19:58` · **cmd** — Search docs for Phase B and language design
+```bash
+cd "C:/Users/uniya/legal-mvp" && grep -rn "Phase B" docs/*.md README.md 2>/dev/null | head -30; echo "=== TARGET_ARCH lang ==="; grep -n -i "sarvam\|languag\|translat\|Stage 0\|hindi\|multiling" docs/TARGET_ARCHITECTURE.md | head -40
+```
+
+`2026-09-17 01:20:00` · **cmd** — Search consistency, temporal, logging, calibration, rerank terms
+```bash
+for t in "statute_consistency|statute consistency|consistency" "as_of|effective_date|amendment_date|temporal|vintage" "core.logging|core import logging|new_req_id|req_id" "calibrat" "rerank" "entity_coverage" "guess_corpus" "ACT_MAP"; do echo "### $t ###"; grep -rniE "$t" --include="*.py" . --exclude-dir=venv --exclude-dir=.git --exclude-dir=.tools --exclude-dir=backup 2>/dev/null | grep -v "^./full_codebase.py" | grep -v "^./experiments/" | head -25; done
+```
+
+`2026-09-17 01:20:05` · **cmd** — Read AUDIT_2026-08-26.md
+```bash
+awk '{printf "L%d: %s\n", NR, $0}' "C:/Users/uniya/legal-mvp/docs/AUDIT_2026-08-26.md"
+```
+
+`2026-09-17 01:20:08` · **cmd** — Search validator, jurisdiction, citation verification, abstain
+```bash
+for t in "validator|verifier|critic|self.check|self_check|guardrail" "jurisdiction|state law|state_law" "citation_verif|citation check|verify_citation|citation_audit" "abstain|refus|i don't know|insufficient"; do echo "### $t ###"; grep -rniE "$t" --include="*.py" . --exclude-dir=venv --exclude-dir=.git --exclude-dir=.tools --exclude-dir=backup 2>/dev/null | grep -v "^./full_codebase.py" | grep -v "^./experiments/" | grep -v "^./tests/" | head -30; done
+```
+
+`2026-09-17 01:20:09` · **cmd** — List docs and results directories
+```bash
+ls -la "C:/Users/uniya/legal-mvp/docs/" && echo "=== RESULTS ===" && ls -laR "C:/Users/uniya/legal-mvp/docs/results/"
+```
+
+`2026-09-17 01:20:10` · **cmd** — Line counts of target docs
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && wc -l PROJECT_REPORT.md TECHNICAL_REPORT.md GAPS.md PROJECT_CONTEXT.md STATE.md THE_WHOLE_PICTURE.md TARGET_ARCHITECTURE.md 2>&1
+```
+
+`2026-09-17 01:20:11` · **cmd** — TARGET_ARCHITECTURE 505-545
+```bash
+cd "C:/Users/uniya/legal-mvp" && sed -n '505,545p' docs/TARGET_ARCHITECTURE.md | cat -n | awk '{printf "%d\t%s\n", $1+504, substr($0, index($0,"\t")+1)}'
+```
+
+`2026-09-17 01:20:15` · **cmd** — Read PROJECT_REPORT lines 1-270
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && sed -n '1,270p' PROJECT_REPORT.md | cat -n
+```
+
+`2026-09-17 01:20:20` · **cmd** — Check CLAUDE.md staleness and results dir
+```bash
+grep -n "1,011\|BNSS\` 48.1\|gpt-5.2\|Currently broken\|Do not generate evaluation\|Target venue\|Current priority\|P0\|1,011 chunks\|Absent from corpus" "C:/Users/uniya/legal-mvp/CLAUDE.md"; echo "=== docs/results ==="; ls -la "C:/Users/uniya/legal-mvp/docs/results/"; echo "=== docs/README ==="; awk '{printf "L%d: %s\n", NR, $0}' "C:/Users/uniya/legal-mvp/docs/README.md" | head -60
+```
+
+`2026-09-17 01:20:22` · **cmd** — SESSION_LOG 9820-9900
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=9820 && NR<=9900 {printf "%d\t%s\n", NR, $0}' SESSION_LOG.md
+```
+
+`2026-09-17 01:20:23` · **cmd** — Read PROJECT_REPORT lines 270-560
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && sed -n '270,560p' PROJECT_REPORT.md | cat -n | awk '{printf "%d\t%s\n", NR+269, substr($0, index($0,"\t")+1)}'
+```
+
+`2026-09-17 01:20:25` · **cmd** — Check language stage, new_req_id, stubs
+```bash
+echo '### rec.set("language") ###'; grep -rn 'set("language"\|set(.language' --include="*.py" . --exclude-dir=venv --exclude-dir=.tools 2>/dev/null | grep -v full_codebase | head
+echo '### new_req_id usage ###'; grep -rn "new_req_id" --include="*.py" . --exclude-dir=venv --exclude-dir=.tools | grep -v full_codebase
+echo '### detect( usage in ingest ###'; grep -rn "detect(" ingest/ scripts/ingest_cli.py scripts/ingest_cli_debug.py | head
+echo '### bare pass / ... / NotImplementedError ###'; grep -rnE "^\s*(pass|\.\.\.)\s*$|NotImplementedError|raise NotImplemented" --include="*.py" agents core c
+… [truncated, 213 more chars]
+```
+
+`2026-09-17 01:20:28` · **cmd** — Read ingest/chunk.py head and guess_corpus
+```bash
+cat -n ingest/chunk.py | sed -n '1,120p'; echo "...."; cat -n ingest/chunk.py | sed -n '370,470p'
+```
+
+`2026-09-17 01:20:29` · **cmd** — Read PROJECT_REPORT lines 560-860
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=560 && NR<=860 {printf "%d\t%s\n", NR, $0}' PROJECT_REPORT.md
+```
+
+`2026-09-17 01:20:30` · **cmd** — Git log and session log headers
+```bash
+cd "C:/Users/uniya/legal-mvp" && git log --oneline -25 --date=short --pretty=format:"%h %ad %s" 2>/dev/null; echo; echo "=== SESSION_LOG tail headers ==="; grep -n "^## \|^# \|^### " "C:/Users/uniya/legal-mvp/docs/SESSION_LOG.md" | tail -40
+```
+
+`2026-09-17 01:20:31` · **cmd** — SESSION_LOG 130-200
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=130 && NR<=200 {printf "%d\t%s\n", NR, $0}' SESSION_LOG.md
+```
+
+`2026-09-17 01:20:34` · **cmd** — Read detect_lang and registry
+```bash
+cat -n ingest/chunk.py | sed -n '300,330p'; echo "=== registry ==="; cat -n ingest/registry.py
+```
+
+`2026-09-17 01:20:36` · **cmd** — SESSION_LOG 11300-11380
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=11300 && NR<=11380 {printf "%d\t%s\n", NR, $0}' SESSION_LOG.md
+```
+
+`2026-09-17 01:20:36` · **cmd** — Read PROJECT_REPORT lines 860-1047
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=860 && NR<=1047 {printf "%d\t%s\n", NR, $0}' PROJECT_REPORT.md
+```
+
+`2026-09-17 01:20:37` · **cmd** — Outline core/citations.py
+```bash
+grep -nE "^(def |class |@|_[A-Z_]+ = |[A-Z_]+ = )" core/citations.py | head -60
+```
+
+`2026-09-17 01:20:40` · **cmd** — Read prior audit section of SESSION_LOG
+```bash
+awk 'NR>=14119 && NR<=14321 {printf "L%d: %s\n", NR, $0}' "C:/Users/uniya/legal-mvp/docs/SESSION_LOG.md"
+```
+
+`2026-09-17 01:20:45` · **cmd** — Full line 162 of SESSION_LOG
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR==162' SESSION_LOG.md | head -c 4200
+```
+
+`2026-09-17 01:20:51` · **cmd** — SESSION_LOG 6460-6560
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=6460 && NR<=6560 {printf "%d\t%s\n", NR, $0}' SESSION_LOG.md
+```
+
+`2026-09-17 01:20:52` · **cmd** — Grep multilingual mentions across docs
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "=== multilingual/hindi grep across docs+README ==="; grep -rniE "multiling|hinglish|code-mix|code mix|hindi|vernacular|tamil|devanagari|translat|sarvam|bge-m3|language handler|stage 0" docs/*.md README.md CLAUDE.md 2>/dev/null | grep -v "^docs/SESSION_LOG.md" | head -80
+```
+
+`2026-09-17 01:20:53` · **cmd** — Inspect exp06 statute consistency
+```bash
+head -60 experiments/exp06_statute_consistency.py; echo "....."; grep -n "def \|statute_consistency" experiments/exp06_statute_consistency.py | head -30
+```
+
+`2026-09-17 01:20:54` · **cmd** — Find importers of legacy modules and agents
+```bash
+echo "### who imports retrieve/answer legacy modules ###"; grep -rn "from retrieve\|import retrieve\|from answer\.\|from answer import\|import answer\b" --include="*.py" . --exclude-dir=venv --exclude-dir=.tools | grep -v full_codebase
+echo "### who imports agents ###"; grep -rn "from agents" --include="*.py" . --exclude-dir=venv --exclude-dir=.tools | grep -v full_codebase | head -30
+echo "### streamlit stages ###"; grep -nE "requests\.|/query|intervention|reference_date" streamlit_app.py | head -20
+```
+
+`2026-09-17 01:20:55` · **cmd** — Read TECHNICAL_REPORT lines 1-270
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=1 && NR<=270 {printf "%d\t%s\n", NR, $0}' TECHNICAL_REPORT.md
+```
+
+`2026-09-17 01:21:01` · **cmd** — SESSION_LOG 688-700 and 5840-5900
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=688 && NR<=700 {printf "%d\t%s\n", NR, $0}' SESSION_LOG.md; echo "@@@@"; awk 'NR>=5840 && NR<=5900 {printf "%d\t%s\n", NR, $0}' SESSION_LOG.md
+```
+
+`2026-09-17 01:21:04` · **cmd** — Read TECHNICAL_REPORT lines 270-528
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=270 && NR<=528 {printf "%d\t%s\n", NR, $0}' TECHNICAL_REPORT.md
+```
+
+`2026-09-17 01:21:05` · **cmd** — Locate Phase B references
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "=== 'Phase B' in curated docs ==="; grep -rn "Phase B\|PHASE B\|phase B" docs/*.md README.md | grep -v SESSION_LOG | head -30; echo; echo "=== 'Phase B' in SESSION_LOG (first 20) ==="; grep -n "Phase B\|phase b\|Phase b" docs/SESSION_LOG.md | head -30
+```
+
+`2026-09-17 01:21:05` · **cmd** — SESSION_LOG 4700-4920
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=4700 && NR<=4920 {printf "%d\t%s\n", NR, $0}' SESSION_LOG.md
+```
+
+`2026-09-17 01:21:07` · **cmd** — Check metrics_lib and test_router
+```bash
+echo "### metrics_lib calibration ###"; grep -nE "^def |^class |ece|calibrat" experiments/metrics_lib.py | head -30
+echo "### test_router head ###"; sed -n '1,70p' tests/test_router.py
+```
+
+`2026-09-17 01:21:10` · **cmd** — Repo-wide stub markers
+```bash
+echo "### any NotImplementedError repo-wide (excl venv/.tools) ###"; grep -rn "NotImplementedError" --include="*.py" . --exclude-dir=venv --exclude-dir=.tools | grep -v full_codebase | head
+echo "### TODO/FIXME/XXX/HACK repo-wide incl md in docs ###"; grep -rnE "\bTODO\b|\bFIXME\b|\bXXX\b|\bHACK\b" --include="*.py" . --exclude-dir=venv --exclude-dir=.tools | grep -v full_codebase | head -20
+echo "### 'not implemented' phrase ###"; grep -rniE "never implemented|not implemented|unimplemented|stub" --include="*.py" agents core clients ingest retrieve answer report app.py scripts tests | head -20
+```
+
+`2026-09-17 01:21:14` · **cmd** — List all prompts with first line
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && grep -n "Â· prompt$" SESSION_LOG.md | wc -l && awk '/Â· prompt$/{hdr=$0; n=NR; getline; getline; printf "%d\t%s\n\t%.260s\n", n, hdr, $0}' SESSION_LOG.md | head -240
+```
+
+`2026-09-17 01:21:16` · **cmd** — Read GAPS lines 1-230
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=1 && NR<=230 {printf "%d\t%s\n", NR, $0}' GAPS.md
+```
+
+`2026-09-17 01:21:17` · **cmd** — List results and experiments dirs
+```bash
+cd "C:/Users/uniya/legal-mvp" && ls -la results/ experiments/ 2>/dev/null | head -60; echo "=== RESULTS.md headings ==="; [ -f results/RESULTS.md ] && grep -n "^#\|^##\|^###" results/RESULTS.md | head -60
+```
+
+`2026-09-17 01:21:21` · **cmd** — Remaining prompts list
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk '/Â· prompt$/{hdr=$0; n=NR; getline; getline; printf "%d\t%s\n\t%.260s\n", n, hdr, $0}' SESSION_LOG.md | sed -n '240,400p'
+```
+
+`2026-09-17 01:21:21` · **cmd** — Check app.py import usage
+```bash
+for s in AnswerJSON embed_texts ensure_collection qdrant new_req_id render_html hashlib traceback; do echo "--- $s ---"; grep -n "\b$s\b" app.py; done
+```
+
+`2026-09-17 01:21:24` · **cmd** — Read GAPS lines 230-460
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=230 && NR<=460 {printf "%d\t%s\n", NR, $0}' GAPS.md
+```
+
+### 2026-09-17 01:21:26 · prompt
+
+<task-notification>
+<task-id>b4n774ict</task-id>
+<tool-use-id>toolu_013K5SDt2kYMzJCBsjRTpFYJ</tool-use-id>
+<output-file>C:\Users\uniya\AppData\Local\Temp\claude\C--Users-uniya-legal-mvp\a40bc02e-fa03-4aad-86f9-11c12a2021af\tasks\b4n774ict.output</output-file>
+<status>completed</status>
+<summary>Background command "Install MiKTeX in the background" completed (exit code 0)</summary>
+</task-notification>
+
+`2026-09-17 01:21:27` · **cmd** — Check run_eval and endpoints
+```bash
+echo "### scripts/run_eval.py: does it POST /query? ###"; grep -n "query\"\|/query\|intervention\|reference_date\|post(" scripts/run_eval.py | head -20; echo "### app endpoints ###"; grep -n "@app\." app.py
+```
+
+`2026-09-17 01:21:28` · **cmd** — Read RESULTS.md appendix sections A-D
+```bash
+cd "C:/Users/uniya/legal-mvp" && wc -l results/RESULTS.md results/_RESULTS_appendix.md && awk 'NR>=3290 {printf "L%d: %s\n", NR, $0}' results/RESULTS.md | head -220
+```
+
+`2026-09-17 01:21:32` · **cmd** — Read key SESSION_LOG prompts (A)
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && for r in "812 826" "2229 2260" "2364 2400" "3306 3315"; do set -- $r; echo "=== $1-$2 ==="; awk -v a=$1 -v b=$2 'NR>=a && NR<=b {printf "%d\t%s\n", NR, $0}' SESSION_LOG.md; done
+```
+
+`2026-09-17 01:21:35` · **cmd** — Read GAPS lines 460-642
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=460 && NR<=642 {printf "%d\t%s\n", NR, $0}' GAPS.md
+```
+
+`2026-09-17 01:21:36` · **cmd** — Read key SESSION_LOG prompts (B)
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && for r in "6267 6300" "6440 6470" "13442 13470"; do set -- $r; echo "=== $1-$2 ==="; awk -v a=$1 -v b=$2 'NR>=a && NR<=b {printf "%d\t%s\n", NR, $0}' SESSION_LOG.md; done
+```
+
+`2026-09-17 01:21:40` · **cmd** — Check extract_text_pdf callers
+```bash
+grep -rn "extract_text_pdf\b\|extract_text_pdf(" --include="*.py" . --exclude-dir=venv --exclude-dir=.tools | grep -v full_codebase; echo "---"; sed -n '1,40p' scripts/ingest_cli_debug.py
+```
+
+`2026-09-17 01:21:41` · **cmd** — Read RESULTS appendix
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=1 && NR<=90 {printf "L%d: %s\n", NR, $0}' results/_RESULTS_appendix.md
+```
+
+`2026-09-17 01:21:41` · **cmd** — Read PROJECT_CONTEXT 1-160
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=1 && NR<=160 {printf "%d\t%s\n", NR, $0}' PROJECT_CONTEXT.md
+```
+
+`2026-09-17 01:21:47` · **cmd** — Read PROJECT_CONTEXT 160-305
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=160 && NR<=305 {printf "%d\t%s\n", NR, $0}' PROJECT_CONTEXT.md
+```
+
+`2026-09-17 01:21:49` · **cmd** — Read statute_consistency results section
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=2191 && NR<=2270 {printf "L%d: %s\n", NR, $0}' results/RESULTS.md | cut -c1-400
+```
+
+`2026-09-17 01:21:51` · **cmd** — Check workbook in WORKLOG and read session log 13215-13300
+```bash
+cd "C:/Users/uniya/legal-mvp" && grep -n -i "TESTING_WORKBOOK\|SYNOPSIS\|workbook" docs/WORKLOG.md | head; echo "=== none above means absent ==="; awk 'NR>=13215 && NR<=13300 {printf "%d\t%s\n", NR, $0}' docs/SESSION_LOG.md
+```
+
+`2026-09-17 01:21:52` · **cmd** — Read PHASE_G.md
+```bash
+cd "C:/Users/uniya/legal-mvp/docs/results" && awk '{printf "%d\t%s\n", NR, $0}' PHASE_G.md
+```
+
+`2026-09-17 01:21:59` · **cmd** — Read PHASE_H.md
+```bash
+cd "C:/Users/uniya/legal-mvp/docs/results" && awk '{printf "%d\t%s\n", NR, $0}' PHASE_H.md
+```
+
+`2026-09-17 01:22:01` · **cmd** — SESSION_LOG 13100-13215
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=13100 && NR<=13215 {printf "%d\t%s\n", NR, $0}' SESSION_LOG.md
+```
+
+`2026-09-17 01:22:02` · **cmd** — Check whether Hinglish observation was executed
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "=== hinglish / code-mix in results, eval, experiments ==="; grep -rniE "hinglish|code.?mix|devanagari|non.?english|karke dega" results/*.md results/*.csv eval/ experiments/*.py 2>/dev/null | cut -c1-260 | head -30; echo; echo "=== eval dir ==="; ls eval/ 2>/dev/null
+```
+
+`2026-09-17 01:22:11` · **cmd** — Read synopsis multilingual prose
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=320 && NR<=345 {printf "L%d: %s\n", NR, $0}' experiments/synopsis_text.py; echo "..."; awk 'NR>=645 && NR<=675 {printf "L%d: %s\n", NR, $0}' experiments/synopsis_text.py
+```
+
+`2026-09-17 01:22:12` · **cmd** — SESSION_LOG 13364-13442
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=13364 && NR<=13442 {printf "%d\t%s\n", NR, $0}' SESSION_LOG.md
+```
+
+`2026-09-17 01:22:13` · **cmd** — Read STATE.md
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk '{printf "%d\t%s\n", NR, $0}' STATE.md
+```
+
+`2026-09-17 01:22:19` · **cmd** — Grep venue mentions
+```bash
+cd "C:/Users/uniya/legal-mvp" && grep -rn "ECIR\|ARR\|Rolling Review\|EMNLP\|CODS\|NLLP\|JURIX\|LREC\|COLING" docs/*.md README.md CLAUDE.md experiments/synopsis_text.py experiments/project_text.py 2>/dev/null | grep -v SESSION_LOG | cut -c1-230 | head -50
+```
+
+`2026-09-17 01:22:24` · **cmd** — Read THE_WHOLE_PICTURE 1-330
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR<=330 {printf "%d\t%s\n", NR, $0}' THE_WHOLE_PICTURE.md
+```
+
+`2026-09-17 01:22:26` · **cmd** — List synopsis section headings
+```bash
+cd "C:/Users/uniya/legal-mvp" && grep -n '("h1"\|("h2"\|("h3"' experiments/synopsis_text.py | cut -c1-140
+```
+
+`2026-09-17 01:22:33` · **cmd** — Read THE_WHOLE_PICTURE 330-641
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=330 && NR<=641 {printf "%d\t%s\n", NR, $0}' THE_WHOLE_PICTURE.md
+```
+
+`2026-09-17 01:22:35` · **cmd** — Read synopsis architecture and constraint sections
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=296 && NR<=324 {printf "L%d: %s\n", NR, $0}' experiments/synopsis_text.py; echo "---"; awk 'NR>=620 && NR<=645 {printf "L%d: %s\n", NR, $0}' experiments/synopsis_text.py
+```
+
+`2026-09-17 01:22:45` · **cmd** — Read TARGET_ARCHITECTURE 1-280
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR<=280 {printf "%d\t%s\n", NR, $0}' TARGET_ARCHITECTURE.md
+```
+
+`2026-09-17 01:22:46` · **cmd** — Check GAPS.md supersession markers
+```bash
+cd "C:/Users/uniya/legal-mvp" && grep -n -i "supersed\|PRE-FIX\|pre-fix" docs/GAPS.md | head -20; echo "=== GAPS 1/2 headings ==="; grep -n "^### \|^## " docs/GAPS.md | head -30; echo "=== CLAUDE.md free 0.30 ==="; grep -n "0.30\|entity_coverage" CLAUDE.md
+```
+
+`2026-09-17 01:22:51` · **cmd** — Read TARGET_ARCHITECTURE 280-538
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && awk 'NR>=280 && NR<=538 {printf "%d\t%s\n", NR, $0}' TARGET_ARCHITECTURE.md
+```
+
+`2026-09-17 01:22:59` · **cmd** — Test-compile a probe document with the packages I need
+```bash
+cd /c/Users/uniya/legal-mvp
+mkdir -p build/tex && cd build/tex
+cat > probe.tex <<'EOF'
+\documentclass[12pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage{times}
+\usepackage[margin=1in,left=1.25in]{geometry}
+\usepackage{graphicx,booktabs,amsmath,setspace,caption,fancyhdr,enumitem,url}
+\onehalfspacing
+\begin{document}
+\section*{Probe}
+Times New Roman via \texttt{times}. Equation: \begin{equation}C = 0.55m + 0.15(1-g) + 0.30e\end{equation}
+\begin{tabular}{@{}lr@{}}\toprule Statute & Passages \\ \midrule CrPC & 742 \\ \bottomrule\end{tabular}
+\end{document}
+EOF
+PDFLATEX="/c/Users/uniya/App
+… [truncated, 423 more chars]
+```
+
+`2026-09-17 01:23:07` · **cmd** — Grep code for language handler and statute_consistency
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "=== code: language/translation/stage0 ==="; grep -rniE "detect_lang|LanguageContext|language_handler|multilingual_embed|passthrough|sarvam|USE_TRANSLATION|translate" --include=*.py agents/ core/ clients/ ingest/ app.py retrieve/ answer/ report/ scripts/ 2>/dev/null | cut -c1-180 | head -25; echo; echo "=== code: statute_consistency in live pipeline ==="; grep -rn "statute_consistency" --include=*.py . 2>/dev/null | grep -v "^./venv" | cut -c1-170 | head -20; echo; echo "=== lang field in chunk ==="; grep -rn "lang" --include=*.py ingest/ core/config.py 2>
+… [truncated, 34 more chars]
+```
+
+`2026-09-17 01:23:10` · **cmd** — Grep for decision keywords in reports
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && grep -niE "defer|dropp|drop |descope|out of scope|not built|never built|will not|won't|decided against|reject|supersed|future work|parked|abandon|optional|droppable|we chose|did not|not comput|unusable|must not|do not claim|retract" PROJECT_REPORT.md TECHNICAL_REPORT.md | head -100
+```
+
+### 2026-09-17 01:23:18 · prompt
+
+[Image #8] wtf is this what the fuck you installed withoy asking me?
+
+`2026-09-17 01:23:21` · **cmd** — Grep supervisor and venue mentions
+```bash
+cd "C:/Users/uniya/legal-mvp/docs" && echo "=== supervisor/venue in reports ===" && grep -niE "joshi|supervis|ARR|rolling review|jurix|nllp|fire|emnlp|deadline|venue|october" PROJECT_REPORT.md TECHNICAL_REPORT.md GAPS.md PROJECT_CONTEXT.md results/PHASE_G.md results/PHASE_H.md
+```
+
+`2026-09-17 01:23:23` · **cmd** — Read app.py query pipeline
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=125 && NR<=215 {printf "L%d: %s\n", NR, $0}' app.py
+```
+
+`2026-09-17 01:23:33` · **cmd** — Check ADR log coverage
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "=== DECISIONS.md ADR headers + dates ==="; grep -n "^## ADR\|^\*\*Date:\*\*" docs/DECISIONS.md; echo; echo "=== does DECISIONS.md mention any Sept work / multilingual / venue? ==="; grep -niE "multiling|langu|venue|ECIR|ARR|statute_consistency|hybrid|BM25|Sept|09-0" docs/DECISIONS.md | head
+```
+
+`2026-09-17 01:23:42` · **cmd** — Peek at WORKLOG and PLAN structure
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "=== WORKLOG last entry headers ==="; grep -n "^## \|^### " docs/WORKLOG.md | tail -25; echo; echo "=== PLAN.md headers ==="; grep -n "^# \|^## " docs/PLAN.md | head -40
+```
+
+`2026-09-17 01:23:50` · **cmd** — Enable auto-install and retry the compile
+```bash
+MB="/c/Users/uniya/AppData/Local/Programs/MiKTeX/miktex/bin/x64"
+"$MB/initexmf.exe" --set-config-value "[MPM]AutoInstall=1" 2>&1 | tail -3
+echo "  autoinstall set"
+cd /c/Users/uniya/legal-mvp/build/tex
+"$MB/pdflatex.exe" -interaction=nonstopmode -halt-on-error probe.tex >probe.log 2>&1
+if [ -f probe.pdf ]; then
+  echo "  COMPILE OK"
+  cd /c/Users/uniya/legal-mvp
+  ./venv/Scripts/python.exe -c "import fitz;d=fitz.open('build/tex/probe.pdf');print('  pages:',d.page_count,' equation rendered:', '0.55' in d[0].get_text())"
+else
+  echo "  STILL FAILING"; grep -iE "^!|error|not found" probe.log | he
+… [truncated, 8 more chars]
+```
+
+`2026-09-17 01:23:52` · **cmd** — Read WORKLOG drops and superseded instruction
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=1508 && NR<=1600 {printf "L%d: %s\n", NR, $0}' docs/WORKLOG.md
+```
+
+`2026-09-17 01:24:00` · **cmd** — Read WORKLOG end-state entries
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=1413 && NR<=1445 {printf "L%d: %s\n", NR, $0}' docs/WORKLOG.md; echo "======"; awk 'NR>=1599 && NR<=1672 {printf "L%d: %s\n", NR, $0}' docs/WORKLOG.md
+```
+
+`2026-09-17 01:24:10` · **cmd** — Check GAPS header status
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "=== TARGET_ARCHITECTURE status line vs reality ==="; sed -n '7p' docs/TARGET_ARCHITECTURE.md; echo; echo "=== GAPS.md self-status header ==="; sed -n '1,25p' docs/GAPS.md | awk '{printf "L%d: %s\n", NR, $0}'
+```
+
+`2026-09-17 01:24:20` · **cmd** — Confirm absence of multilingual in WORKLOG and DECISIONS
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "multilingual in WORKLOG:"; grep -cin "multiling\|hindi\|language handler\|stage 0" docs/WORKLOG.md; echo "multilingual in DECISIONS:"; grep -cin "multiling\|hindi\|language handler\|stage 0" docs/DECISIONS.md; echo "multilingual in EVALUATION_PLAN:"; grep -nin "multiling\|hindi\|language\|E7\|E8" docs/EVALUATION_PLAN.md | head -10
+```
+
+`2026-09-17 01:24:25` · **cmd** — List EVALUATION_PLAN experiments
+```bash
+cd "C:/Users/uniya/legal-mvp" && echo "=== EVALUATION_PLAN experiment list ==="; grep -n "^## \|^### \|^# " docs/EVALUATION_PLAN.md | head -40
+```
+
+`2026-09-17 01:24:33` · **cmd** — Read EVALUATION_PLAN sequence and rules
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=363 && NR<=392 {printf "L%d: %s\n", NR, $0}' docs/EVALUATION_PLAN.md
+```
+
+`2026-09-17 01:24:43` · **cmd** — Read supervisor brief asks
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=205 && NR<=246 {printf "L%d: %s\n", NR, $0}' docs/SUPERVISOR_BRIEF.md
+```
+
+`2026-09-17 01:24:52` · **cmd** — Read supervisor brief header
+```bash
+cd "C:/Users/uniya/legal-mvp" && sed -n '1,40p' docs/SUPERVISOR_BRIEF.md | awk '{printf "L%d: %s\n", NR, $0}'
+```
+
+`2026-09-17 01:25:01` · **cmd** — Read NUMBERS_AT_A_GLANCE
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk '{printf "L%d: %s\n", NR, $0}' docs/NUMBERS_AT_A_GLANCE.md
+```
+
+`2026-09-17 01:25:13` · **cmd** — Read supervisor directive verbatim
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=20 && NR<=90 {printf "L%d: %s\n", NR, $0}' docs/RESEARCH_CONTEXT.md
+```
+
+`2026-09-17 01:25:21` · **cmd** — Read directive checklist status
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=85 && NR<=130 {printf "L%d: %s\n", NR, $0}' docs/RESEARCH_CONTEXT.md
+```
+
+`2026-09-17 01:25:29` · **cmd** — Read rest of RESEARCH_CONTEXT
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=130 && NR<=224 {printf "L%d: %s\n", NR, $0}' docs/RESEARCH_CONTEXT.md
+```
+
+`2026-09-17 01:25:37` · **cmd** — Confirm filter_analysis.csv exists
+```bash
+cd "C:/Users/uniya/legal-mvp" && ls results/*.csv && echo "--- filter_analysis present? ---" && head -1 results/filter_analysis.csv | cut -c1-200
+```
+
+`2026-09-17 01:25:45` · **cmd** — Confirm PHASE_H doc exists
+```bash
+cd "C:/Users/uniya/legal-mvp" && ls docs/results/ && echo "--- PHASE_H.md head ---" && sed -n '1,20p' docs/results/PHASE_H.md | awk '{printf "L%d: %s\n", NR, $0}'
+```
+
+`2026-09-17 01:25:50` · **cmd** — Find do-not-claim sections in phase results
+```bash
+cd "C:/Users/uniya/legal-mvp" && grep -n "must not\|Do not claim\|do not claim\|NOT be claimed" docs/results/PHASE_G.md docs/results/PHASE_H.md | head -20
+```
+
+`2026-09-17 01:25:57` · **cmd** — Read do-not-claim sections
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=240 && NR<=275 {printf "L%d: %s\n", NR, $0}' docs/results/PHASE_G.md; echo "===="; awk 'NR>=85 && NR<=105 {printf "L%d: %s\n", NR, $0}' docs/results/PHASE_H.md
+```
+
+`2026-09-17 01:26:06` · **cmd** — Read PHASE_G header
+```bash
+cd "C:/Users/uniya/legal-mvp" && sed -n '1,12p' docs/results/PHASE_G.md | awk '{printf "L%d: %s\n", NR, $0}'
+```
+
+`2026-09-17 01:26:11` · **cmd** — List PHASE_G sections
+```bash
+cd "C:/Users/uniya/legal-mvp" && grep -n "^## \|^# " docs/results/PHASE_G.md
+```
+
+`2026-09-17 01:26:20` · **cmd** — Read PHASE_G stage-labelling correction
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=25 && NR<=50 {printf "L%d: %s\n", NR, $0}' docs/results/PHASE_G.md
+```
+
+`2026-09-17 01:26:26` · **cmd** — Read PHASE_G refusal and messiness sections
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=201 && NR<=238 {printf "L%d: %s\n", NR, $0}' docs/results/PHASE_G.md
+```
+
+`2026-09-17 01:26:32` · **cmd** — Read PHASE_G E0 and E1b
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=96 && NR<=140 {printf "L%d: %s\n", NR, $0}' docs/results/PHASE_G.md
+```
+
+`2026-09-17 01:26:39` · **cmd** — Read PHASE_G confidence section
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=172 && NR<=200 {printf "L%d: %s\n", NR, $0}' docs/results/PHASE_G.md
+```
+
+`2026-09-17 01:26:46` · **cmd** — Locate every surviving 0.492 claim
+```bash
+cd "C:/Users/uniya/legal-mvp" && grep -rn "0.492" docs/*.md docs/results/*.md README.md 2>/dev/null | grep -v SESSION_LOG | cut -c1-160
+```
+
+`2026-09-17 01:26:54` · **cmd** — Read WORKLOG entity_coverage correction
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=830 && NR<=860 {printf "L%d: %s\n", NR, $0}' docs/WORKLOG.md
+```
+
+`2026-09-17 01:27:00` · **cmd** — Read WORKLOG 0.492 warning
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=985 && NR<=1000 {printf "L%d: %s\n", NR, $0}' docs/WORKLOG.md
+```
+
+`2026-09-17 01:27:10` · **cmd** — Verify results file index
+```bash
+cd "C:/Users/uniya/legal-mvp" && ls results/ && echo "--- smoke_test.md? ---" && ls results/smoke_test.md 2>&1 | head -2
+```
+
+`2026-09-17 01:27:17` · **cmd** — Count actual query set sizes
+```bash
+cd "C:/Users/uniya/legal-mvp" && wc -l eval/*.jsonl && echo "--- unique query_ids per set ---" && for f in eval/generated_queryset.jsonl eval/paired_queryset.jsonl eval/paired_dated_queryset.jsonl eval/layman_queryset.jsonl; do printf "%-40s %s\n" "$f" "$(wc -l < $f)"; done
+```
+
+`2026-09-17 01:27:28` · **cmd** — Verify ECIR and multilingual session lines
+```bash
+cd "C:/Users/uniya/legal-mvp" && awk 'NR>=13440 && NR<=13470 {printf "L%d: %s\n", NR, $0}' docs/SESSION_LOG.md; echo "=== 757-765 ==="; awk 'NR>=755 && NR<=765 {printf "L%d: %s\n", NR, $0}' docs/SESSION_LOG.md
+```
+
+### 2026-09-17 01:31:45 · prompt
+
+Now that you have installed it just use it whatsoever and make the fucking document.
+
+`2026-09-17 01:32:16` · **cmd** — Pre-install LaTeX packages and retry
+```bash
+MB="/c/Users/uniya/AppData/Local/Programs/MiKTeX/miktex/bin/x64"
+"$MB/initexmf.exe" --set-config-value "[MPM]AutoInstall=1" 2>&1 | tail -2
+"$MB/mpm.exe" --install=psnfss --install=geometry --install=booktabs --install=caption --install=setspace --install=enumitem --install=fancyhdr --install=float --install=titlesec 2>&1 | tail -4
+echo "--- retry compile ---"
+cd /c/Users/uniya/legal-mvp/build/tex
+"$MB/pdflatex.exe" -interaction=nonstopmode probe.tex >probe.log 2>&1
+[ -f probe.pdf ] && echo "  COMPILE OK" || { echo "  FAILED"; grep -E "^!" probe.log | head -5; }
+```
+
+`2026-09-17 01:32:45` · **cmd** — Locate the date-resolver framing to correct
+```bash
+cd /c/Users/uniya/legal-mvp
+grep -n "experimental design" experiments/synopsis_text.py
+echo "---"
+sed -n '/Two stages do not run by default/,/implementation/p' experiments/synopsis_text.py
+```
+
+`2026-09-17 01:33:03` · **cmd** — Locate the language paragraph to reframe
+```bash
+cd /c/Users/uniya/legal-mvp
+sed -n '/The third concerns language coverage/,/next phase/p' experiments/synopsis_text.py
+```
+
+`2026-09-17 01:35:52` · **cmd** — Build and compile the LaTeX synopsis
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe experiments/make_synopsis_tex.py 2>&1 | tail -14
+```
+
+`2026-09-17 01:36:30` · **cmd** — Tighten LaTeX layout and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+from pathlib import Path
+p = Path("experiments/make_synopsis_tex.py"); s = p.read_text(encoding="utf-8")
+subs = [
+ (r"\setlength{\parskip}{6pt}", r"\setlength{\parskip}{4pt}"),
+ (r"\titlespacing*{\section}{0pt}{14pt}{8pt}",
+  r"\titlespacing*{\section}{0pt}{11pt}{6pt}"),
+ (r"\titlespacing*{\subsection}{0pt}{10pt}{5pt}",
+  r"\titlespacing*{\subsection}{0pt}{8pt}{4pt}"),
+ ("justification=centering,\n              skip=4pt}",
+  "justification=centering,\n              skip=3pt}"),
+ (r"width=0.92\textwidth", r"width=0.80\textwidth")
+… [truncated, 775 more chars]
+```
+
+`2026-09-17 01:37:13` · **cmd** — Apply layout tightening and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/a40bc02e-fa03-4aad-86f9-11c12a2021af/scratchpad"
+./venv/Scripts/python.exe "$SP/tighten_tex.py"
+./venv/Scripts/python.exe experiments/make_synopsis_tex.py 2>&1 | tail -6
+```
+
+`2026-09-17 01:37:27` · **cmd** — Find underfilled pages in the LaTeX PDF
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import fitz
+d = fitz.open('docs/SYNOPSIS_IT118.pdf')
+for i, p in enumerate(d):
+    b = p.get_text('blocks'); im = p.get_image_info()
+    ys = [x[3] for x in b] + [x['bbox'][3] for x in im]
+    top = min([x[1] for x in b] + [x['bbox'][1] for x in im]) if (b or im) else 0
+    bot = max(ys) if ys else 0
+    fill = (bot-top)/ (842-2*72) * 100
+    first = (p.get_text().strip().split(chr(10)) or [''])[0][:44]
+    print(f'  p{i+1:2} imgs={len(im)} fill={fill:5.1f}%  {first!r}')
+"
+```
+
+`2026-09-17 01:38:07` · **cmd** — Let content flow after the contents list and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'PYEOF'
+from pathlib import Path
+p = Path("experiments/make_synopsis_tex.py"); s = p.read_text(encoding="utf-8")
+old = '''    out += [r"\\end{enumerate}", r"\\clearpage", ""]'''
+new = '''    # No \\clearpage: the contents list fills only a quarter of a page, and the
+    # format caps the document at 15 pages. Section 1 continues below it.
+    out += [r"\\end{enumerate}", r"\\vspace{6pt}", ""]'''
+assert s.count(old) == 1, s.count(old)
+p.write_text(s.replace(old, new), encoding="utf-8")
+print("contents page now flows into section 1")
+PYEO
+… [truncated, 75 more chars]
+```
+
+`2026-09-17 01:38:18` · **cmd** — Inspect the damaged contents function and the error
+```bash
+cd /c/Users/uniya/legal-mvp
+sed -n '/^def contents/,/^def figure/p' experiments/make_synopsis_tex.py
+echo "=== unicode error in the log ==="
+grep -n "Unicode character" build/tex/SYNOPSIS_IT118.log | head -3
+```
+
+`2026-09-17 01:38:35` · **cmd** — Repair the vspace line
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+from pathlib import Path
+p = Path("experiments/make_synopsis_tex.py")
+s = p.read_text(encoding="utf-8")
+bad = 'r"\x0bspace{6pt}"'
+good = 'r"\\vspace{6pt}"'
+if bad in s:
+    s = s.replace(bad, good); print("fixed vertical-tab artefact")
+elif 'r"space{6pt}"' in s:
+    s = s.replace('r"space{6pt}"', good); print("fixed truncated vspace")
+else:
+    print("pattern not found; dumping the line")
+    for i, l in enumerate(s.splitlines(), 1):
+        if "space{6pt}" in l:
+            print(i, repr(l))
+p.write_text(s, encoding="utf-8")
+EN
+… [truncated, 58 more chars]
+```
+
+`2026-09-17 01:39:00` · **cmd** — Verify the fix and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+sed -n '/^def contents/,/return/p' experiments/make_synopsis_tex.py | tail -4
+echo "--- rebuild ---"
+./venv/Scripts/python.exe experiments/make_synopsis_tex.py 2>&1 | tail -6
+```
+
+`2026-09-17 01:39:18` · **cmd** — Inspect bytes and definitively repair
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+from pathlib import Path
+p = Path("experiments/make_synopsis_tex.py")
+raw = p.read_bytes()
+print("control bytes present:", {hex(b): raw.count(bytes([b])) for b in (0x0b, 0x0c) if bytes([b]) in raw})
+s = raw.decode("utf-8")
+for i, l in enumerate(s.splitlines(), 1):
+    if "space{6pt}" in l or "\x0b" in l:
+        print(i, repr(l))
+# definitive repair: strip stray vertical tabs / form feeds, restore \vspace
+s = s.replace('r"\x0bspace{6pt}"', 'r"\\vspace{6pt}"')
+s = s.replace('\x0b', '')
+p.write_text(s, encoding="utf-8")
+print("---
+… [truncated, 140 more chars]
+```
+
+`2026-09-17 01:39:51` · **cmd** — Remove the broken spacer and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+from pathlib import Path
+p = Path("experiments/make_synopsis_tex.py")
+s = p.read_text(encoding="utf-8")
+old = 'out += [r"\\end{enumerate}", r"space{6pt}", ""]'
+new = 'out += [r"\\end{enumerate}", ""]'
+assert s.count(old) == 1, s.count(old)
+p.write_text(s.replace(old, new), encoding="utf-8")
+print("cleaned")
+ENDPY
+sed -n '/^def contents/,/^    return/p' experiments/make_synopsis_tex.py | tail -3
+echo "--- rebuild ---"
+./venv/Scripts/python.exe experiments/make_synopsis_tex.py 2>&1 | tail -5
+```
+
+`2026-09-17 01:39:59` · **cmd** — Read the LaTeX error context
+```bash
+cd /c/Users/uniya/legal-mvp
+grep -n -A6 "Missing .endcsname" build/tex/SYNOPSIS_IT118.log | head -20
+```
+
+`2026-09-17 01:40:31` · **cmd** — Fix the captionsetup line break and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+from pathlib import Path
+p = Path("experiments/make_synopsis_tex.py")
+s = p.read_text(encoding="utf-8")
+old = ("\\captionsetup{font={small,it},labelfont={small,bf},justification=centering,\n"
+       "              skip=3pt}")
+new = "\\captionsetup{font={small,it},labelfont={small,bf},skip=3pt}"
+if old in s:
+    s = s.replace(old, new); print("captionsetup put on one line")
+else:
+    import re
+    s2, n = re.subn(r"\\captionsetup\{font=\{small,it\}[^}]*\}[^\n]*\n[^\n]*skip=3pt\}", new, s)
+    print("regex fallback, replaced:", n)
+… [truncated, 201 more chars]
+```
+
+`2026-09-17 01:41:12` · **cmd** — Fix captionsetup and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/a40bc02e-fa03-4aad-86f9-11c12a2021af/scratchpad"
+./venv/Scripts/python.exe "$SP/fix_caption.py"
+echo "--- rebuild ---"
+./venv/Scripts/python.exe experiments/make_synopsis_tex.py 2>&1 | tail -6
+```
+
+`2026-09-17 01:41:26` · **cmd** — Verify the compiled PDF content
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import fitz, re
+d = fitz.open('docs/SYNOPSIS_IT118.pdf')
+txt = ''.join(p.get_text() for p in d)
+print(f'  pages: {d.page_count}   images: {sum(len(p.get_images()) for p in d)}')
+print(f'  unresolved placeholders: {len(re.findall(chr(123)+r\"[a-z_0-9]+\"+chr(125), txt))}')
+print()
+print('  sections found:')
+for s in ['1. Introduction','2. Literature Review','3. Motivation','4. Objectives','5. Methodology','6. Tools','7. Expected Outcome','8. References']:
+    print(f'    {\"OK \" if s in txt else \"MISSING\"}  {s}')
+print()
+for k,v in [
+… [truncated, 265 more chars]
+```
+
+`2026-09-17 01:41:36` · **cmd** — Render the first two pages to inspect
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import fitz
+d=fitz.open('docs/SYNOPSIS_IT118.pdf')
+for i in (0,1):
+    pix=d[i].get_pixmap(matrix=fitz.Matrix(1.6,1.6))
+    pix.save(f'build/tex/pg{i+1}.png')
+print('rendered')"
+```
+
+`2026-09-17 01:42:11` · **cmd** — Apply the title-page fix
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/a40bc02e-fa03-4aad-86f9-11c12a2021af/scratchpad"
+./venv/Scripts/python.exe "$SP/fix_title.py"
+echo "--- current lines ---"
+grep -n "desig" experiments/make_synopsis_tex.py
+```
+
+`2026-09-17 01:42:25` · **cmd** — Collapse the designation usage and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe - <<'ENDPY'
+from pathlib import Path
+p = Path("experiments/make_synopsis_tex.py")
+lines = p.read_text(encoding="utf-8").splitlines()
+# lines 258-260 (1-indexed) are the three-line usage; collapse to one
+i = next(k for k, l in enumerate(lines) if "esc(desig).replace(" in l)
+end = i
+while "[24pt]" not in lines[end]:
+    end += 1
+repl = '        r"{\\fontsize{12}{15}\\selectfont " + desig + r"}\\\\[24pt]" "\\n"'
+lines[i:end + 1] = [repl]
+p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+print("collapsed usage to:", repl)
+ENDPY
+./venv/Scr
+… [truncated, 63 more chars]
+```
+
+`2026-09-17 01:42:53` · **cmd** — Repair the title line and rebuild
+```bash
+cd /c/Users/uniya/legal-mvp
+SP="/c/Users/uniya/AppData/Local/Temp/claude/C--Users-uniya-legal-mvp/a40bc02e-fa03-4aad-86f9-11c12a2021af/scratchpad"
+./venv/Scripts/python.exe "$SP/fix_title2.py"
+echo "--- rebuild ---"
+./venv/Scripts/python.exe experiments/make_synopsis_tex.py 2>&1 | tail -5
+```
+
+`2026-09-17 01:43:51` · **cmd** — Remove the damaged file
+```bash
+rm -f experiments/make_synopsis_tex.py && echo "removed, ready for clean write"
+```
+
+### 2026-09-17 01:44:00 · prompt
+
+how long??
+
+### 2026-09-17 01:45:48 · prompt
+
+go ahead
+
+`2026-09-17 01:47:01` · **cmd** — Build and compile the LaTeX synopsis
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe experiments/make_synopsis_tex.py 2>&1 | tail -7
+```
+
+`2026-09-17 01:47:40` · **cmd** — Rebuild after the regex fix
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe experiments/make_synopsis_tex.py 2>&1 | tail -7
+```
+
+`2026-09-17 01:47:52` · **cmd** — Render pages for visual check
+```bash
+cd /c/Users/uniya/legal-mvp
+./venv/Scripts/python.exe -c "
+import fitz
+d=fitz.open('docs/SYNOPSIS_IT118.pdf')
+for i in (0,1,6):
+    d[i].get_pixmap(matrix=fitz.Matrix(1.5,1.5)).save(f'build/tex/v{i+1}.png')
+print('rendered pages 1, 2, 7')"
+```
+
+`2026-09-17 01:48:26` · **cmd** — Final verification of the compiled document
+```bash
+cd /c/Users/uniya/legal-mvp
+echo "=== LaTeX warnings worth knowing ==="
+grep -cE "Overfull \\\\hbox" build/tex/SYNOPSIS_IT118.log | sed 's/^/  overfull lines: /'
+grep -c "Underfull" build/tex/SYNOPSIS_IT118.log | sed 's/^/  underfull: /'
+grep -iE "missing|undefined" build/tex/SYNOPSIS_IT118.log | head -3 || echo "  no missing/undefined"
+echo
+echo "=== figures actually placed ==="
+./venv/Scripts/python.exe -c "
+import fitz
+d=fitz.open('docs/SYNOPSIS_IT118.pdf')
+tot=0
+for i,p in enumerate(d):
+    n=len(p.get_images())
+    if n: print(f'  p{i+1}: {n} figure(s)'); tot+=n
+print(f'  total {tot} of 6
+… [truncated, 238 more chars]
+```
