@@ -62,7 +62,13 @@ def esc(s: str) -> str:
     return s
 
 
-PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
+% letterpaper, NOT a4paper. The department template is 8.5 x 11 in (read from
+% its own sectPr), and A4 is 0.69 in taller -- so an A4 build silently gets
+% about 7% more text per page than the format allows. The written rule in the
+% template gives margins as 1 in top/bottom/right and 1.25 in left, which is
+% what geometry sets below; note the template FILE contradicts its own written
+% rule with a 1.25 in right margin. The written rule governs.
+PREAMBLE = r"""\documentclass[12pt,letterpaper]{article}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{times}
@@ -78,6 +84,7 @@ PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
 \usepackage{array}
 \usepackage[hidelinks]{hyperref}
 \usepackage{ragged2e}
+\usepackage{float}
 
 \setlength{\floatsep}{7pt}
 \setlength{\textfloatsep}{9pt}
@@ -85,6 +92,31 @@ PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
 \setlength{\abovecaptionskip}{3pt}
 \setlength{\belowcaptionskip}{2pt}
 
+% amsmath's default display skips are ~12pt above and below each numbered
+% equation. Across five equations that is a fifth of a page of pure gap.
+\setlength{\abovedisplayskip}{5pt}
+\setlength{\belowdisplayskip}{5pt}
+\setlength{\abovedisplayshortskip}{3pt}
+\setlength{\belowdisplayshortskip}{3pt}
+
+% Float packing. LaTeX defaults refuse to put more than 70% of a page into
+% floats and insist on at least 20% text, which on a figure-dense document
+% leaves half-empty pages. These six figures are wide and short, so the
+% defaults cost more than a page of whitespace. Loosened, not removed:
+% \textfraction 0.07 still forbids a page that is figures with one stray line.
+\renewcommand{\topfraction}{0.92}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.80}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{4}
+
+% Do NOT replace this with \setstretch{1.4x} to save space. setspace's
+% \onehalfspacing already compensates for \baselineskip being 1.2x the font
+% size, so it resolves to a stretch of about 1.25, and any \setstretch above
+% that makes the document LONGER. Measured: 1.43 took 16 pages to 18.
+% \onehalfspacing is the correct rendering of the format's "1.5 line spacing".
 \onehalfspacing
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{4pt}
@@ -119,10 +151,25 @@ def sized(pt: int, lead: int, text: str, bold: bool = False) -> str:
 def title_page() -> str:
     # escape each line BEFORE joining, or esc() turns the break into markup
     desig = (NL + "[1pt]").join(esc(l) for l in T.MENTOR_DESIG.split("\n"))
+
+    # The department template carries the Banasthali Vidyapith seal on the
+    # title page, between the supervisor block and the department block, at
+    # 1.21in x 1.08in (read from the wp:extent of word/media/image1.png in
+    # "Synopsis Format for Research based Project.docx"). Extracted to
+    # assets/ and flattened onto white, because pdflatex composites PNG
+    # alpha unreliably. An earlier draft omitted it entirely.
+    logo = ROOT / "assets" / "banasthali_logo.png"
+    if logo.exists():
+        seal = (r"\includegraphics[height=1.08in]{" + logo.as_posix() + "}"
+                + NL + "[10pt]")
+    else:
+        DROPPED.append("title-page logo assets/banasthali_logo.png absent")
+        seal = ""
+
     L = [
         r"\thispagestyle{empty}",
         r"\begin{center}",
-        r"\vspace*{1.1cm}",
+        r"\vspace*{0.7cm}",
         sized(14, 17, "Synopsis on") + NL + "[14pt]",
         sized(17, 21, esc(T.TITLE), bold=True) + NL + "[22pt]",
         sized(14, 17, "Submitted by") + NL + "[10pt]",
@@ -132,7 +179,8 @@ def title_page() -> str:
         sized(13, 16, esc(T.DEGREE), bold=True) + NL + "[22pt]",
         sized(14, 17, "Under the Supervision of") + NL + "[10pt]",
         sized(13, 16, esc(T.MENTOR), bold=True) + NL + "[5pt]",
-        sized(12, 15, desig) + NL + "[24pt]",
+        sized(12, 15, desig) + NL + "[16pt]",
+        seal,
         sized(14, 17, esc(T.DEPARTMENT), bold=True) + NL + "[4pt]",
         sized(14, 17, esc(T.INSTITUTE), bold=True) + NL + "[4pt]",
         sized(13, 16, esc(T.SESSION)),
@@ -161,16 +209,51 @@ def figure(stem: str, caption: str) -> str:
     if not p.exists():
         DROPPED.append(f"figure {stem}.png absent")
         return ""
-    return ("\n" + r"\begin{figure}[htbp]" + "\n" + r"\centering" + "\n"
-            + r"\includegraphics[width=0.80\textwidth]{" + p.as_posix() + "}\n"
+    # [!ht] not [H]: measured, not guessed. Total content is 9614pt, which
+    # fits in 14 pages; the document ran to 16 purely on page-break waste,
+    # because a pinned figure that does not fit at the foot of a page leaves
+    # the rest of that page blank. Floating lets the text close the gap. The
+    # "!" tells LaTeX to ignore its own fullness limits, so a figure still
+    # lands beside the sentence that reads it wherever that is possible.
+    return ("\n" + r"\begin{figure}[!ht]" + "\n" + r"\centering" + "\n"
+            + r"\includegraphics[width=0.62\textwidth]{" + p.as_posix() + "}\n"
             + r"\caption{" + esc(caption) + "}\n"
             + r"\end{figure}" + "\n\n")
 
 
 def table(caption: str, header: list, rows: list) -> str:
-    widths = {4: r"p{0.30\textwidth}p{0.22\textwidth}rr",
-              5: r"p{0.26\textwidth}rrrp{0.16\textwidth}"}
-    spec = widths.get(len(header), "l" * len(header))
+    # Column types are DERIVED from the data, never assumed from the column
+    # count. A fixed per-arity spec assumed columns 3 and 4 of any 4-column
+    # table were numeric; the query-set table has prose there and ran 99pt
+    # past the right margin. A numeric column gets "r" and takes its natural
+    # width; the remaining textwidth is shared among the prose columns in
+    # proportion to their longest cell, so nothing overflows.
+    NUMERIC = re.compile(r"^[-+]?[\d,]+(\.\d+)?%?$|^\[.*\]$|^n/?a$", re.I)
+    body = [[str(c) for c in r] for r in rows]
+    cols = list(zip(*body)) if body else []
+    kinds = ["r" if col and all(NUMERIC.match(c.strip()) or not c.strip()
+                                for c in col) else "p"
+             for col in cols]
+    if not kinds:
+        kinds = ["p"] * len(header)
+
+    # Budget the line exactly, in points, rather than approximately. At the
+    # \small size used for tables, Times averages ~5.6pt per character, and
+    # every column boundary costs 2*\tabcolsep = 12pt. Leaving these out is
+    # what pushed two tables 7pt and 22pt past the margin.
+    TW, CHAR, GAP = 434.0, 5.6, 12.0          # textwidth pt, pt/char, pt/gap
+    prose = [i for i, k in enumerate(kinds) if k == "p"]
+    longest = {i: max([len(header[i])] + [len(c) for c in cols[i]])
+               for i in range(len(kinds))}
+    fixed = sum(longest[i] * CHAR + 2 for i in range(len(kinds))
+                if kinds[i] == "r")
+    budget = TW - GAP * (len(kinds) - 1) - fixed
+    total = sum(longest[i] for i in prose) or 1
+    spec = "".join(
+        "r" if kinds[i] == "r"
+        else r"p{%.3f\textwidth}" % max(0.10,
+                                        budget * longest[i] / total / TW)
+        for i in range(len(kinds)))
     L = ["\n" + r"\begin{table}[htbp]", r"\centering",
          r"\caption{" + esc(caption) + "}",
          r"\small", r"\setstretch{1.0}",
@@ -188,11 +271,17 @@ def table(caption: str, header: list, rows: list) -> str:
 
 
 def equation(body: str) -> str:
-    b = body.replace("<=", r"\leq").replace(">=", r"\geq")
+    # "SUM over lists of" must be handled BEFORE the bare "SUM", or the words
+    # fall through to math mode and set as one italic variable, "overlistsof".
+    b = body.replace("SUM over lists of", BS + "sum_{" + BS + "text{lists}}")
+    b = b.replace("<=", r"\leq").replace(">=", r"\geq")
     b = b.replace("SUM", r"\sum").replace("s_top", r"s_{\text{top}}")
+    b = re.sub(r"\bs1\b", "s_{1}", b)
+    b = re.sub(r"\bs5\b", "s_{5}", b)
     # lambda replacements: a plain string would be read as a regex template,
     # where a lone backslash is an invalid escape.
-    for w in ("min", "ln"):
+    # "max" belongs here with "min": omitted, it set as italic "max".
+    for w in ("min", "max", "ln"):
         b = re.sub(r"\b" + w + r"\b", lambda m, w=w: BS + w, b)
     for w in ("idf", "RRF", "rank"):
         b = re.sub(r"\b" + w + r"\b",
@@ -224,11 +313,16 @@ def build_body(V: dict) -> str:
                 for item in b[1]:
                     out.append(r"  \item " + esc(item.format(**V)))
                 out.append(r"\end{" + env + "}" + "\n")
+    # References are set single-spaced. The department format prescribes 1.5
+    # line spacing for the BODY; a reference list is conventionally set solid
+    # in IEEE style, and at 1.5 it cost most of a page against a 15-page cap.
     out.append(r"\section*{8. References}")
-    out.append(r"\begin{enumerate}[label={[\arabic*]},leftmargin=2.6em]")
+    out.append(r"\begingroup\setstretch{1.0}\footnotesize")
+    out.append(r"\begin{enumerate}[label={[\arabic*]},leftmargin=2.4em,"
+               r"itemsep=1pt]")
     for ref in T.REFERENCES:
         out.append(r"  \item " + esc(ref))
-    out.append(r"\end{enumerate}")
+    out.append(r"\end{enumerate}\endgroup")
     return "\n".join(out)
 
 

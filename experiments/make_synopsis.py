@@ -144,6 +144,30 @@ def gather() -> dict:
     V["gap_cited_ci"] = cci(g_cit)
     V["n_paired"] = f"{int(g_ret.n)}"
 
+    # --- the layman set: the users the system exists for ---------------------
+    # Added 2026-09-18. These numbers were measured in Wave 3 and sat in
+    # robustness.csv unreported, which is why the synopsis claimed six findings
+    # where seven are established. `grounded` means EVERY citation in the
+    # answer was present in the retrieved passages, so 0/120 says every layman
+    # answer carried at least one citation retrieval never supplied.
+    for defn, stage, key in [("retrieved@15", "raw_15", "layman_raw"),
+                             ("retrieved@15", "filtered_n", "layman_filt"),
+                             ("cited", None, "layman_cited"),
+                             ("grounded", None, "layman_grounded")]:
+        f = dict(metric="layman_rate", query_set="layman_situation",
+                 definition=defn)
+        if stage:
+            f["stage"] = stage
+        r = pick(R, notes="restriction=none", **f)
+        V[key] = pc(r)
+        V[f"{key}_ci"] = ci(r, as_pct=True)
+        V[f"{key}_n"] = f"{int(r.n)}"
+    # NOT quoted as an interval anywhere. robustness.csv gives [0.000, 0.000]
+    # for the grounded row, which claims certainty at zero -- exactly what
+    # Section 6.4 says the Wilson interval is used to avoid. Reported as the
+    # count instead, which is what the data actually supports.
+    V["layman_grounded_count"] = f"0 of {V['layman_grounded_n']}"
+
     # --- self-naming --------------------------------------------------------
     V["df_sanhita"] = f"{int(pick(S, metric='document_frequency', definition='sanhita', query_set='ALL').v)}"
     V["df_penal"] = f"{int(pick(S, metric='document_frequency', definition='penal', query_set='ALL').v)}"
@@ -175,7 +199,7 @@ def _style(doc):
     n._element.rPr.rFonts.set(qn("w:eastAsia"), FONT)
     pf = n.paragraph_format
     pf.line_spacing = 1.5
-    pf.space_after = Pt(3)
+    pf.space_after = Pt(1)
     pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
 
@@ -214,7 +238,7 @@ def _page_numbers(doc):
 
 
 def para(doc, text, size=12, bold=False, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
-         space_before=0, space_after=3, italic=False, spacing=1.5):
+         space_before=0, space_after=1, italic=False, spacing=1.5):
     p = doc.add_paragraph()
     p.alignment = align
     pf = p.paragraph_format
@@ -231,12 +255,12 @@ def para(doc, text, size=12, bold=False, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
 
 def heading(doc, text):
     para(doc, text, size=14, bold=True, align=WD_ALIGN_PARAGRAPH.LEFT,
-         space_before=8, space_after=4)
+         space_before=5, space_after=2)
 
 
 def subheading(doc, text):
     para(doc, text, size=12, bold=True, align=WD_ALIGN_PARAGRAPH.LEFT,
-         space_before=6, space_after=3)
+         space_before=4, space_after=2)
 
 
 def equation(doc, body, number):
@@ -254,20 +278,20 @@ def equation(doc, body, number):
     r.italic = True
 
 
-def figure(doc, stem, caption, number, width=4.4):
+def figure(doc, stem, caption, number, width=2.85):
     path = FIG / f"{stem}.png"
     if not path.exists():
         DROPPED.append(f"figure {stem}.png absent — omitted")
         return
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(6)
-    p.paragraph_format.space_after = Pt(2)
+    p.paragraph_format.space_before = Pt(4)
+    p.paragraph_format.space_after = Pt(1)
     p.add_run().add_picture(str(path), width=Inches(width))
     cap = doc.add_paragraph()
     cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
     cap.paragraph_format.line_spacing = 1.0
-    cap.paragraph_format.space_after = Pt(8)
+    cap.paragraph_format.space_after = Pt(3)
     r = cap.add_run(f"Figure {number}: {caption}")
     r.font.name = FONT
     r.font.size = Pt(11)
@@ -354,7 +378,19 @@ def title_page(doc):
     for line in T.MENTOR_DESIG.split("\n"):
         para(doc, line, size=12, align=WD_ALIGN_PARAGRAPH.CENTER, space_after=0,
              spacing=1.15)
-    para(doc, "", align=WD_ALIGN_PARAGRAPH.CENTER, space_after=14)
+    # The department template places the Banasthali Vidyapith seal here, after
+    # the supervisor block and before the department block, at 1.21in x 1.08in
+    # (wp:extent of word/media/image1.png in the format .docx). Extracted once
+    # to assets/. An earlier draft of both builders omitted it.
+    seal = ROOT / "assets" / "banasthali_logo.png"
+    if seal.exists():
+        sp = doc.add_paragraph()
+        sp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        sp.paragraph_format.space_before = Pt(14)
+        sp.paragraph_format.space_after = Pt(10)
+        sp.add_run().add_picture(str(seal), height=Inches(1.08))
+    else:
+        DROPPED.append("title-page logo assets/banasthali_logo.png absent")
     para(doc, T.DEPARTMENT, size=14, bold=True,
          align=WD_ALIGN_PARAGRAPH.CENTER, space_after=2)
     para(doc, T.INSTITUTE, size=14, bold=True,
@@ -412,34 +448,54 @@ def main():
             elif kind in ("bul", "num"):
                 listing(doc, [x.format(**V) for x in b[1]], kind == "num")
 
+    # References are set 11pt single-spaced, matching the LaTeX build. The
+    # department format prescribes 1.5 spacing for the BODY; an IEEE reference
+    # list is conventionally set solid, and at 12pt/1.5 these 18 entries cost
+    # roughly two pages against a 15-page cap.
     heading(doc, "8. References")
     for i, ref in enumerate(T.REFERENCES, 1):
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         pf = p.paragraph_format
-        pf.line_spacing = 1.5
-        pf.left_indent = Inches(0.45)
-        pf.first_line_indent = Inches(-0.45)
-        pf.space_after = Pt(4)
+        pf.line_spacing = 0.92
+        pf.left_indent = Inches(0.36)
+        pf.first_line_indent = Inches(-0.36)
+        pf.space_after = Pt(0)
         r = p.add_run(f"[{i}]  {ref}")
         r.font.name = FONT
-        r.font.size = Pt(12)
+        r.font.size = Pt(9)
 
     doc.save(OUT_DOCX)
     print(f"  wrote {OUT_DOCX.name}  ({fig_n} figures, {tbl_n} tables, "
           f"{len(T.REFERENCES)} references)")
 
-    # PDF, for the Google Form
+    # PDF, for the Google Form.
+    #
+    # This block used to print "wrote SYNOPSIS_IT118.pdf (N pages)" whenever a
+    # PDF merely EXISTED at that path, whether or not this run produced one.
+    # With LibreOffice absent it therefore reported the page count of a stale
+    # PDF left behind by the LaTeX builder, as a success message, for a file it
+    # had not touched. That is the exact failure this project's documentation
+    # protocol exists to prevent, so the claim is now tied to the conversion
+    # actually having run and written the file.
     soffice = Path(r"C:\Program Files\LibreOffice\program\soffice.exe")
+    converted = False
     if soffice.exists():
+        stamp = OUT_PDF.stat().st_mtime if OUT_PDF.exists() else 0.0
         subprocess.run([str(soffice), "--headless", "--convert-to", "pdf",
                         "--outdir", str(OUT_PDF.parent), str(OUT_DOCX)],
                        capture_output=True, timeout=300)
-    if OUT_PDF.exists():
+        converted = OUT_PDF.exists() and OUT_PDF.stat().st_mtime > stamp
+    if converted:
         import fitz
         print(f"  wrote {OUT_PDF.name}  ({fitz.open(OUT_PDF).page_count} pages)")
     else:
-        DROPPED.append("PDF: LibreOffice not found — export from Word instead")
+        DROPPED.append(
+            "PDF NOT WRITTEN by this run — LibreOffice absent. Export from "
+            "Word instead. Any existing docs/SYNOPSIS_IT118.pdf is STALE and "
+            "its page count is not this document's.")
+        if OUT_PDF.exists():
+            DROPPED.append(f"  (a stale {OUT_PDF.name} is present on disk)")
 
     print(f"DROPPED: {len(DROPPED)}")
     for d in DROPPED:

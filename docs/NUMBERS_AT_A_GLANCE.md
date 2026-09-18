@@ -52,4 +52,4 @@ commit `69388f5` · machine-extracted from `results/*.csv`, nothing retyped · r
 | Layman rate, raw_15 | **0.150** | [0.092, 0.217] | [0.033, 0.275] | 120 | `retrieved@15` | `raw_15` | `robustness.csv` | `./venv/Scripts/python.exe experiments/exp05_robustness.py` |
 | Layman rate, filtered_n | **0.075** | [0.033, 0.125] | [0.000, 0.167] | 120 | `retrieved@15` | `filtered_n` | `robustness.csv` | `./venv/Scripts/python.exe experiments/exp05_robustness.py` |
 
-**Not listed here because it is not in any CSV:** the term-frequency and inverse-document-frequency evidence for statutory self-naming, which exists only as prose in `results/EXPLAIN.md`. It must be written to a results file before the paper cites it.
+**~~Not listed here because it is not in any CSV:~~ RESOLVED 2026-09-02.** The term-frequency and inverse-document-frequency evidence for statutory self-naming now lives in `results/self_naming.csv` (211 rows), written by `experiments/exp10_self_naming.py` and checked by `check10_self_naming_check.py`. Regenerate this ledger with `./venv/Scripts/python.exe experiments/make_supervisor_brief.py` to pick it up; the commit stamped in the header above predates it.

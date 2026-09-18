@@ -9,8 +9,8 @@
 > | Part 1 claims | Measured reality |
 > |---|---|
 > | Corpus covers "BNS, BNSS, BSA, CrPC, Constitution, Consumer Protection Act, IPC and judicial precedents" | **Four documents only**: IPC, BNS, CrPC, CPA. The BNSS, BSA, Constitution and case law were never ingested |
-> | "Calibrated refusal — system refuses rather than hallucinating" | The refusal gate **never fired once** in 419 measured queries |
-> | Composite confidence scoring is the key innovation | The composite scores **worse** than a single raw similarity number (0.610 against 0.663) |
+> | "Calibrated refusal — system refuses rather than hallucinating" | The refusal gate **never fired once** in 617 measured query runs |
+> | Composite confidence scoring is the key innovation | The composite scores **worse** than a single raw similarity number (0.663 against 0.784) |
 > | GPT-4o-mini | Now `google/gemini-3.7-flash` via OpenRouter |
 > | 1,011 chunks | **1,899** after the ingest rebuild |
 >
@@ -393,7 +393,7 @@ In the previous implementation, confidence was the simple mean of all 15 retriev
 
 **Signal 2: Score Gap Penalty (Weight: 15%)** — Penalizes "lucky hit" retrievals where one chunk scored much higher than the rest. Formula: `gap_penalty = min((top_score − 5th_score) / 0.3, 1.0)`. When all top-5 score similarly (gap ≈ 0), full 0.15 contributed. Gap of 0.3+: contributes 0.
 
-**Signal 3: Entity Coverage (Weight: 30%)** — Measures whether top chunks actually contain the specific legal entities mentioned in the query. If no entities were extracted, defaults to 1.0 (neutral). Formula: `entity_coverage = count(top-5 chunks containing any entity) / count(entities)`.
+**Signal 3: Entity Coverage (Weight: 30%)** — Measures whether top chunks actually contain the specific legal entities mentioned in the query. If no entities were extracted, defaults to 1.0 (neutral). Formula: `entity_coverage = count(top-5 chunks containing any entity) / count(entities)`. *(Both halves of this sentence are wrong about the code shipping today: the no-entity default is `ENTITY_NEUTRAL` = 0.5, not 1.0 (`agents/retriever.py:45,134`), and the numerator counts matched ENTITIES, not chunks — `entity_hits / len(entities)` at `:118-119`, which is what bounds it to [0,1].)*
 
 ### Confidence Tier Thresholds
 
@@ -596,8 +596,14 @@ legal-mvp/
 │   └── reporter.py               #   📊 Agent 5: PDF report with clean_text() Unicode handling
 │
 ├── core/                         # ⚙️ Core Services
-│   ├── config.py                 #   Environment: EMBED_MODEL, GEN_MODEL, QDRANT_URL, TOP_K
+│   ├── config.py                 #   Environment: EMBED_MODEL, MODEL_NAME, QDRANT_URL, TOP_K
 │   ├── logging.py                #   Structured logging with ReqIdDefaultFilter
+│   ├── run_logger.py             #   One JSONL record per query — LIVE, wired at app.py:33
+│   ├── dates.py                  #   Conduct date -> legal era (368 lines)
+│   ├── statute_mapper.py         #   IPC<->BNS mapping across the recodification (225 lines)
+│   ├── recodification.py         #   Corpus boundary + old/new statute tables
+│   ├── citations.py              #   Citation extraction and normalisation
+│   ├── verifier.py               #   Are cited provisions present in retrieved text?
 │   └── schemas.py                #   Pydantic: Citation, AnswerJSON, CaseContext
 │
 ├── clients/                      # 🔌 External Clients
@@ -612,7 +618,7 @@ legal-mvp/
 ├── retrieve/                     # 🔎 Legacy Retrieval (v1 modules)
 │   ├── decision.py               #   Rule-based routing (superseded by agents/router.py)
 │   ├── search.py                 #   Qdrant k=24 search (superseded by agents/retriever.py)
-│   ├── mmr.py                    #   MMR diversification
+│   ├── mmr.py                    #   DOES NOT EXIST — see GAPS.md #22
 │   └── pack.py                   #   Evidence packer [1]..[k]
 │
 ├── answer/                       # ✍️ Legacy Answer (v1 modules)
@@ -674,7 +680,7 @@ streamlit run streamlit_app.py
 ```env
 OPENAI_API_KEY=sk-...
 EMBED_MODEL=text-embedding-3-small
-GEN_MODEL=gpt-4o-mini
+MODEL_NAME=google/gemini-3.7-flash      # NOT GEN_MODEL — see core/config.py:42
 QDRANT_URL=http://localhost:6333
 TOP_K=8
 USE_TRANSLATION=false
@@ -959,7 +965,7 @@ Test suite: 52 tests to 89. Index rebuilt: 1,933 chunks to 1,899.
 
 ### Chapter 5 — 23 August: Phase G, the first honest measurement
 
-419 questions, zero transport failures. And immediately, a trap. Section 2.6 records it.
+617 query runs, zero transport failures. And immediately, a trap. Section 2.6 records it.
 
 ### Chapter 6 — 23 August: Phase H, the intervention
 
@@ -1074,9 +1080,9 @@ Reproduce with `python scripts/ablate_filter.py`.
 
 | Query set | gold section **retrieved** | gold section **cited** | gap |
 |---|---|---|---|
-| generated, ideal conditions | 68.0% | 98.5% | +30.5 points |
-| paired | 71.7% | 100.0% | +28.3 points |
-| **layman** | **15.0%** | **85.0%** | **+70.0 points** |
+| generated, ideal conditions | 69.2% | 96.0% | +26.8 points |
+| paired | 73.7% | 94.9% | +21.2 points |
+| **layman** | **15.0%** | **63.3%** | **+48.3 points** |
 
 A real example from the run:
 
@@ -1099,21 +1105,21 @@ Every passage retrieved across the 120 layman questions:
 
 | Book | Passages | Share |
 |---|---|---|
-| **CrPC**, procedure, repealed | 428 | **70.4%** |
+| **CrPC**, procedure, repealed | 427 | **70.2%** |
 | IPC, penal, repealed | 91 | 15.0% |
 | **BNS**, penal, in force | 46 | **7.6%** |
-| CPA, consumer | 43 | 7.1% |
+| CPA, consumer | 44 | 7.2% |
 
 Two-thirds of layman questions come back dominated by the **procedure** book, not the book that says what offence occurred. Across all layman answers, the **repealed IPC is named twice as often as the current BNS**, 29.3 percent against 14.6 percent.
 
-**The base-rate control**, which the evaluation plan requires and without which the claim would be unfalsifiable:
+**The base-rate control**, which the evaluation plan requires and without which the claim would be unfalsifiable. Both rows are at the `filtered_n` stage; at `raw_15` the same ratio is 1.49x, and `PLAN.md` §4.1 requires the stage to be named because the two differ:
 
 | | CrPC share |
 |---|---|
 | Its share of the index | 39.1% |
-| Its share of layman retrieval | **70.4%** |
+| Its share of layman retrieval, `filtered_n` | **70.2%** |
 
-**1.8 times over-representation.** The claim survives its control.
+**1.80x over-representation at `filtered_n`, 1.49x at `raw_15`.** The claim survives its control at both stages.
 
 Two honest attributions. This confirms an observation made independently on 5 August: *"on civil or consumer phrasings the retrieval seems to drift towards the CrPC even where the Consumer Protection Act would be correct."* And it is partly **caused by a change made on 23 August**, when the router's fallback moved from "always BNS" to "no filter at all". It therefore measures unfiltered dense retrieval over an unbalanced corpus, which is the baseline the designed router is meant to beat.
 
@@ -1132,19 +1138,19 @@ Retrieval is flat across all four, because nothing in the pipeline read the date
 
 ### Result 5 — confidence, a negative result
 
-**AUROC** asks: if you pick one good answer and one bad answer at random, how often does the score rank the good one higher? **0.5 means a coin flip.** Measured on 419 queries, of which only 27 answers were fully grounded.
+**AUROC** asks: if you pick one good answer and one bad answer at random, how often does the score rank the good one higher? **0.5 means a coin flip.** Measured on 617 query runs, of which only 27 answers were fully grounded.
 
 | Signal | AUROC | Reading |
 |---|---|---|
-| `entity_coverage`, carrying 30 percent of the weight | **0.492** | **Chance. No information at all** |
-| the full composite | 0.610 | Weak |
-| `score_gap` | 0.645 | Weak |
-| `top_k_mean` | 0.659 | Weak |
-| **raw maximum similarity**, a single plain number | **0.663** | **Best of all** |
+| `entity_coverage`, carrying 30 percent of the weight | **0.581** | **Barely above a coin flip** |
+| the full composite | 0.663 | Weak |
+| `score_gap`, uninverted | 0.730 | Weak |
+| `top_k_mean` | 0.757 | Weak |
+| **raw maximum similarity**, a single plain number | **0.784** | **Best of all** |
 
 Two results, both uncomfortable, both reportable. A signal carrying 30 percent of the weight sits at chance. And the elaborate three-signal composite performs **worse than the single number it was built to improve on**.
 
-Two caveats must be disclosed with these figures. Only 27 positives makes every estimate noisy. And the section normaliser rewrites any line beginning with a number and a full stop into `"Section N."`, so a passage can match `"Section 41"` merely because page 41 began with `41.` That is a confound on the very signal measured at 0.492.
+Two caveats must be disclosed with these figures. Only 27 positives makes every estimate noisy. And the section normaliser rewrites any line beginning with a number and a full stop into `"Section N."`, so a passage can match `"Section 41"` merely because page 41 began with `41.` That is a confound on the very signal measured at 0.581.
 
 ### Result 6 — the intervention
 
@@ -1182,7 +1188,7 @@ This is independent evidence for the central thesis, obtained from a second dire
 
 ### Result 8 — refusal never fires
 
-**Zero refusals across 419 questions**, including the five whose correct answer is unreachable because the BNSS was never ingested. This is the named-statute gate behaving exactly as its documented design predicts: laypeople name no statute, so the gate never engages.
+**Zero refusals across 617 query runs**, including the five whose correct answer is unreachable because the BNSS was never ingested. This is the named-statute gate behaving exactly as its documented design predicts: laypeople name no statute, so the gate never engages.
 
 ### Cost of all measurement
 
@@ -1206,8 +1212,8 @@ The single most important cost fact for planning: **experiments that do not gene
 | Part 1 states | Measured reality | Evidence |
 |---|---|---|
 | Corpus covers BNS, BNSS, BSA, CrPC, Constitution, CPA, IPC and judicial precedents | **Four documents only**: IPC, BNS, CrPC, CPA. The BNSS, BSA, Constitution and case law were **never ingested**. Tags for them existed only as artefacts of substring matching | `GAPS.md` finding 10 |
-| "Calibrated refusal, system refuses rather than hallucinating" | The refusal gate **never fired once** in 419 measured queries | Result 8 |
-| Composite confidence scoring is the key innovation | The composite, 0.610, scores **worse** than a single raw similarity number, 0.663. One of its three signals sits at chance, 0.492 | Result 5 |
+| "Calibrated refusal, system refuses rather than hallucinating" | The refusal gate **never fired once** in 617 measured query runs | Result 8 |
+| Composite confidence scoring is the key innovation | The composite, 0.663, scores **worse** than a single raw similarity number, 0.784. Its weakest signal sits at 0.581, and the gap term as deployed sits at 0.270, below a coin flip | Result 5, and Part 3 §3.3 |
 | "Grounded answers, every claim backed by citations" | **83.8 percent** of what layman answers cite is absent from the passages supplied | Result 2 |
 | Deterministic routing eliminates routing errors | Routing was the largest single source of error. The domain fallback sent every criminal query to the penal code, making the IPC unreachable | `GAPS.md` finding 6, defect E8 |
 | 1,011 chunks | **1,899** after the ingest rebuild | Phase E |
@@ -1263,7 +1269,7 @@ The single most important cost fact for planning: **experiments that do not gene
 
 ## 3.2 The agreed design, and what exists
 
-`docs/TARGET_ARCHITECTURE.md` specifies nine stages. **Twenty of its twenty-six specified items were never built.**
+`docs/TARGET_ARCHITECTURE.md` specifies nine stages. **Twenty of its twenty-six specified items were never built.** *(Written 28 Aug. Superseded in part: `statute_consistency` was built in Wave 3 and the date resolver and statute mapper are now implemented and wired at `app.py:173-190`. The count is not re-derivable from any file and should be recomputed or dropped.)*
 
 | Stage | Built | Missing |
 |---|---|---|
@@ -1317,7 +1323,7 @@ The single most important cost fact for planning: **experiments that do not gene
 
 In plain terms, it measures: **did the passages we found come from the book this question implies?** The three existing signals only examine similarity numbers. This one examines whether the answer is in the right book at all.
 
-It was never built. The paper currently reports that three confidence signals fail, while the one designed to succeed remains untested.
+It was never built at the time this was written. It was built in Wave 3 and measured: AUROC 0.6845 pooled, and 0.8300 on the 197 dated-conflict questions (`results/statute_consistency.csv`).
 
 ---
 
@@ -1367,8 +1373,8 @@ Compared with the signals in this system:
 |---|---|---|
 | `top_k_mean` | **Yes**, essentially WIG without normalisation | 0.659 |
 | `score_gap` | **Yes**, a crude NQC | 0.645 |
-| `entity_coverage` | **No**, it examines content rather than scores | 0.492 |
-| **`statute_consistency`** | **No**, domain-specific | **never built** |
+| `entity_coverage` | **No**, it examines content rather than scores | 0.581 |
+| **`statute_consistency`** | **No**, domain-specific | **0.685** pooled, **0.830** dated-conflict |
 
 **Two of four are re-derivations. Two are not.** But the two QPP-derived signals **outperformed** the novel one, and the novel one carried a defect for most of its life plus an undisclosed confound.
 
@@ -1388,8 +1394,8 @@ Not recodification alone. Not confidence alone. **Both, joined.**
    A person asks an undated question in ordinary words
           |
           v
-   The system returns the LARGEST book by base rate, 70.4 percent
-   CrPC, and names repealed law twice as often as law in force
+   The system returns the LARGEST book by base rate, 70.2 percent
+   CrPC at filtered_n, and names repealed law twice as often
           |
           v
    Even when TOLD which book, meaning-based search finds the current
@@ -1436,7 +1442,7 @@ The key carries a spending cap separate from the account balance. Raising it is 
 
 ## 5.2 The phases
 
-### Phase A — Fix the two measurement bugs. Zero cost, half a day.
+### Phase A — Fix the two measurement bugs. Zero cost, half a day. **[COMPLETE — Wave 1. `agents/answer.py:164` now writes `tier_for_confidence(retrieval.confidence)`.]**
 
 **The counting bug — RETRACTED 1 September 2026. There was no bug.**
 
@@ -1466,7 +1472,7 @@ Section 4.1 of `docs/PLAN.md`, which requires every retrieval figure to be label
 
 **Nothing else can be trusted until this is done.**
 
-### Phase B — Compute the metrics never computed. Zero cost, one day.
+### Phase B — Compute the metrics never computed. Zero cost, one day. **[COMPLETE — `results/retrieval_metrics.csv`, `calibration.csv`, `reliability_diagram.png`.]**
 
 All of these are required by `docs/EVALUATION_PLAN.md`, none exist, and all are computable from logs already paid for.
 
@@ -1480,11 +1486,11 @@ All of these are required by `docs/EVALUATION_PLAN.md`, none exist, and all are 
 | **Tier separation** | Do HIGH, MEDIUM and LOW queries actually differ in accuracy? |
 | **Citation recall** | Of the relevant provisions retrieved, how many did the answer actually cite? |
 
-### Phase C — Build `statute_consistency`. Zero cost, half a day.
+### Phase C — Build `statute_consistency`. Zero cost, half a day. **[COMPLETE — 0.685 pooled, 0.830 dated-conflict, `results/statute_consistency.csv`.]**
 
 **The highest-value item in the plan.** It answers the 21 August question with data, and it converts a negative result into a negative result with a proposed fix, which is the shape the supervisor asked for.
 
-### Phase D — Hybrid search comparison. Approximately 2 rupees, one day.
+### Phase D — Hybrid search comparison. Approximately 2 rupees, one day. **[COMPLETE — `results/hybrid_comparison.csv`, 648 rows.]**
 
 **BM25** is exact-word search, the opposite of meaning-based search. It is precise about *"318"* and useless at paraphrase. **Hybrid** runs both and merges the two ranked lists using reciprocal rank fusion.
 
@@ -1516,7 +1522,7 @@ This is the supervisor's outstanding item 4, and the sharpest reviewer objection
 
 This was previously estimated at 100 rupees. That estimate was wrong: comparing which passages come back requires no written answers, so the true cost is about **2 rupees**.
 
-### Phase E — Second embedding model. Zero cost, half a day.
+### Phase E — Second embedding model. Zero cost, half a day. **[STILL OPEN — no second-embedding result exists. Now expected outcome 3 in the synopsis.]**
 
 `bge-m3` runs locally at no cost. It answers the objection *is this a fact about Indian law, or about one embedding model?*
 
@@ -1580,7 +1586,7 @@ Remote: `https://github.com/uditauniyal/legal-mvp.git`
 | `docs/AUDIT_2026-08-26.md` | New, uncommitted |
 | `docs/RESEARCH_POSITION_AND_PLAN.md` | New, uncommitted |
 | `docs/ANSWERS.md` | New, uncommitted |
-| `core/verifier.py` | **Modified and left half-finished.** Two functions were added for the citation-binding fix, then work was stopped mid-edit. It is missing an `import re` that the new code requires |
+| `core/verifier.py` | **Modified and left half-finished.** Two functions were added for the citation-binding fix, then work was stopped mid-edit. ~~It is missing an `import re` that the new code requires~~ **Resolved**: `core/verifier.py:65` has `import re` |
 | `docs/SESSION_LOG.md` | Appended automatically by a hook on every command |
 
 **`core/verifier.py` must be either finished or reverted before the next commit**, so the repository never contains a half-applied change.
@@ -1588,7 +1594,7 @@ Remote: `https://github.com/uditauniyal/legal-mvp.git`
 ## 6.3 Test suite
 
 ```
-python -m pytest tests/ -q        ->  142 passing
+./venv/Scripts/python.exe -m pytest tests/ -q   ->  237 passing
 ```
 
 | File | Tests |
@@ -1765,7 +1771,7 @@ which is the part that matters for safety.
 
 **One thing does work, in one place.** A fourth signal was built for the first
 time: the fraction of retrieved passages coming from the statute the question
-and its date imply. Overall it scores **0.6850**, no better than what already
+and its date imply. Overall it scores **0.6845**, no better than what already
 existed. But on the 197 questions where the named code and the offence date
 disagree — precisely the hard case — it reaches **0.8300**. The catch is that on
 most other questions the search filter was itself built from the same date

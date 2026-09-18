@@ -218,3 +218,54 @@ Keep a score floor at 0.25, documented explicitly as a **garbage filter for non-
 2. More seriously, it **silently decided the experiment**. Which penal code governs depends on when the conduct happened — before 1 July 2024 the IPC, on or after it the BNS. The Router has no date. Hard-coding BNS made the IPC unreachable for every query that did not name it by number, and laypeople never name a code. Every "This happened in March 2023" query would have been answered out of the code that did not yet exist, and Phase G would have measured the default rather than the system.
 
 **Consequences.** Searching unfiltered is not free: the CrPC is 39% of the index and now competes on every criminal query. That is the base-rate confound already flagged in `EVALUATION_PLAN.md` E4, and it must be reported. An honest confound beats a hidden decision. This unfiltered path is the **baseline** the Phase H interventions get measured against.
+
+## ADR-00Z · The date resolver and statute mapper are interventions, not fallbacks
+
+**Date.** 2026-09-18.
+
+**Status.** Accepted. Governs how these two components are described in every
+document, including the paper.
+
+**Context.** `SYNOPSIS_IT118` described the date resolver as a *fallback*. Udita
+objected: *"i guess i implemented date solver or whatever then why is ita
+fallback"*. She was right, and the word was doing real damage — it read as an
+admission that a component was missing, when the component is 368 lines of
+working, integrated code.
+
+The facts, verified against the source on 2026-09-18:
+
+| | |
+|---|---|
+| `core/dates.py` | 368 lines. `resolve(query, reference_date)` -> `IPC_ERA` / `BNS_ERA` / `UNKNOWN` |
+| `core/statute_mapper.py` | 225 lines. `map_query(query, era)` -> target corpora across the recodification |
+| Wired at | `app.py:173-190`, inside the `/query` request path |
+| Modes | `baseline` (default) · `date` · `mapper` · `both`, set per request or pinned for a whole run via `INTERVENTION` |
+
+**Decision.** They are **disabled by default**, and the reason is experimental,
+not technical. Her own comment at `app.py:165` states it: every Phase H number is
+a delta against the Phase G baseline, so the baseline must stay runnable on
+demand. If the pre-intervention path could not be reproduced byte for byte,
+"the mapper improved things by 12 points" would be a claim with nothing to
+measure against.
+
+**Consequence for wording.** The permitted description is *"implemented and
+integrated; disabled by default so that any benefit is reported as a measured
+difference against a reproducible control."* The words "fallback", "not
+implemented", "partial" and "planned" are wrong about these two components and
+must not appear near them. The one legitimate use of "fallback" in the synopsis
+is the OCR fallback in ingestion, which is a different mechanism.
+
+**Evidence this design earns its keep.** Told *"last month"*, so that the BNS
+governs, the baseline pipeline's ability to name the applicable provision falls
+from 96.4% to 60.9%, because nothing in it reads the date. On the dated-conflict
+set, retrieval rises from 0.293 [0.212, 0.389] to 0.694 [0.597, 0.776] with the
+intervention on — non-overlapping intervals, the largest single gain in the
+project (figure F10, recorded 2026-09-03).
+
+**Known limitation, stated rather than hidden.** The design placed the date
+resolver *before* the router so an inferred era could choose the statute; it is
+implemented *after* it. It can therefore correct a query that already names a
+code but cannot supply a statute for one that names none — and the layman set
+names none. This is disclosed in §5.1 of the synopsis.
+
+**Supersedes.** Nothing. It corrects document wording, not a design choice.

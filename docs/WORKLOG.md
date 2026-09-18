@@ -1670,3 +1670,272 @@ so the CSV membership check is not meaningful there — it passes only because
 values like 0.30 occur somewhere in 2,959 rows. That section is instead verified
 by being hand-checkable arithmetic in the text, which is the stronger check for
 a quotation. Recorded so the distinction is not lost.
+
+## 2026-09-18 — SYNOPSIS_IT118 rebuilt: readability, the missing seal, two duplications
+
+Udita read the shipped synopsis and rejected it: *"i cant submit what I dont
+understand and i dnt understand anything."* Three specific complaints. All three
+were verified before anything was rewritten, and all three were real.
+
+**1 · Two duplicated passages, both mine.** `tighten2.py` merged paragraphs via
+its `CUTS` table but the matching `DROPS` entry never removed the original, so
+near-identical prose shipped twice. Confirmed in the PDF text layer:
+`"delay at the police station"` appeared **2 times** in §3 Motivation, and §5.5
+carried both *"These have caught real errors…"* and *"These have detected real
+errors…"*. She reported one; there were two.
+
+    ./venv/Scripts/python.exe -c "import fitz,re,collections; d=fitz.open('docs/SYNOPSIS_IT118.pdf'); f=re.sub(r'\s+',' ','\n'.join(p.get_text() for p in d)); s=[x.strip() for x in re.split(r'(?<=[.]) ',f) if len(x.strip())>55]; print(sum(1 for _,c in collections.Counter(s).items() if c>1))"
+
+Now **0 repeated sentences**.
+
+**2 · The department seal was missing.** The format template carries
+`word/media/image1.png`, 74,369 bytes, displayed at 1.21in x 1.08in between the
+supervisor block and the department block (read from its `wp:extent`). The
+generated title page had no image at all. Extracted once to
+`assets/banasthali_logo.png`, flattened onto white because pdflatex composites
+PNG alpha unreliably, and added to **both** builders at the template's position.
+
+**3 · Section 1 opened on the wrong idea.** It began with "recodification", a
+word it had not yet defined, before establishing why anyone should care. Her
+instruction was to respect the chronology. Section 1 is now
+1.1 the woman who cannot afford a lawyer -> 1.2 what RAG is -> 1.3 what changed
+on 1 July 2024, with a new Table 1 of the three replaced codes ->
+1.4 why this is a hard *retrieval* problem, with Figure 1 -> 1.5 the contribution.
+Every term is defined inline at first use.
+
+**A correction that mattered more than the layout.** The document described the
+date resolver as a *fallback*. That was wrong and it read as an apology for the
+project's best engineering. `core/dates.py` (368 lines) and
+`core/statute_mapper.py` (225 lines) are fully implemented and wired at
+`app.py:173-190`. They are **off by default for an experimental reason**, stated
+in her own comment at `app.py:165`: every Phase H number is a delta against the
+Phase G baseline, so the baseline has to stay runnable. The wording is now
+"implemented and integrated, disabled by default so that any benefit is a
+measured difference against a reproducible control". See ADR-00Z.
+
+**Four typesetting defects found and fixed while verifying, none reported:**
+
+| Defect | Evidence | Fix |
+|---|---|---|
+| Query-set table 99.3pt past the right margin | `Overfull \hbox` at lines 256--268 | Column types are now **derived from the data** (numeric -> `r`, prose -> proportional `p{}`), not assumed from the column count; line budgeted in points including `2\tabcolsep` per boundary |
+| Equation (5) set "over lists of" as one italic variable, `overlistsof` | rendered p10 | `"SUM over lists of"` -> `\sum_{\text{lists}}`, handled before the bare `SUM` |
+| Equation (3) set `max` italic | rendered p10 | `max` added to the roman-word list beside `min` and `ln` |
+| `s1`, `s5` set as two-character variables | rendered p10 | -> `s_{1}`, `s_{5}` |
+
+`Overfull \hbox` count: **2 -> 0**.
+
+**Length: 17 -> 15 pages, against a hard 15-page cap.** Two measurement errors of
+mine are worth recording, because both sent the work in the wrong direction.
+
+- I replaced `\onehalfspacing` with `\setstretch{1.43}`, reasoning that LaTeX was
+  looser than Word's "1.5 lines". **Backwards.** setspace already compensates for
+  `\baselineskip` being 1.2x the font size, so `\onehalfspacing` resolves to
+  about 1.25 and any larger value *lengthens* the document. Measured: 16 -> 18
+  pages. Reverted, with the reasoning left in the preamble so it is not retried.
+- My gap census filtered out text blocks ending below y=750 to exclude the page
+  number, which silently discarded real body text and made the overflow look
+  like ~1,300pt when it was **154pt, about seven lines**. I cut roughly 2,000
+  characters of prose more than necessary before catching it. Total content is
+  9,614pt; fifteen pages hold 10,905pt. The document was never too long — it was
+  badly packed.
+
+What actually recovered the pages: floating the figures `[!ht]` rather than
+pinning them `[H]` (a pinned figure that will not fit at the foot of a page
+leaves the rest of that page blank), loosened float fractions, single-spaced
+`\footnotesize` references, and tighter `\abovedisplayskip`. Figure width 0.62
+of textwidth is the measured maximum that still fits; 0.64 tips to 16.
+
+**Verification of the shipped PDF.** 15 pages · 0 repeated sentences ·
+1 title-page image · 6 figures · 4 tables · 5 equations · references [1]-[15]
+all present · 52 of 57 sourced values appear in the text, the 5 absent being
+confidence intervals for comparison arms the prose does not quote · 0 overfull
+boxes. No number was retyped; `gather()` still halts unless each filter matches
+exactly one CSV row.
+
+    ./venv/Scripts/python.exe experiments/make_synopsis_tex.py
+
+**Open.** `docs/SYNOPSIS_IT118.docx` could not be written — Word holds the file
+(`~$NOPSIS_IT118.docx` present). The `.docx` on disk is still the defective
+version with both duplications and no seal. The builder is fixed and verified
+against a scratch path; rerun `experiments/make_synopsis.py` once Word is closed.
+
+**Also open, and it affects a reported number.** Per-set recall n sums to 614
+(198 + 99 + 197 + 120) while the pooled row reports n=617. That difference is
+exactly the three dropped rows G0107, G0190, D0094, which suggests the pooled
+denominator counts them while the per-set rows do not. Unverified. It must be
+settled before the paper quotes a pooled n.
+
+## 2026-09-18 (later) — Seven findings, three recovered citations, and 21 pages to 15
+
+Continues the entry above. Four pieces of work, and two corrections to things
+I recorded wrongly earlier the same day.
+
+### CORRECTION 1 — the n=614 vs n=617 reconciliation
+
+The entry above closes by saying the difference "suggests the pooled
+denominator counts [G0107, G0190, D0094] while the per-set rows do not."
+**That is wrong.** Those three rows are excluded from BOTH: they carry no gold
+label, so `experiments/exp01_retrieval.py:187-188` drops them before any
+grouping.
+
+The +3 is three *different* rows, from two legacy sets that are not among the
+four reported ones:
+
+| req_id | query_id | query_set | gold |
+|---|---|---|---|
+| `6089787fc767` | Q001 | `criminal_paired` | `IPC 302` |
+| `a8f19e5f56cd` | Q002 | `criminal_paired` | `BNS 103` |
+| `40bd347de051` | Q003 | `criminal_unnumbered` | `IPC 302, BNS 103` |
+
+They carry gold, so they enter the pooled frame; `REPORT_SETS` at
+`exp01_retrieval.py:103-106` lists only four sets, so they get no row of their
+own. 198 + 99 + 197 + 120 = 614, plus these three = 617.
+
+**It was never an open question.** The explanation is already written into
+`results/retrieval_metrics.csv`, on the `rows_analysed` row, put there
+deliberately by the script that produced it. I guessed instead of reading the
+notes column. No number changes.
+
+One wording defect found in passing: that provenance note calls all four
+ungolded rows "(SMOKE)". Only SMOKE01 is; the other three are the deliberate
+drops. The count and the arithmetic are right, the label is not.
+`exp01_retrieval.py:415-416`.
+
+### CORRECTION 2 — the LaTeX build was never really 15 pages
+
+The entry above reports the synopsis at 15 pages. It was 15 pages because the
+build was wrong in two ways at once:
+
+| | Department format | What the build did |
+|---|---|---|
+| Paper | Letter, 8.5 x 11 in (read from the template's own `sectPr`) | **A4, 8.27 x 11.69 in** — 0.69 in taller per page |
+| Line spacing | 1.5 at 12pt | `\onehalfspacing`, which setspace resolves to ~1.25 |
+
+Both were corrected. `letterpaper` is now pinned in the preamble with the
+reasoning beside it. The honest page count is what Word reports, and it was
+**21**.
+
+### The synopsis: 21 pages to 15, measured not estimated
+
+Measurement method, since estimating is what caused the problem: Word COM,
+`Document.ComputeStatistics(2)`. Every step below was measured after building,
+never predicted.
+
+| Step | Pages |
+|---|---|
+| start | 21 |
+| references 12pt/1.5 to 11pt/1.0; figures 4.4in to 3.75in | 20 |
+| 7.1 prose stops repeating the intervals Table 4 already carries | 19 |
+| 5 and 6 rewritten to a word budget | 18 |
+| **dropped equations (4) and (5)**, 5.5 and 3 compressed | 16 |
+| Table 3 folded into prose; two figures dropped | 16 |
+| references 9pt, 0.92 spacing, 0pt gap | **15** |
+
+**What was removed, and why none of it loses information.** Equations (4) and
+(5) were the BM25 inverse-document-frequency formula and the Reciprocal Rank
+Fusion formula: standard, cited [5] and [6], neither derived nor modified here,
+and every number depending on them is still reported in 7.1. Table 3 listed
+four query sets with their sizes; those five values now appear in the 5.3
+sentence instead. Three figures (`F3_dense_vs_bm25`, `F6_ablation`,
+`F4_self_naming`) plotted values that Table 4 lists row by row and the prose
+quotes in full. Kept: `SYN2_problem`, `SYN1_pipeline`, `F2_ipc_vs_bns`.
+
+**A method note worth keeping.** Six successive rewording passes moved the
+document from 17 pages to 17 pages. Rewording does not shorten a document;
+deleting does. Recorded because the instinct to reword is strong and it wasted
+about an hour.
+
+### The synopsis now reports SEVEN findings, not six
+
+The layman set was measured in Wave 3, written to `results/robustness.csv`, and
+never written up. It is the finding the whole access-to-justice framing points
+at, and it was missing.
+
+| Layman set, n=120 | Value | 95% CI |
+|---|---|---|
+| Correct provision reaches retrieved passages, `raw_15` | **15.0%** | [9.2, 21.7] |
+| Same, after the adaptive filter, `filtered_n` | **7.5%** | [3.3, 12.5] |
+| Correct provision named in the written answer | **66.7%** | [58.3, 75.0] |
+| Answers where EVERY citation was present in the retrieved text | **0 of 120** | — |
+
+`grounded` returns 0 when `ungrounded_rate` is absent, so a missing field would
+manufacture this result. It was checked before use: the field is recorded on
+857 of 859 runs overall and on **120 of 120** layman runs, ranges 0.0 to 1.0,
+mean 0.634, and 38 runs are fully grounded. The 0/120 is a measurement.
+
+**One thing deliberately NOT quoted.** `robustness.csv` gives the grounded row
+a CI of [0.000, 0.000]. At 0/120 a Wilson interval is [0, 0.031]; an interval
+of zero width claims certainty at zero, which is exactly what 6.4 says the
+Wilson interval is used to avoid. The synopsis reports the count, "0 of 120",
+and no interval. The CSV row should be checked.
+
+### Three citations recovered and re-verified
+
+Recovered from the August research transcripts, then **re-verified directly on
+arXiv** rather than trusted from the transcript summary:
+
+| | |
+|---|---|
+| [16] | Huang, Zheng, Liu, Peng, Kong, Funakoshi, Xiao, Okumura, Cao — *When Do LLMs Apply the Wrong Law?* arXiv:2608.14610 |
+| [17] | Prior, Schultz, Grabmair — *Asking For An Old Friend*, arXiv:2605.23497, 312 German QA pairs |
+| [18] | Cymbler, Guez, Fabre — *Temporal Misgrounding in Legal RAG*, arXiv:2608.09393, ICML 2026 AI4Law |
+
+Huang et al. matters beyond completeness: it is the closest prior art to 7.1
+and its absence would have been found in review. It also sharpens the position
+rather than weakening it. They measure a **generation-side** bias toward the
+most recently enacted law (old-to-new faults dominate). This work measures a
+**retrieval-side** bias in the opposite direction — 97.0% on the repealed code
+against 51.5% on the code in force. Different stage, opposite sign. Section 2.2
+now says so explicitly.
+
+No month is recorded for [16]: the listing says 8 July 2026 while the
+identifier `2608` implies August. Not worth asserting either way.
+
+### README corrections — 38 in total
+
+Two passes, both by patch scripts that abort unless every replacement matches
+exactly once.
+
+**Pass 1, 21 replacements.** "419 measured queries" to 617 in five places.
+The 2.7 corrections table asserted three superseded AUROCs as measured fact
+(0.610 / 0.663 / 0.492 to 0.663 / 0.784 / 0.581) while the README's own 3.5
+already declared them "superseded, not reconcilable". Result 2's retrieved and
+cited rates (98.5% to 96.0%, 100.0% to 94.9%, layman 85.0% to 63.3%, all from
+`retrieval_metrics.csv`). `0.6850` to `0.6845`. "142 passing" to 237.
+`core/verifier.py` "missing an `import re`" — it has one at line 65.
+
+**Pass 2, 17 replacements.** The two "`statute_consistency` was never built"
+claims: it was built in Wave 3 and scores 0.685 pooled, 0.830 on the 197
+dated-conflict questions. Phases A-D marked COMPLETE, Phase E marked STILL
+OPEN. The CrPC over-representation figures now carry their stage, as
+`PLAN.md` 4.1 requires: **70.2% and 1.80x at `filtered_n`, 58.2% and 1.49x at
+`raw_15`** — the unlabelled "70.4% / 1.8x" read as a single headline for all
+stages. Part 1's two false code descriptions (the entity-coverage default is
+`ENTITY_NEUTRAL` = 0.5, not 1.0; the numerator counts entities, not chunks) now
+carry a bracketed correction rather than a rewrite, since Part 1 is preserved
+as a historical record. `GEN_MODEL=gpt-4o-mini` became
+`MODEL_NAME=google/gemini-3.7-flash`, because the variable name in that block
+was wrong and copying it did nothing. The `core/` file listing now includes
+`run_logger.py`, `dates.py`, `statute_mapper.py`, `recodification.py`,
+`citations.py` and `verifier.py`. `retrieve/mmr.py` marked as absent
+(GAPS.md #22, still open).
+
+`docs/README.md` gained the September document set — a reader following the
+index previously never reached `results/RESULTS.md`, `docs/PROJECT_REPORT.md`
+or `docs/NUMBERS_AT_A_GLANCE.md`. Memory-file count 8 to 12. All relative
+links verified to resolve.
+
+`docs/NUMBERS_AT_A_GLANCE.md`'s closing paragraph said the self-naming evidence
+"is not in any CSV". It has been in `results/self_naming.csv` since
+2026-09-02. Marked resolved.
+
+### Open
+
+- `docs/SYNOPSIS_IT118.pdf` is the stale LaTeX build. The `.tex` builder now
+  has the corrected `letterpaper` geometry but has not been re-run or refitted
+  since the content changed; the PDF on disk is the six-findings version.
+- `make_synopsis.py` prints "wrote SYNOPSIS_IT118.pdf (N pages)" when
+  LibreOffice is absent and no PDF was written — it reports the page count of
+  whatever PDF already sits at that path. A false success message; fix it.
+- `exp01_retrieval.py:415-416` mislabels three deliberate drops as "SMOKE".
+- The grounded row's [0.000, 0.000] interval in `robustness.csv`.
