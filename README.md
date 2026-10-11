@@ -1,37 +1,290 @@
-> ## READ THIS FIRST — this README has two parts
->
-> **Part 1 (immediately below)** is the original system documentation, written February 2026. It describes the system **as designed**. It is preserved unedited as a historical record.
->
-> **Part 2 (from "What Happened Since August 2026" onward)** records everything done between 8 August and 28 August 2026: the measurement work, the defects found, the results, and the plan ahead.
->
-> **Several claims in Part 1 were measured during August and found to be false.** They are corrected in Part 2, section 2.6. The most important ones:
->
-> | Part 1 claims | Measured reality |
-> |---|---|
-> | Corpus covers "BNS, BNSS, BSA, CrPC, Constitution, Consumer Protection Act, IPC and judicial precedents" | **Four documents only**: IPC, BNS, CrPC, CPA. The BNSS, BSA, Constitution and case law were never ingested |
-> | "Calibrated refusal — system refuses rather than hallucinating" | The refusal gate **never fired once** in 617 measured query runs |
-> | Composite confidence scoring is the key innovation | The composite scores **worse** than a single raw similarity number (0.663 against 0.784) |
-> | GPT-4o-mini | Now `google/gemini-3.7-flash` via OpenRouter |
-> | 1,011 chunks | **1,899** after the ingest rebuild |
->
-> Where Part 1 and Part 2 disagree, **Part 2 is correct** — it carries measurements; Part 1 carries intentions.
+# Legal MVP — Indian Legal RAG, and what measuring it revealed
+
+> **Status, 11 October 2026.** The live branch is **`metrics/sept-01`**. `main` stops at 28 August and is stale.
+> Browse it at <https://github.com/uditauniyal/legal-mvp/tree/metrics/sept-01>.
+
+## Part 0 — Start here (written October 2026)
+
+### How this README is organised
+
+| Part | Written | What it is | Trust it for |
+|---|---|---|---|
+| **Part 0** (this section) | Oct 2026 | Current system, file structure, docs map, how to run it | **Everything.** Every number is checked against a file in `results/` |
+| **Part 1** ("Legal MVP — Multi-Agent RAG…") | Feb 2026 | The original design write-up, in its original structure | The *design idea* of each agent. Claims that turned out false have been **corrected in place**, each marked **✱ Corrected Oct 2026** |
+| **Part 2** ("What happened since August 2026") | Aug 2026 | Defects found, the four query sets, Phase G/H measurements | History of the measurement work. Corrected in place where a later check overturned a number |
+| **Part 3** ("Measurement: 1–3 September 2026") | Sep 2026 | The final measurement waves and the findings | The findings. Read with `docs/AUDIT_2026-10-10.md` |
+
+**If you are studying the project** (viva, presentation, panel questions), read **[`docs/study/`](docs/study/)** instead of this README, in order:
+
+| File | Covers |
+|---|---|
+| [`00_START_HERE.md`](docs/study/00_START_HERE.md) | Reading order and a 10-minute summary |
+| [`01_FUNDAMENTALS.md`](docs/study/01_FUNDAMENTALS.md) | Every concept from zero: APIs, LLMs, embeddings, cosine similarity, vector databases, chunking, RAG, BM25, RRF, calibration |
+| [`02_ARCHITECTURE.md`](docs/study/02_ARCHITECTURE.md) | Every stage: input fields, output fields, API calls, why it was built that way, its known defects, one real query traced end to end |
+| [`03_MEASUREMENT.md`](docs/study/03_MEASUREMENT.md) | The four query sets, every statistic with a worked example, every finding with its source file |
+| [`04_GRILLING_QA.md`](docs/study/04_GRILLING_QA.md) | 67 likely panel questions with answers |
+
+**If you want to know what is wrong:** [`docs/AUDIT_2026-10-10.md`](docs/AUDIT_2026-10-10.md) is a full read-only audit of code, results and documents (10 October 2026). It ranks every problem found, with the command that reproduces it.
+
+### The project in six sentences
+
+1. It is a question-answering system for Indian criminal and consumer law: you ask in plain English, it finds passages in four statute books and writes an answer with citations.
+2. It uses **retrieval-augmented generation (RAG)**: an embedding model finds the closest passages in a Qdrant vector database, and a language model writes the answer from them.
+3. On 1 July 2024 India replaced the **Indian Penal Code (IPC, 1860)** with the **Bharatiya Nyaya Sanhita (BNS, 2023)**; the index deliberately holds **both**, so the system can confuse the repealed code with the current one.
+4. The system was then turned into a **measurement instrument**: 617 logged query runs across four purpose-built question sets, scored against answer keys.
+5. The main findings: meaning-based search confuses the two penal codes when nothing tells it which one to search; plain-English questions are pulled toward the procedure code; the answers cite law that was never retrieved; and the confidence score is worse than a single raw similarity number.
+6. A date-aware statute mapper (built September 2026) fixes the routing part of the problem in a measured experiment.
+
+### The pipeline as it runs today
+
+```mermaid
+flowchart TD
+    U["User — Streamlit UI or HTTP"] -->|"POST /query"| API["app.py (FastAPI)"]
+    API --> I["1 · Intake — agents/intake.py — LLM call"]
+    I -->|CaseContext| R["2 · Router — agents/router.py — rules"]
+    R -->|QueryPlan| M{"intervention mode"}
+    M -->|"baseline (default)"| RT
+    M -->|"date / mapper / both"| DR["2.5a · Date Resolver — core/dates.py — rules"]
+    DR --> SM["2.5b · Statute Mapper — core/statute_mapper.py — rules"]
+    SM --> RT["3 · Retrieval + Confidence — agents/retriever.py — embedding call + Qdrant"]
+    RT -->|RetrievalResult| A["4 · Answer — agents/answer.py — LLM call"]
+    A --> RP["5 · Reporter — agents/reporter.py — PDF via fpdf2"]
+    A --> V["Verifier — core/verifier.py — rules"]
+    RP --> OUT["JSON response"]
+    V --> OUT
+    API -.->|every stage| LOG["Run logger — core/run_logger.py — runs/…/queries.jsonl"]
+```
+
+| Stage | Input | Output | External call | Key facts |
+|---|---|---|---|---|
+| 1 Intake | raw question | `CaseContext`: scenario, user_persona, urgency, financial_status, complexity, predicted_legal_domain, legal_issues, missing_facts | OpenRouter chat, JSON mode, `max_tokens` 1500 | A regex override forces persona "Paralegal" if the question has legal terms. ⚠ domain is `"General"` and issues are `[]` in **859 / 859** logged runs — its output never reaches retrieval |
+| 2 Router | `CaseContext` | `QueryPlan`: rewritten_query, intent, target_corpus, entities, boost_terms, decision_path | none | Substring rules over `ACT_MAP`. One code named → filter on it; zero or several → search everything. Routes named-code questions correctly **33/33 (IPC)** and **33/33 (BNS)** |
+| 2.5a Date Resolver | question + reference date | era: `IPC_ERA` / `BNS_ERA` / `BOTH_ERAS` / `UNKNOWN` | none | **Off by default.** Cutover 1 July 2024 |
+| 2.5b Statute Mapper | question + era | `target_corpora`, original → governing provision | none | **Off by default.** Uses the hand-verified `data/recodification_map.json` (44 entries, 33 IPC↔BNS verified) |
+| 3 Retrieval | `QueryPlan` | `RetrievalResult`: chunks, confidence, top_k_mean, score_gap, entity_coverage, max_score, refused, refusal_reason, scores_raw | OpenRouter embedding + Qdrant search | 15 passages → entity rerank → keep ≥ `max(best − 0.15, 0.35)`, at least 3 forced through. Refusal gate **never fired** in 859 runs |
+| 4 Answer | `RetrievalResult` | answer text (markdown) + citations | OpenRouter chat, plain text | Prompt tone depends on the confidence tier (HIGH ≥ 0.55, MEDIUM ≥ 0.38, LOW) |
+| 5 Reporter | answer | PDF advisory in `static/` | none | fpdf2 |
+| Verifier | answer + passages | `citation_audit`: n_cited, n_grounded, n_ungrounded, n_out_of_corpus | none | Checks each cited section against the passages the model was shown |
+
+**Per question:** three paid OpenRouter calls (Intake, embedding, Answer) and one local Qdrant search; median latency **9.84 s**.
+
+**Models** (`core/config.py`): generation `google/gemini-3.7-flash`, temperature 0, seed 20260822; embeddings `openai/text-embedding-3-small` (1,536 dimensions, cosine). Every call goes through **OpenRouter** with the provider pinned (`only`, `allow_fallbacks: false`, `require_parameters: true`) so the same model on the same hardware answers every time.
+
+**Confidence** (`agents/retriever.py`):
+`C = min(0.55·m + 0.15·(1 − min(gap/0.3, 1)) + 0.30·e, 1)`, where *m* = mean of the 5 best scores, *gap* = best − 5th best, *e* = share of named sections found in the top 5 passages (0.5 if none were named).
+
+**Index:** four PDFs in `tests/data/` → **1,899 chunks** — CrPC 742, IPC 595, BNS 424, CPA 138. Built by `scripts/reingest.py`.
+
+### Key results (each traceable to a file)
+
+| Finding | Number | Source |
+|---|---|---|
+| Search alone, **router filter off**, IPC-numbered vs BNS-numbered question | correct code retrieved **97.0%** vs **51.5%** | `results/routing_confusion.csv` |
+| Same questions **with** the deployed router | **33/33** and **33/33** routed correctly | `results/routing_confusion.csv` |
+| Plain-English (layman) questions | right section retrieved **15.0%**; answer cites a section anyway **66.7%** | `results/robustness.csv` |
+| Fully grounded answers (right section retrieved *and* cited) | **27 / 617** overall; **0 / 120** layman | `results/retrieval_metrics.csv` |
+| Confidence vs one raw number (AUROC, label = right section retrieved) | composite **0.663** vs top-1 score **0.784** | `results/calibration.csv` |
+| Refusal gate | **never fired** in 617 measured runs | `results/retrieval_metrics.csv` |
+| Date-aware statute mapper (exp11) | routing conflicts resolved **0/66 → 39/65**; control arm unchanged 29/33 | `results/intervention.csv` |
+
+Caveats on each number are in `docs/study/03_MEASUREMENT.md` and `docs/AUDIT_2026-10-10.md`. In particular, the 97.0 vs 51.5 gap is a property of **search with no filter**; the router fixes it whenever the question names its code. The failure that remains is for questions that **name no code**, which is how ordinary people ask.
+
+### File structure
+
+Legend: **LIVE** = used by the running system · **EVAL** = measurement code · **LEGACY** = kept for history, not imported by the live app · **DEBUG** = one-off scripts.
+
+```
+legal-mvp/
+│
+├── app.py                     LIVE   FastAPI app. POST /query runs the whole pipeline (app.py:125-315);
+│                                     also /ingest, /healthz, /diag/env, and /static for PDFs
+├── streamlit_app.py           LIVE   Web UI on :8501; calls the backend on :8000
+├── docker-compose.yml         LIVE   Starts Qdrant on :6333
+├── requirements.txt           LIVE   Direct runtime dependencies (regenerated 22 Aug 2026)
+├── CLAUDE.md                         Instructions for Claude Code sessions on this repo
+├── README.md                         This file
+│
+├── agents/                    LIVE   The pipeline stages
+│   ├── intake.py                     1 · LLM triage → CaseContext, plus the paralegal regex override
+│   ├── router.py                     2 · ACT_MAP corpus rules, section-entity regex → QueryPlan
+│   ├── retriever.py                  3 · embed, search, rerank, threshold, confidence, refusal gate
+│   ├── answer.py                     4 · tier-dependent prompt → answer text
+│   └── reporter.py                   5 · fpdf2 PDF advisory
+│
+├── core/                      LIVE   Shared logic
+│   ├── config.py                     All settings and env vars in one place; config.check() for /diag/env
+│   ├── schemas.py                    Pydantic: Citation, AnswerJSON
+│   ├── dates.py                      2.5a · Date Resolver (era from "last month", "in 2023", …)
+│   ├── statute_mapper.py             2.5b · Statute Mapper (IPC ↔ BNS by era)
+│   ├── recodification.py             Loads and queries data/recodification_map.json
+│   ├── citations.py                  Parses "Section N of the IPC" etc. out of answer text
+│   ├── verifier.py                   Checks each cited provision against the retrieved passages
+│   ├── run_logger.py                 One JSON line per query to runs/<timestamp>_<sha>/queries.jsonl
+│   └── logging.py                    Request IDs
+│
+├── clients/                   LIVE   The only code that talks to outside services
+│   ├── openai_client.py              OpenAI SDK pointed at OpenRouter; chat + embeddings, provider pinning
+│   └── qdrant_client.py              Qdrant connection, collection creation
+│
+├── ingest/                    LIVE   Building the index
+│   ├── registry.py                   Maps each PDF to its corpus tag (IPC / BNS / CRPC / CPA)
+│   ├── extract.py                    PDF / DOCX / TXT → text (PyMuPDF, pdfplumber, OCR fallback)
+│   ├── chunk.py                      Section-bounded chunking; sections over 800 tokens split to ~450
+│   ├── index.py                      Embeds in batches of 64, upserts with uuid5 IDs
+│   └── extract_backup.py      LEGACY
+│
+├── report/                    LIVE   render.py + templates/answer.html.j2 for the HTML view of an answer
+│
+├── data/                             Hand-built reference data (read-only)
+│   ├── recodification_map.json       Hand-verified IPC↔BNS / CrPC↔BNSS map used by the Statute Mapper
+│   └── ipc_bns_map_candidates.csv    Machine-generated nearest-neighbour map; 10 of 32 overlapping entries disagree with the verified map
+│
+├── tests/                            237 pytest tests across 12 files
+│   ├── test_*.py                     router, confidence, dates, statute_mapper, verifier, citations, metrics, …
+│   └── data/                         The four statute PDFs that make up the corpus
+│
+├── eval/                      EVAL   The question sets and the code that built them (read-only)
+│   ├── generated_queryset.jsonl      200 questions generated from corpus sections
+│   ├── paired_queryset.jsonl         99 = 33 IPC-numbered / 33 BNS-numbered / 33 neutral, same offences
+│   ├── paired_dated_queryset.jsonl   99 IPC-vs-BNS conflicts with a date in the question
+│   ├── layman_queryset.jsonl         120 plain-English questions (30 situations × 4 phrasings)
+│   ├── scenarios.py, *_queries.py    Builders for each set
+│   └── queryset.jsonl                Early hand-written set (legacy)
+│
+├── scripts/                          Operational scripts
+│   ├── reingest.py                   ★ The correct way to build the 1,899-chunk index
+│   ├── run_eval.py                   Runs a query set through POST /query; refuses on a dirty git tree
+│   ├── analyze_eval.py, compare_runs.py, audit_recorded_runs.py   Run analysis
+│   ├── build_ipc_bns_map.py          Builds data/ipc_bns_map_candidates.csv
+│   ├── ablate_filter.py, query_cli.py, sync_context.py, backfill_session_log.py
+│   └── ingest_cli.py, ingest_cli_debug.py   LEGACY ingestion entry points (use reingest.py)
+│
+├── experiments/               EVAL   One script per measurement, each with a check script
+│   ├── metrics_lib.py                Shared metrics: Wilson CI, bootstrap, AUROC, ECE, Brier, coverage-at-risk
+│   ├── exp01_retrieval.py … exp11_intervention.py   The eleven experiments (see table below)
+│   ├── check*.py                     Independent re-computations that must agree with each exp
+│   ├── assemble_results.py           Builds results/RESULTS.md
+│   ├── rerun_stages.py, stages.jsonl Re-runs retrieval stages offline
+│   ├── SCHEMA.md                     Column definitions shared by all results CSVs
+│   └── make_*.py, *_text.py          Generators for reports, synopsis, figures, workbook
+│
+├── results/                   EVAL   Outputs — 11 CSVs, 2,969 rows, one shared schema
+│   ├── retrieval_metrics.csv  (exp01)    routing_confusion.csv (exp02)   calibration.csv (exp03)
+│   ├── ablation.csv           (exp04)    robustness.csv        (exp05)   statute_consistency.csv (exp06)
+│   ├── hybrid_comparison.csv  (exp07)    filter_analysis.csv   (exp08)   corrected_composite.csv (exp09)
+│   ├── self_naming.csv        (exp10)    intervention.csv      (exp11)
+│   ├── RESULTS.md, EXPLAIN.md        Human-readable summaries
+│   └── TESTING_WORKBOOK.xlsx         Every test case and result in one workbook
+│
+├── figures/                          21 PNG figures; figures/mermaid/ has 9 diagram sources
+├── runs/                      (gitignored) Raw per-query logs, one folder per evaluation run
+├── docs/                             See the documentation map below
+├── .claude/                          Claude Code hooks: session start state, guardrails, doc reminders
+│
+├── answer/, retrieve/         LEGACY Pre-agent version of the pipeline; imported only by app_backup.py
+├── app_backup.py              LEGACY Old monolithic app
+└── check_pdfs.py, debug_qdrant.py, test_ingest.py, smoke_ingest.sh, full_codebase.py, out.html   DEBUG
+```
+
+**The eleven experiments**
+
+| Script | Question it answers | Output |
+|---|---|---|
+| `exp01_retrieval.py` | Does the right section come back, get cited, get grounded? | `retrieval_metrics.csv` |
+| `exp02_routing.py` | IPC-numbered vs BNS-numbered: which code comes back? | `routing_confusion.csv` |
+| `exp03_calibration.py` | Does confidence separate good answers from bad? | `calibration.csv` |
+| `exp04_ablation.py` | What does each confidence ingredient contribute? | `ablation.csv` |
+| `exp05_robustness.py` | Technical vs plain-English phrasing | `robustness.csv` |
+| `exp06_statute_consistency.py` | Does a "same statute" signal predict correctness? | `statute_consistency.csv` |
+| `exp07_hybrid.py` | Dense vs BM25 vs hybrid (RRF) | `hybrid_comparison.csv` |
+| `exp08_filter.py` | What does the 0.35 threshold actually remove? | `filter_analysis.csv` |
+| `exp09_corrected_composite.py` | A corrected composite, stress-tested | `corrected_composite.csv` |
+| `exp10_self_naming.py` | Does each statute name itself in its own text? (explains why BM25 favours the BNS) | `self_naming.csv` |
+| `exp11_intervention.py` | Does the date-aware statute mapper fix routing? | `intervention.csv` |
+
+### Documentation map
+
+| Doc | Status | For |
+|---|---|---|
+| `docs/study/` | **Current** | Studying the whole project from zero (see above) |
+| `docs/AUDIT_2026-10-10.md` | **Current** | Everything known to be wrong, ranked, with reproduction commands |
+| `results/RESULTS.md`, `results/EXPLAIN.md` | **Current** | Results summary, generated from the CSVs |
+| `docs/NUMBERS_AT_A_GLANCE.md` | Current (Sep) | One-page list of headline numbers |
+| `docs/PROJECT_REPORT.md` / `.html` | Current (Sep) | The full project report |
+| `docs/SUPERVISOR_BRIEF.md` | Current (Sep) | Short brief for the supervisor |
+| `docs/SYNOPSIS_IT118.tex` / `.docx` | Submitted | College synopsis |
+| `docs/WORKLOG.md`, `docs/DECISIONS.md` | Append-only | What was done, and every design decision (ADRs) |
+| `docs/OPEN_QUESTIONS.md` | Partly stale | Unresolved questions; several are now answered |
+| `docs/results/PHASE_G.md`, `PHASE_H.md` | Historical (Aug) | The August measurements, before the September parser fixes |
+| `docs/TECHNICAL_REPORT.md` | Superseded | By `PROJECT_REPORT.md` |
+| `docs/STATE.md`, `GAPS.md`, `ARCHITECTURE.md`, `DATAFLOW.md`, `FILE_STRUCTURE.md` | Historical (Aug) | Describe the system **before** the August fixes (1,011 chunks, OpenAI keys). Useful for history only |
+| `docs/TARGET_ARCHITECTURE.md`, `PLAN*.md`, `RESEARCH_*.md`, `THE_WHOLE_PICTURE.md` | Historical | Plans and research positioning from August |
+| `docs/GLOSSARY.md` | Useful | Legal and technical terms (`docs/study/01_FUNDAMENTALS.md` has a newer glossary) |
+
+### Running it
+
+```bash
+# 1. Python environment (Windows: venv\Scripts\activate)
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+pip install numpy pandas scipy matplotlib openpyxl rank-bm25   # only for experiments/
+
+# 2. Secrets — create a file named .env containing:
+#    OPENROUTER_API_KEY=<your OpenRouter key>
+#    (optional) MODEL_NAME, EMBED_MODEL, QDRANT_URL — defaults are in core/config.py
+
+# 3. Vector database
+docker compose up -d                          # Qdrant on :6333
+
+# 4. Build the index (once): 4 PDFs → 1,899 chunks
+python scripts/reingest.py
+
+# 5. Backend and UI
+uvicorn app:app --reload                      # http://127.0.0.1:8000
+streamlit run streamlit_app.py                # http://127.0.0.1:8501
+
+# 6. Checks
+curl http://127.0.0.1:8000/healthz            # {"ok": true, ...}
+curl http://127.0.0.1:8000/diag/env           # {"ok", "problems", "config"} — never prints key values
+pytest -q                                     # 237 tests
+```
+
+Two things not to do: **do not run `fix_corpus_tags.py`** (it patched the database instead of the code, which hid a tagging defect for six months), and do not put real case details into a query — every query is logged to `runs/`.
+
+### Known issues
+
+The full ranked list is in [`docs/AUDIT_2026-10-10.md`](docs/AUDIT_2026-10-10.md). The ones that matter most when reading the results:
+
+- **Intake output is lost.** Domain and issues are defaults in every run, so the Router's domain fallback never fires and issues never reach the search query.
+- **The Statute Mapper changes the book but not the section number.** After remapping IPC 379 → BNS it still searches the BNS for "Section 379" (121 of 129 remapped runs), so its measured effect is probably an underestimate.
+- **The 0.35 threshold is not a floor.** 229 passages scoring below 0.35 reached the model because at least 3 are always forced through.
+- **The confidence gap term points the wrong way.** On its own it scores AUROC 0.270, below a coin toss.
+- **The Verifier checks only the first 200 characters** of each passage (`app.py:281-282`).
+
+---
+
+# Part 1 — Original design write-up (February 2026)
+
+> Written in February 2026 to describe the system **as designed**. Its structure is kept as it was. Claims that later measurement showed to be false have been corrected in place and marked **✱ Corrected Oct 2026**. Part 0 above describes the system as it actually runs.
 
 <p align="center">
   <h1 align="center">⚖️ Legal MVP</h1>
   <p align="center"><strong>Multi-Agent RAG System for Indian Legal Advisory</strong></p>
-  <p align="center">FastAPI · Qdrant · OpenAI · Streamlit · Five-Agent Architecture · Composite Confidence Scoring</p>
+  <p align="center">FastAPI · Qdrant · OpenRouter (Gemini 3.7 Flash + OpenAI embeddings) · Streamlit · Five-Agent Architecture · Composite Confidence Scoring</p>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10+-blue?logo=python" alt="Python"/>
   <img src="https://img.shields.io/badge/FastAPI-0.100+-green?logo=fastapi" alt="FastAPI"/>
   <img src="https://img.shields.io/badge/Qdrant-Vector_DB-purple" alt="Qdrant"/>
-  <img src="https://img.shields.io/badge/OpenAI-GPT--4o--mini-black?logo=openai" alt="OpenAI"/>
+  <img src="https://img.shields.io/badge/OpenRouter-Gemini_3.7_Flash-black" alt="OpenRouter"/>
   <img src="https://img.shields.io/badge/Streamlit-UI-red?logo=streamlit" alt="Streamlit"/>
   <img src="https://img.shields.io/badge/Confidence-Composite_Scoring-orange" alt="Confidence"/>
 </p>
 
-> A production-grade, multi-agent **Retrieval-Augmented Generation** system purpose-built for Indian law. Upload legal documents → Ingest into vector store → Ask questions in natural language → Receive **grounded answers with inline citations and confidence-calibrated disclaimers**. Features a **composite confidence scoring system** that fuses three orthogonal retrieval signals to drive adaptive system behaviour across the entire pipeline.
+> A multi-agent **Retrieval-Augmented Generation** system for Indian law. Upload legal documents → Ingest into vector store → Ask questions in natural language → Receive **answers with citations and confidence-tiered disclaimers**. Features a **composite confidence score** that combines three retrieval signals to choose the answer's disclaimer level.
+>
+> ✱ *Corrected Oct 2026:* the original said "production-grade", "grounded answers" and "three orthogonal signals". Measurement showed only 27 of 617 answers are fully grounded, and the signals are not independent: the top-5 mean and the score gap are computed from the same five scores. See Part 0.
 
 ---
 
@@ -90,12 +343,12 @@ Legal MVP is built around a **five-agent sequential pipeline** that orchestrates
 
 **Key innovations:**
 
-- **Composite confidence scoring** — Weighted fusion of three orthogonal signals (top-k quality, score gap consistency, entity coverage) that drives adaptive behaviour across the entire pipeline
+- **Composite confidence scoring** — Weighted fusion of three signals (top-k quality, score gap, entity coverage) that selects the answer's disclaimer tier. ✱ *Corrected Oct 2026:* the signals are not orthogonal, and the composite ranks answers worse than the single best score (AUROC 0.663 vs 0.784, `results/calibration.csv`)
 - **Deterministic routing** — Regex-based corpus selection eliminates non-deterministic LLM routing errors in high-stakes legal domains
-- **Calibrated refusal** — System refuses to answer when zero usable chunks survive filtering, rather than hallucinating
-- **Grounded answers** — Every claim backed by numbered `[n]` citations with source document, page, and snippet
+- **Refusal gate** — System refuses when no passages survive, when every Act the user named is outside the index, or when the best score is below 0.25. ✱ *Corrected Oct 2026:* the gate never fired in 617 measured runs; at least 3 passages are always forced through
+- **Citations** — Each answer returns the passages it was given, with source document, page and a 200-character snippet. ✱ *Corrected Oct 2026:* these are the passages *supplied*, not proof the claims are supported; the Verifier found 0 of 120 plain-English answers fully grounded
 - **Tier-based disclaimers** — Confidence score directly modifies LLM prompt to distinguish sourced claims from general knowledge
-- **Indian law focus** — Covers BNS, BNSS, BSA, CrPC, Constitution, Consumer Protection Act, IPC (legacy), and judicial precedents
+- **Indian law focus** — Covers four statutes: IPC 1860, BNS 2023, CrPC 1973, Consumer Protection Act 2019. ✱ *Corrected Oct 2026:* the BNSS, BSA, Constitution and case law were never ingested
 
 ---
 
@@ -103,13 +356,13 @@ Legal MVP is built around a **five-agent sequential pipeline** that orchestrates
 
 | Change | Before | After | Impact |
 |--------|--------|-------|--------|
-| **Confidence formula** | Mean of all 15 chunks | Weighted composite (top-5 + gap + entities) | 47.0% → 70.6% for valid queries |
+| **Confidence formula** | Mean of all 15 chunks | Weighted composite (top-5 + gap + entities) | 47.0% → 70.6% on one test query (Feb 2026, old index; not re-measurable) |
 | **Chunk filtering** | All 15 sent to LLM | Adaptive: within 0.15 of top + 0.35 floor | Reduced hallucination risk |
 | **Disclaimers** | Same prompt always | Tier-based prompt modification | LLM distinguishes sourced vs. general |
 | **UI thresholds** | 70% / 40% / <40% | 55% / 38% / <38% | Calibrated to legal text score distribution |
 | **Entity reranking** | None | Router-extracted entities boost chunks | Section-specific queries hit the right provisions |
 | **Section normalization** | None | Bare numbers → "Section X" during chunking | Dramatically improved section-query retrieval |
-| **Corpus auto-tagging** | Manual | Keyword-based `guess_corpus()` | Automatic BNS/BNSS/BSA/Constitution tagging |
+| **Corpus auto-tagging** | Manual | Keyword-based `guess_corpus()` | ✱ *Corrected Oct 2026:* this mis-tagged the IPC and CPA; replaced in Aug 2026 by `ingest/registry.py` (file → IPC/BNS/CRPC/CPA) |
 
 ---
 
@@ -143,14 +396,14 @@ flowchart TD
 
     subgraph Ingest["📥 Ingestion Pipeline"]
         EXT["🔍 Extract<br/><i>ingest/extract.py</i><br/>PyMuPDF + OCR"]
-        CHK["✂️ Chunk<br/><i>ingest/chunk.py</i><br/>~450 tokens + section norm"]
+        CHK["✂️ Chunk<br/><i>ingest/chunk.py</i><br/>section-bounded + section norm"]
         IDX["📦 Index<br/><i>ingest/index.py</i><br/>Batch embed + upsert"]
         EXT --> CHK --> IDX
     end
 
     subgraph Infra["🗄️ External Services"]
         QD[("🔷 Qdrant<br/>1536-dim Cosine<br/>Docker :6333")]
-        OAI["🤖 OpenAI API<br/>text-embedding-3-small<br/>GPT-4o-mini (T=0)"]
+        OAI["🤖 OpenRouter API<br/>openai/text-embedding-3-small<br/>google/gemini-3.7-flash (T=0)"]
         OCR["📝 Tesseract OCR<br/>eng+hin+tam+tel"]
     end
 
@@ -182,13 +435,13 @@ The Streamlit frontend (port 8501) communicates with the FastAPI backend (port 8
 
 ### 📝 Agent 1: Intake Agent
 
-**File:** `agents/intake.py` · **Method:** LLM-based (GPT-4o-mini, temperature=0, max 600 tokens)
+**File:** `agents/intake.py` · **Method:** LLM-based (`google/gemini-3.7-flash` via OpenRouter, temperature=0, JSON mode, max 1500 tokens — raised from 600 because Gemini's hidden reasoning tokens truncated the JSON)
 
 The Intake Agent triages the user's query by classifying scenario, expertise level, urgency, financial status, complexity, legal domain, potential issues, and missing facts. Returns a `CaseContext` Pydantic object.
 
 ```mermaid
 flowchart TD
-    Q["Raw User Query"] --> LLM["GPT-4o-mini Triage<br/>(temp=0, max 600 tokens)"]
+    Q["Raw User Query"] --> LLM["Gemini 3.7 Flash Triage<br/>(temp=0, max 1500 tokens)"]
     LLM --> CC["CaseContext Object"]
     CC --> REGEX{"Paralegal Override<br/>Regex Check"}
     REGEX -->|"Contains Section/Article/FIR/<br/>Bail/Writ/Quash/BNS/IPC"| FORCE["Force persona = 'Paralegal'"]
@@ -217,6 +470,8 @@ flowchart TD
 
 **Fallback:** If the LLM call fails (network error, JSON parse failure), the agent produces a safe default CaseContext and applies the paralegal override.
 
+✱ *Corrected Oct 2026:* in all 859 logged runs `predicted_legal_domain` is "General" and `legal_issues` is empty although the call succeeded — the reply's key names do not match what the parser accepts, so defaults are used silently. The domain and issues therefore never reach the Router.
+
 ---
 
 ### 🧭 Agent 2: Router Agent
@@ -229,21 +484,20 @@ The Router Agent determines which corpus to search, extracts legal entities, cla
 flowchart TD
     CC["CaseContext from Intake"] --> CORPUS{"Corpus Mapping<br/>(keyword scan)"}
 
-    CORPUS -->|"ipc, bns, penal code"| BNS["BNS corpus filter"]
-    CORPUS -->|"crpc, bnss, procedure"| BNSS["BNSS corpus filter"]
-    CORPUS -->|"iea, bsa, evidence"| BSA["BSA corpus filter"]
-    CORPUS -->|"constitution"| CONST["Constitution filter"]
-    CORPUS -->|"Multiple match"| NONE["No filter (cross-corpus)"]
+    CORPUS -->|"ipc, penal code"| IPC["IPC corpus filter"]
+    CORPUS -->|"bns, nyaya sanhita"| BNS["BNS corpus filter"]
+    CORPUS -->|"crpc, criminal procedure, bnss"| CRPC["CRPC corpus filter"]
+    CORPUS -->|"consumer protection / court / forum"| CPA["CPA corpus filter"]
+    CORPUS -->|"None or multiple match"| NONE["No filter (search everything)"]
 
-    BNS & BNSS & BSA & CONST & NONE --> ENTITY["Entity Extraction<br/><code>(section|article|order|rule)\s+(\d+[A-Za-z]?)</code>"]
+    IPC & BNS & CRPC & CPA & NONE --> ENTITY["Entity Extraction<br/><code>(section|article|order|rule)\s+(\d+[A-Za-z]?)</code>"]
 
     ENTITY --> INTENT{"Intent Classification"}
     INTENT -->|"Section/Article match"| STATUTE["statute"]
     INTENT -->|"v./vs./judgment"| CASELAW["case_law"]
-    INTENT -->|"Multiple corpora"| COMPARE["comparison"]
     INTENT -->|"No triggers"| GENERAL["general"]
 
-    STATUTE & CASELAW & COMPARE & GENERAL --> REWRITE["Query Rewriting<br/>Prepend entities + issues"]
+    STATUTE & CASELAW & GENERAL --> REWRITE["Query Rewriting<br/>Prepend entities + issues"]
 
     REWRITE --> OUT["QueryPlan → Retriever"]
 
@@ -260,6 +514,8 @@ Extracted entities: ['Section 304B']
 
 Rewritten: "Dowry death Cruelty Section 304B My sister died within 2 years of marriage..."
 ```
+
+✱ *Corrected Oct 2026:* the map above is the current `ACT_MAP` (`agents/router.py:54-66`). The original sent "ipc" to the BNS and had BNSS/BSA/Constitution filters for books that were never indexed; that was removed in August 2026. The `comparison` intent exists in the type but is never assigned. This example is illustrative: because Intake's issues are always empty (see Agent 1), in practice the rewrite only prepends extracted section entities. With a named code the Router routes correctly 33/33 (IPC) and 33/33 (BNS) — `results/routing_confusion.csv`.
 
 ---
 
@@ -279,7 +535,7 @@ flowchart TD
         S3["<b>Step 3 — Fallback</b><br/>If filtered search = 0 results<br/>→ retry without filter"]
         S4["<b>Step 4 — Rerank</b><br/>Promote chunks containing<br/>Router-extracted entities to top"]
         S5["<b>Step 5 — Filter</b><br/>Adaptive threshold:<br/><code>max(top_score − 0.15, 0.35)</code><br/>Minimum 3 chunks always pass"]
-        S6["<b>Step 6 — Score</b><br/>Composite confidence from<br/>3 orthogonal signals (§7)"]
+        S6["<b>Step 6 — Score</b><br/>Composite confidence from<br/>3 signals (§7)"]
         S7["<b>Step 7 — Return</b><br/>RetrievalResult with chunks,<br/>confidence, metadata"]
 
         S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
@@ -304,7 +560,8 @@ flowchart TD
 | `max_score` | float | Highest single chunk score |
 | `total_chunks` | int | Chunks after filtering (sent to LLM) |
 | `total_retrieved` | int | Raw chunks from Qdrant (before filtering) |
-| `refused` | bool | True only if zero chunks survived filtering |
+| `refused` | bool | True if no chunks, every named Act is outside the index, or best score < 0.25 (✱ *Corrected Oct 2026:* was "only if zero chunks"). Never fired in 617 measured runs |
+| `refusal_reason` | str | `no_chunks` / `out_of_corpus_statute` / `below_nonsense_floor` |
 
 ---
 
@@ -312,7 +569,7 @@ flowchart TD
 
 **File:** `agents/answer.py`
 
-The Answer Agent generates structured legal advice using GPT-4o-mini, with **response style dynamically adjusted based on the confidence tier** from the Retriever.
+The Answer Agent generates structured legal advice using `google/gemini-3.7-flash` via OpenRouter, with **response style dynamically adjusted based on the confidence tier** from the Retriever.
 
 ```mermaid
 flowchart TD
@@ -326,9 +583,8 @@ flowchart TD
     TIER -->|"≥ 38%"| MEDIUM["<b>MEDIUM</b><br/>MEDIUM_DISCLAIMER prepended<br/>Distinguish sourced vs. general<br/>🟡 Yellow badge"]
     TIER -->|"< 38%"| LOW["<b>LOW</b><br/>LOW_DISCLAIMER prepended<br/>General guidance only<br/>🔴 Red badge"]
 
-    HIGH & MEDIUM & LOW --> LLM["GPT-4o-mini<br/>temp=0, JSON mode"]
-    LLM --> VALIDATE["JSON Validator<br/>Parse → Validate → Auto-repair"]
-    VALIDATE --> OUT["AnswerData<br/>{answer, citations, confidence}"]
+    HIGH & MEDIUM & LOW --> LLM["Gemini 3.7 Flash<br/>temp=0, plain text"]
+    LLM --> OUT["dict<br/>{answer, citations, confidence, prompt_variant}"]
 
     style GATE fill:#ffcdd2,stroke:#E53935
     style HIGH fill:#c8e6c9,stroke:#43A047
@@ -336,15 +592,15 @@ flowchart TD
     style LOW fill:#ffcdd2,stroke:#E53935
 ```
 
-**Answer structure:** The system prompt instructs GPT-4o-mini to produce seven sections: (1) Try an Informal Solution First, (2) Gather Evidence, (3) Immediate Police Help, (4) Relevant Legal Provisions (tabulated), (5) Administrative & Civil Remedies, (6) Practical Tips, (7) Offer to Draft.
+**Answer structure:** The system prompt instructs the model to produce seven sections: (1) Try an Informal Solution First, (2) Gather Evidence, (3) Immediate Police Help, (4) Relevant Legal Provisions (tabulated), (5) Administrative & Civil Remedies, (6) Practical Tips, (7) Offer to Draft.
 
 **LLM configuration:**
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
-| Model | `gpt-4o-mini` | Fast, cost-effective, strong at structured output |
-| Temperature | `0` | Deterministic, factual responses |
-| Response format | `{"type": "json_object"}` | Enforces valid JSON at the API level |
+| Model | `google/gemini-3.7-flash` via OpenRouter, provider pinned | Supports temperature and seed; pinning keeps the same provider on every call |
+| Temperature | `0`, seed `20260822` | As repeatable as the provider allows |
+| Response format | plain text (markdown) | ✱ *Corrected Oct 2026:* the answer is not JSON and there is no JSON validator; `citations` are built in code from the passages supplied, one per passage, snippet = first 200 characters |
 
 ---
 
@@ -362,7 +618,7 @@ The composite confidence scoring system is the **major innovation** of Legal MVP
 
 ```mermaid
 flowchart TD
-    subgraph Signals["Three Orthogonal Signals"]
+    subgraph Signals["Three Signals"]
         direction LR
         S1["<b>Signal 1: Top-5 Mean</b><br/>Weight: 55%<br/><code>mean(top_5_scores)</code><br/><i>Best retrieval quality,<br/>ignores tail noise</i>"]
         S2["<b>Signal 2: Score Gap</b><br/>Weight: 15%<br/><code>1 − min(gap/0.3, 1)</code><br/><i>Penalizes 'lucky hit'<br/>retrievals</i>"]
@@ -389,6 +645,8 @@ In the previous implementation, confidence was the simple mean of all 15 retriev
 
 ### Three Orthogonal Signals
 
+✱ *Corrected Oct 2026:* the heading is kept so old links work, but the signals are **not** orthogonal: the top-5 mean and the score gap are computed from the same five scores, and on its own the deployed gap term scores AUROC 0.270 — the "lucky hit" hypothesis below is backwards (`results/ablation.csv`).
+
 **Signal 1: Top-5 Mean (Weight: 55%)** — Only the top 5 chunks are averaged, capturing best-case retrieval quality while ignoring tail noise. In legal retrieval, the top 3–5 chunks typically contain relevant provisions while chunks 6–15 are tangentially related.
 
 **Signal 2: Score Gap Penalty (Weight: 15%)** — Penalizes "lucky hit" retrievals where one chunk scored much higher than the rest. Formula: `gap_penalty = min((top_score − 5th_score) / 0.3, 1.0)`. When all top-5 score similarly (gap ≈ 0), full 0.15 contributed. Gap of 0.3+: contributes 0.
@@ -397,7 +655,7 @@ In the previous implementation, confidence was the simple mean of all 15 retriev
 
 ### Confidence Tier Thresholds
 
-Calibrated against the actual score distribution of `text-embedding-3-small` on legal text (typical scores: 0.35–0.55, not the 0.8+ common in general-domain retrieval).
+Calibrated against the score distribution of `text-embedding-3-small` on the February 2026 index (then typically 0.35–0.55). ✱ *Corrected Oct 2026:* on the rebuilt 1,899-chunk index the best score for plain-English questions ranges 0.256–0.875, median 0.686, so these thresholds no longer sit where they were tuned.
 
 | Tier | Threshold | Calibration Rationale |
 |------|-----------|----------------------|
@@ -407,7 +665,7 @@ Calibrated against the actual score distribution of `text-embedding-3-small` on 
 
 ### Impact on System Behaviour
 
-1. **Chunk filtering** — Only chunks within 0.15 of top score AND above 0.35 reach the LLM, reducing hallucination risk
+1. **Chunk filtering** — Chunks within 0.15 of top score AND above 0.35 reach the LLM, but at least 3 are always forced through. ✱ *Corrected Oct 2026:* 229 passages scoring below 0.35 reached the model across 65 runs
 2. **Prompt selection** — Tier-specific disclaimers prepended to system prompt instruct LLM to distinguish sourced vs. general knowledge
 3. **UI display** — Colour-coded confidence badge (green/yellow/red) with percentage gives users immediate reliability feedback
 4. **PDF reports** — Only generated when the system does not refuse. Confidence displayed in Paralegal Dashboard
@@ -429,15 +687,15 @@ flowchart LR
     end
 
     subgraph Chunk["✂️ Chunk<br/><i>ingest/chunk.py</i>"]
-        C["~450 tokens target<br/>1-sentence overlap<br/>Section normalization<br/>Corpus auto-tagging"]
+        C["One chunk per section<br/>sections > 800 tokens split ~450<br/>Section normalization<br/>Corpus tag from registry"]
     end
 
     subgraph Embed["🔢 Embed<br/><i>clients/openai_client.py</i>"]
-        EM["text-embedding-3-small<br/>1536 dimensions<br/>Batch size: 64"]
+        EM["openai/text-embedding-3-small<br/>via OpenRouter<br/>1536 dimensions<br/>Batch size: 64"]
     end
 
     subgraph Index["📦 Index<br/><i>ingest/index.py</i>"]
-        I["Qdrant upsert<br/>UUID point IDs<br/>Full metadata payload"]
+        I["Qdrant upsert<br/>uuid5 point IDs (deterministic)<br/>Full metadata payload"]
     end
 
     PDF & DOCX & TXT --> E --> C --> EM --> I --> QD[("🔷 Qdrant<br/>legal_mvp")]
@@ -459,11 +717,11 @@ The OCR fallback is guarded by a `_tesseract_ok()` check verifying the tesseract
 
 **File:** `ingest/chunk.py`
 
-**Sentence-aware splitting:** Text is split at sentence boundaries using the regex `(?<=[.?!])\s+`. Sentences are grouped into chunks targeting ~450 tokens with 1-sentence overlap. The 450-token target balances two concerns: chunks under 200 tokens lose legal context (provisions reference preceding clauses with pronouns like "such person"), while chunks over 600 tokens dilute embedding focus.
+**Section-bounded splitting** ✱ *Corrected Oct 2026:* Each statutory section becomes one chunk: "Section 41." starts a chunk and it runs until "Section 42.". Only a section longer than 800 tokens is split further, into ~450-token pieces with **no overlap** (the pieces share a `section_number`). Cross-page duplicates are dropped by `scripts/reingest.py`. The February design — sentence groups of ~450 tokens with 1-sentence overlap — cut provisions in half and was replaced in August 2026.
 
 **Section normalization:** A critical legal-domain optimization — bare numbers at line starts (e.g., `41.` or `41A.`) are normalized to `Section 41.` using the regex `(?m)^\s*(\d+\s?[A-Za-z]?)\s*\.` This dramatically improves retrieval when users query specific sections.
 
-**Corpus auto-tagging:** Each chunk is automatically tagged with a corpus label by `guess_corpus()`:
+**Corpus auto-tagging (February design, now replaced):** Each chunk was tagged by keyword with `guess_corpus()`. ✱ *Corrected Oct 2026:* this tagged the IPC as BNS and the CPA as Unknown. Tags now come from `ingest/registry.py`, one per file: IPC, BNS, CRPC, CPA. The original table:
 
 | Keywords Detected | Corpus Tag | Legal Source |
 |------------------|-----------|-------------|
@@ -478,17 +736,19 @@ The OCR fallback is guarded by a `_tesseract_ok()` check verifying the tesseract
 
 **File:** `clients/openai_client.py`
 
-Chunks are embedded using OpenAI's `text-embedding-3-small` (1536 dimensions) in batches of 64. The small model was chosen over `text-embedding-3-large` for cost efficiency (~1/5 the cost) with sufficient discrimination for legal text.
+Chunks are embedded using OpenAI's `text-embedding-3-small` (1536 dimensions), called through OpenRouter as `openai/text-embedding-3-small`, in batches of 64. The small model was chosen over `text-embedding-3-large` for cost efficiency (~1/5 the cost) with sufficient discrimination for legal text.
 
 ### Stage 4: Indexing
 
 **File:** `ingest/index.py`
 
-Embedded chunks are upserted into Qdrant's `legal_mvp` collection as `PointStruct` objects with UUID primary identifiers. Full metadata (`doc_name`, `page`, `text`, `corpus`, `lang_detected`, `original_chunk_id`) is stored in the payload. The collection uses 1536-dimension cosine similarity and is auto-created on startup via `ensure_collection()`.
+Embedded chunks are upserted into Qdrant's `legal_mvp` collection as `PointStruct` objects whose ID is `uuid5(chunk_id)` — deterministic, so re-ingesting replaces rather than duplicates (the earlier random `uuid4` IDs had duplicated 34% of the index). Full metadata (`doc_name`, `page`, `text`, `corpus`, `lang_detected`, `original_chunk_id`) is stored in the payload. The collection uses 1536-dimension cosine similarity and is auto-created on startup via `ensure_collection()`.
 
 ---
 
 ## Validation Results
+
+> ✱ *Corrected Oct 2026:* these two test cases were run in February 2026 on the old 1,011-chunk index with the old confidence code (entity default 1.0). They cannot be reproduced today and are not part of the measured results. The measured results are in Part 0 and Part 3.
 
 ### Test Case 1: Dowry Death Query (HIGH Confidence)
 
@@ -522,10 +782,12 @@ The LLM transparently stated it could not find the specific judgment text and us
 
 | Document | Pages | Corpus Tag | Description |
 |----------|-------|-----------|-------------|
-| Bharatiya Nyaya Sanhita (BNS), 2023 | 102 | BNS | New Indian penal code (Act 45/2023) replacing IPC |
-| Indian Penal Code (IPC), 1860 (Repealed) | 119 | BNS | Legacy penal code for old-to-new section comparison |
-| Code of Criminal Procedure (CrPC), 1973 | ~200+ | BNSS | Criminal procedure: FIR, arrest, bail, trial, appeals |
-| Consumer Protection Act, 2019 | 39 | Unknown | Consumer disputes, commissions, mediation, e-commerce |
+| Bharatiya Nyaya Sanhita (BNS), 2023 | 102 | BNS | New Indian penal code (Act 45/2023) replacing IPC — 424 chunks |
+| Indian Penal Code (IPC), 1860 (Repealed) | 119 | IPC | Repealed penal code, kept for old-to-new comparison — 595 chunks |
+| Code of Criminal Procedure (CrPC), 1973 | 263 | CRPC | Criminal procedure: FIR, arrest, bail, trial, appeals — 742 chunks |
+| Consumer Protection Act, 2019 | 39 | CPA | Consumer disputes, commissions, mediation, e-commerce — 138 chunks |
+
+✱ *Corrected Oct 2026:* tags and page count fixed (the original tagged the IPC as BNS, the CrPC as BNSS and the CPA as Unknown). Total 1,899 chunks.
 
 ---
 
@@ -543,7 +805,7 @@ sequenceDiagram
     participant QD as 🔷 Qdrant
     participant Answer as 💬 Answer
     participant Reporter as 📊 Reporter
-    participant OAI as 🤖 OpenAI
+    participant OAI as 🤖 OpenRouter
 
     User->>API: POST /query {"query": "..."}
 
@@ -568,12 +830,13 @@ sequenceDiagram
     Note over Answer: Refusal gate check<br/>Tier-based prompt selection<br/>GREEN/YELLOW/RED
 
     Answer->>OAI: System prompt + evidence + query
-    OAI-->>Answer: Cited JSON answer
+    OAI-->>Answer: Answer text (markdown)
 
-    Answer->>Reporter: AnswerData
+    Answer->>API: answer dict
+    API->>Reporter: generate_report(query, plan, answer)
     Note over Reporter: PDF generation<br/>Unicode sanitization
-
-    Reporter-->>API: {answer, citations, confidence, report_url}
+    Reporter-->>API: PDF written to static/
+    Note over API: Verifier audits citations<br/>Run logger writes the record
     API-->>User: JSON response + optional PDF
 ```
 
@@ -596,15 +859,15 @@ legal-mvp/
 │   └── reporter.py               #   📊 Agent 5: PDF report with clean_text() Unicode handling
 │
 ├── core/                         # ⚙️ Core Services
-│   ├── config.py                 #   Environment: EMBED_MODEL, MODEL_NAME, QDRANT_URL, TOP_K
-│   ├── logging.py                #   Structured logging with ReqIdDefaultFilter
+│   ├── config.py                 #   All settings: OPENROUTER_API_KEY, MODEL_NAME, EMBED_MODEL, QDRANT_URL, …
+│   ├── logging.py                #   Request IDs (new_req_id) and a req_id-tolerant formatter
 │   ├── run_logger.py             #   One JSONL record per query — LIVE, wired at app.py:33
 │   ├── dates.py                  #   Conduct date -> legal era (368 lines)
 │   ├── statute_mapper.py         #   IPC<->BNS mapping across the recodification (225 lines)
 │   ├── recodification.py         #   Corpus boundary + old/new statute tables
 │   ├── citations.py              #   Citation extraction and normalisation
 │   ├── verifier.py               #   Are cited provisions present in retrieved text?
-│   └── schemas.py                #   Pydantic: Citation, AnswerJSON, CaseContext
+│   └── schemas.py                #   Pydantic: Citation, AnswerJSON (CaseContext lives in agents/intake.py)
 │
 ├── clients/                      # 🔌 External Clients
 │   ├── openai_client.py          #   embed_texts() batch embedding, chat_json() for LLM
@@ -612,13 +875,13 @@ legal-mvp/
 │
 ├── ingest/                       # 📥 Ingestion Pipeline
 │   ├── extract.py                #   PDF (PyMuPDF + OCR), DOCX, TXT — all byte-based
-│   ├── chunk.py                  #   ~450 token chunks, section normalization, corpus tagging
-│   └── index.py                  #   Batch embed + Qdrant upsert (batch=64, UUID IDs)
+│   ├── chunk.py                  #   Section-bounded chunks, section normalization
+│   ├── registry.py               #   File → corpus tag (IPC / BNS / CRPC / CPA)
+│   └── index.py                  #   Batch embed + Qdrant upsert (batch=64, uuid5 IDs)
 │
 ├── retrieve/                     # 🔎 Legacy Retrieval (v1 modules)
 │   ├── decision.py               #   Rule-based routing (superseded by agents/router.py)
 │   ├── search.py                 #   Qdrant k=24 search (superseded by agents/retriever.py)
-│   ├── mmr.py                    #   DOES NOT EXIST — see GAPS.md #22
 │   └── pack.py                   #   Evidence packer [1]..[k]
 │
 ├── answer/                       # ✍️ Legacy Answer (v1 modules)
@@ -626,10 +889,13 @@ legal-mvp/
 │   ├── llm.py                    #   LLM wrapper
 │   └── validate.py               #   JSON parser with auto-repair
 │
-├── scripts/                      # 🛠️ CLI: ingest_cli.py, query_cli.py
-├── tests/                        # 🧪 Unit tests for router agent
+├── scripts/                      # 🛠️ reingest.py (builds the index), run_eval.py, analysis scripts
+├── tests/                        # 🧪 237 pytest tests across 12 files; tests/data/ holds the 4 PDFs
+├── data/, eval/, experiments/, results/, figures/   # added Aug–Sep 2026 — see Part 0
 ├── requirements.txt              # 📦 Python dependencies
 └── .gitignore
+
+✱ Corrected Oct 2026: the full, current annotated tree is in Part 0 → "File structure".
 ```
 
 ---
@@ -638,7 +904,7 @@ legal-mvp/
 
 - **Python 3.10+** (virtualenv recommended)
 - **Docker** & **Docker Compose** (for Qdrant)
-- **OpenAI API key** (for embeddings + generation)
+- **OpenRouter API key** (for embeddings + generation; ✱ *Corrected Oct 2026:* was OpenAI)
 - *(Optional)* **Tesseract** for OCR on scanned PDFs — Windows: `choco install tesseract` (add to PATH)
 
 ---
@@ -651,12 +917,14 @@ python -m venv venv
 source venv/bin/activate          # Windows: .\venv\Scripts\activate
 pip install -r requirements.txt
 
-# 2. Configure environment
-cp .env.example .env
-# Edit .env → set OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# 2. Configure environment (there is no .env.example — create .env yourself)
+# .env → OPENROUTER_API_KEY=<your key>
 
 # 3. Start Qdrant vector database
 docker compose up -d
+
+# 3b. Build the index once: 4 PDFs → 1,899 chunks
+python scripts/reingest.py
 
 # 4. Run FastAPI server
 uvicorn app:app --host 127.0.0.1 --port 8000 --log-level info
@@ -670,7 +938,7 @@ streamlit run streamlit_app.py
 | Service | URL | Expected |
 |---------|-----|----------|
 | API Health | `http://127.0.0.1:8000/healthz` | `{"ok": true}` |
-| API Diagnostics | `http://127.0.0.1:8000/diag/env` | `{"openai_key_set": true}` |
+| API Diagnostics | `http://127.0.0.1:8000/diag/env` | `{"ok": true, "problems": [], "config": {...}}` — never prints key values |
 | Streamlit UI | `http://localhost:8501` | Web interface |
 
 ---
@@ -678,11 +946,11 @@ streamlit run streamlit_app.py
 ## Configuration
 
 ```env
-OPENAI_API_KEY=sk-...
-EMBED_MODEL=text-embedding-3-small
-MODEL_NAME=google/gemini-3.7-flash      # NOT GEN_MODEL — see core/config.py:42
+OPENROUTER_API_KEY=<your key>
+EMBED_MODEL=openai/text-embedding-3-small   # default; needs the openai/ prefix on OpenRouter
+MODEL_NAME=google/gemini-3.7-flash          # NOT GEN_MODEL — see core/config.py:42
 QDRANT_URL=http://localhost:6333
-TOP_K=8
+INTERVENTION=baseline                       # baseline | date | mapper | both
 USE_TRANSLATION=false
 LANGS_OCR=eng+hin+tam+tel
 ```
@@ -694,9 +962,9 @@ LANGS_OCR=eng+hin+tam+tel
 | Method | Endpoint | Description | Request / Response |
 |--------|----------|-------------|-------------------|
 | `GET` | `/healthz` | Health check | `{"ok": true, "build": "abc12345"}` |
-| `GET` | `/diag/env` | Verify API key | `{"openai_key_set": true}` |
+| `GET` | `/diag/env` | Check configuration | `{"ok", "problems", "config"}` — reports missing settings, never their values |
 | `POST` | `/ingest` | Upload & index docs | multipart form → `{files_received, chunks_indexed, errors}` |
-| `POST` | `/query` | Ask legal question | `{query, style?}` → `{answer, citations, confidence, refused, paralegal_context, report_url}` |
+| `POST` | `/query` | Ask legal question | `{query, query_id?, intervention?, reference_date?}` → `{answer, citations, confidence, refused, prompt_variant, paralegal_context, report_url, citation_audit, req_id, …}` (`style` is accepted but unused) |
 | `GET` | `/static/*` | Serve PDF reports | Returns generated PDF file |
 
 ---
@@ -719,7 +987,7 @@ Routing errors in legal contexts could lead to citing the wrong statute. Regex i
 
 ### Why Not Refuse on Low Confidence?
 
-Only refuses at zero chunks. Low-confidence queries still get answers with strong disclaimers. Even general guidance pointing toward the right type of lawyer is more helpful than flat refusal.
+Low-confidence queries still get answers with strong disclaimers. Even general guidance pointing toward the right type of lawyer is more helpful than flat refusal. ✱ *Corrected Oct 2026:* the gate refuses on no chunks, on a named Act outside the index, or on a best score below 0.25 — never on the confidence tier. It never fired in 617 measured runs.
 
 ### Why text-embedding-3-small?
 
@@ -731,13 +999,15 @@ Agents communicate via function calls (not network), eliminating inter-service l
 
 ### Why 450-Token Chunks?
 
-Empirically determined. Shorter chunks split provisions across boundaries; longer chunks produce semantically broad embeddings. 1-sentence overlap preserves boundary context.
+Shorter chunks split provisions across boundaries; longer chunks produce semantically broad embeddings. ✱ *Corrected Oct 2026:* this was not measured, and it was replaced in August 2026 by one chunk per statutory section (split at ~450 tokens only above 800), with no overlap.
 
 ---
 
 ## Evaluation Protocol
 
-**Recommended setup:** 30–50 queries across corpora (CPA, CrPC, BNS, etc.) with 20% "trick" questions (out-of-corpus queries that should trigger MEDIUM/LOW confidence)
+**Recommended setup (February plan):** 30–50 queries across corpora (CPA, CrPC, BNS, etc.) with 20% "trick" questions (out-of-corpus queries that should trigger MEDIUM/LOW confidence)
+
+✱ *Corrected Oct 2026:* the evaluation actually run uses four purpose-built sets (generated 200, paired 99, dated 99, layman 120) and 617 measured runs. None of the targets below was met; see Part 0 and Part 3 for the measured values.
 
 | Metric | Description | Target |
 |--------|-------------|--------|
@@ -755,7 +1025,7 @@ Empirically determined. Shorter chunks split provisions across boundaries; longe
 
 | Problem | Solution |
 |---------|----------|
-| **401 OpenAI / invalid key** | Ensure `.env` has `OPENAI_API_KEY=sk-…`; verify via `GET /diag/env` |
+| **401 / invalid key** | Ensure `.env` has `OPENROUTER_API_KEY=…`; verify via `GET /diag/env` |
 | **Logger KeyError: req_id** | Handled by tolerant formatter — see `core/logging.py` |
 | **Git Bash `curl (26)`** (Windows) | Use `curl.exe` (PowerShell) or Streamlit uploader |
 | **Low confidence on valid queries** | Check corpus auto-tagging; verify section normalization in chunks |
@@ -788,15 +1058,14 @@ This repository is provided for academic and research use.
 - **[Qdrant](https://qdrant.tech/)** — High-performance vector search engine
 - **[FastAPI](https://fastapi.tiangolo.com/)** + **Uvicorn** — Modern async Python web framework
 - **[Streamlit](https://streamlit.io/)** — Rapid prototyping UI framework
-- **[OpenAI](https://openai.com/)** — Embeddings (`text-embedding-3-small`) and chat completions (`gpt-4o-mini`)
+- **[OpenRouter](https://openrouter.ai/)** — Embeddings (`openai/text-embedding-3-small`) and chat completions (`google/gemini-3.7-flash`); ✱ *Corrected Oct 2026:* originally OpenAI `gpt-4o-mini`
 - **[fpdf2](https://py-pdf.github.io/fpdf2/)** — PDF report generation
 - **[PyMuPDF](https://pymupdf.readthedocs.io/)** — PDF text extraction
 - **[Tesseract](https://github.com/tesseract-ocr/tesseract)** — OCR fallback for scanned documents
 
 ---
 
-<p align="center"><i>Upload docs → Ingest → Ask → Get grounded, confidence-calibrated answers with citations.</i></p>
-<p align="center"><b>Legal MVP — grounded, transparent, and confidence-aware legal AI.</b></p>
+<p align="center"><i>Upload docs → Ingest → Ask → Get answers with citations and confidence-tiered disclaimers.</i></p>
 
 ---
 ---
@@ -1082,7 +1351,9 @@ Reproduce with `python scripts/ablate_filter.py`.
 |---|---|---|---|
 | generated, ideal conditions | 69.2% | 96.0% | +26.8 points |
 | paired | 73.7% | 94.9% | +21.2 points |
-| **layman** | **15.0%** | **63.3%** | **+48.3 points** |
+| **layman** | **15.0%** | **66.7%** | **+51.7 points** |
+
+✱ *Corrected Oct 2026:* the layman row read 63.3% / +48.3, from the pre-fix citation parser. 66.7% is the post-fix value (`results/robustness.csv`). The other two rows are from `results/retrieval_metrics.csv` at stage `raw_15`.
 
 A real example from the run:
 
@@ -1095,9 +1366,9 @@ A real example from the run:
                                                      from the corpus
 ```
 
-**83.8 percent of everything the layman answers cite is absent from the passages the model was given.** The answers come from the language model's own knowledge of Indian law, not from the loaded documents.
+**Only 136 of 985 sections cited in layman answers (13.8 percent) were among the passages the model was given, and 0 of 120 layman answers are fully grounded** (`results/robustness.csv`; section-level re-check in `docs/AUDIT_2026-10-10.md`). The answers come from the language model's own knowledge of Indian law, not from the loaded documents. ✱ *Corrected Oct 2026:* this sentence previously said "83.8 percent … absent", an August figure from the old parser that is in no results file.
 
-Two further observations. Even under **ideal** conditions, where a question is built from a section and names its number, retrieval returns that section only **68 percent** of the time. That is a ceiling on everything else. And the generated set's answers cite a BNSS or BSA provision in roughly four cases out of five, while the index holds neither.
+Two further observations. Even under **ideal** conditions, where a question is built from a section and names its number, retrieval returns that section only **69.2 percent** of the time (`raw_15`, k = 15). That is a ceiling on everything else. And, in the August Phase G run, the generated set's answers cited a BNSS or BSA provision in roughly four cases out of five, while the index holds neither (August figure; not in a results CSV).
 
 ### Result 3 — what laypeople are actually served
 
@@ -1110,7 +1381,7 @@ Every passage retrieved across the 120 layman questions:
 | **BNS**, penal, in force | 46 | **7.6%** |
 | CPA, consumer | 44 | 7.2% |
 
-Two-thirds of layman questions come back dominated by the **procedure** book, not the book that says what offence occurred. Across all layman answers, the **repealed IPC is named twice as often as the current BNS**, 29.3 percent against 14.6 percent.
+Two-thirds of layman questions come back dominated by the **procedure** book, not the book that says what offence occurred. In the August Phase G run, the **repealed IPC was named about twice as often as the current BNS** across layman answers, 29.3 percent against 14.6 percent (August figure with the old parser; not in a results CSV).
 
 **The base-rate control**, which the evaluation plan requires and without which the claim would be unfalsifiable. Both rows are at the `filtered_n` stage; at `raw_15` the same ratio is 1.49x, and `PLAN.md` §4.1 requires the stage to be named because the two differ:
 
@@ -1125,7 +1396,7 @@ Two honest attributions. This confirms an observation made independently on 5 Au
 
 ### Result 4 — the date experiment
 
-Thirty situations, four date conditions each.
+Thirty situations, four date conditions each. ✱ *Corrected Oct 2026:* these are August Phase G figures (`docs/results/PHASE_G.md`), computed with the old citation parser; they are not in a results CSV and have not been recomputed.
 
 | Variant | N | gold retrieved | gold cited | correct book |
 |---|---|---|---|---|
@@ -1138,7 +1409,7 @@ Retrieval is flat across all four, because nothing in the pipeline read the date
 
 ### Result 5 — confidence, a negative result
 
-**AUROC** asks: if you pick one good answer and one bad answer at random, how often does the score rank the good one higher? **0.5 means a coin flip.** Measured on 617 query runs, of which only 27 answers were fully grounded.
+**AUROC** asks: if you pick one good answer and one bad answer at random, how often does the score rank the good one higher? **0.5 means a coin flip.** Measured on 617 query runs. Here "good" means **the gold section was retrieved in the top 15** (327 of 617 positives). ✱ *Corrected Oct 2026:* this previously said the label was "fully grounded" (27 positives); that label gives composite 0.531 vs max score 0.589, and "cited" gives 0.591 vs 0.689 (`results/ablation.csv`). The composite loses under every label.
 
 | Signal | AUROC | Reading |
 |---|---|---|
@@ -1150,31 +1421,35 @@ Retrieval is flat across all four, because nothing in the pipeline read the date
 
 Two results, both uncomfortable, both reportable. A signal carrying 30 percent of the weight sits at chance. And the elaborate three-signal composite performs **worse than the single number it was built to improve on**.
 
-Two caveats must be disclosed with these figures. Only 27 positives makes every estimate noisy. And the section normaliser rewrites any line beginning with a number and a full stop into `"Section N."`, so a passage can match `"Section 41"` merely because page 41 began with `41.` That is a confound on the very signal measured at 0.581.
+Two caveats must be disclosed with these figures. The grounded label has only 27 positives, so estimates on it are noisy; the retrieved label used in the table has 327. And the section normaliser rewrites any line beginning with a number and a full stop into `"Section N."`, so a passage can match `"Section 41"` merely because page 41 began with `41.` That is a confound on the very signal measured at 0.581.
 
 ### Result 6 — the intervention
 
-Ninety-nine questions where the code named and the date given deliberately disagree.
+Ninety-nine dated questions: 66 where the code named and the date given deliberately disagree (33 name the IPC, 33 the BNS), and 33 controls where they agree.
 
-| Measure | Baseline | With intervention |
-|---|---|---|
-| Searched the correct code | **0.0%** | **100.0%** |
-| Retrieved repealed law, lower is better | 81.8% | **0.0%** |
-| Found the exact right section | 0.0% | 36.4 to 78.8% |
-| Answer states the law changed | 39.4% [24.7, 56.3] | 63.6% [46.6, 77.8] |
-| Control, where code and date agree | 100.0% | 100.0%, unmoved |
+| Measure | Baseline | With intervention | Source |
+|---|---|---|---|
+| Searched the correct code | **0.0%** | **100.0%** | `docs/results/PHASE_H.md` |
+| Retrieved repealed law, IPC-named conflicts, lower is better | 81.8% | **0.0%** | `docs/results/PHASE_H.md` |
+| Gold section retrieved, all 66 conflicts | **0 / 66** | **39 / 65** (60.0%) | `results/intervention.csv` |
+| … BNS-named conflicts | 0 / 33 | 28 / 33 | `results/intervention.csv` |
+| … IPC-named conflicts | 0 / 33 | 11 / 32 | `results/intervention.csv` |
+| Answer states the law changed, IPC-named conflicts (n = 33) | 39.4% [24.7, 56.3] | 63.6% [46.6, 77.8] | `docs/results/PHASE_H.md` |
+| Control, gold section retrieved | 29 / 33 | 29 / 33, unmoved | `results/intervention.csv` |
+
+✱ *Corrected Oct 2026:* the "exact right section" row read "36.4 to 78.8%"; it is replaced by the September re-marking in `results/intervention.csv`. Of the 65 conflict runs, 44 have a gold section the index can return, and the intervention retrieves 39 of those 44 (88.6%). The IPC-named arm is low mainly because 22 of its 33 gold labels name a sub-section the index does not store separately.
 
 The control not moving is what makes this a genuine fix rather than a flipped preference.
 
 **The gap between the first and fourth rows is the finding.** The largest retrieval improvement physically possible, from nothing to perfect, moved the answer by roughly 20 points, and it still fails a third of the time. Those two intervals overlap, so the answer improvement is **suggestive, not established**.
 
-Two metrics had to be retired mid-analysis. `core/citations.py` assigns a statute to a section number by proximity in the answer text. These answers legitimately mention both codes, so an answer citing **BNS 190** was recorded as `"IPC Section 190"` because the phrase "Indian Penal Code" appeared earlier. The metric therefore reads 100 percent both before and after the intervention, and cannot separate *wrongly relied on repealed law* from *correctly explained the law changed*.
+Two metrics had to be retired mid-analysis. `core/citations.py` assigned a statute to a section number by proximity in the answer text (✱ *Corrected Oct 2026:* this parser was replaced on 1 September 2026; `tests/test_citations_bug.py` pins the fix). These answers legitimately mention both codes, so an answer citing **BNS 190** was recorded as `"IPC Section 190"` because the phrase "Indian Penal Code" appeared earlier. The metric therefore reads 100 percent both before and after the intervention, and cannot separate *wrongly relied on repealed law* from *correctly explained the law changed*.
 
-### Result 7 — the machine-generated map is 28 percent wrong
+### Result 7 — the machine-generated map is 31 percent wrong
 
 `data/ipc_bns_map_candidates.csv` maps all 511 IPC sections to BNS sections by nearest-neighbour search over the existing embeddings. Thirty-two of those overlap with the hand-verified map.
 
-**Twenty-two agree. Nine disagree, a 28 percent error rate.**
+**Twenty-two agree. Ten disagree, a 31.3 percent error rate.** ✱ *Corrected Oct 2026:* this read "nine disagree, 28 percent"; a recount gives ten (IPC 161, 307, 325, 326, 379, 384, 406, 420, 500, 506). IPC 161 has no BNS counterpart at all — it was repealed in 1988 — yet the nearest-neighbour map proposed one.
 
 | IPC | Hand-verified against the Act | Nearest-neighbour proposed |
 |---|---|---|
@@ -1214,7 +1489,7 @@ The single most important cost fact for planning: **experiments that do not gene
 | Corpus covers BNS, BNSS, BSA, CrPC, Constitution, CPA, IPC and judicial precedents | **Four documents only**: IPC, BNS, CrPC, CPA. The BNSS, BSA, Constitution and case law were **never ingested**. Tags for them existed only as artefacts of substring matching | `GAPS.md` finding 10 |
 | "Calibrated refusal, system refuses rather than hallucinating" | The refusal gate **never fired once** in 617 measured query runs | Result 8 |
 | Composite confidence scoring is the key innovation | The composite, 0.663, scores **worse** than a single raw similarity number, 0.784. Its weakest signal sits at 0.581, and the gap term as deployed sits at 0.270, below a coin flip | Result 5, and Part 3 §3.3 |
-| "Grounded answers, every claim backed by citations" | **83.8 percent** of what layman answers cite is absent from the passages supplied | Result 2 |
+| "Grounded answers, every claim backed by citations" | **0 of 120** layman answers are fully grounded; only 13.8 percent of the sections they cite were supplied (✱ *Corrected Oct 2026:* was "83.8 percent absent") | Result 2 |
 | Deterministic routing eliminates routing errors | Routing was the largest single source of error. The domain fallback sent every criminal query to the penal code, making the IPC unreachable | `GAPS.md` finding 6, defect E8 |
 | 1,011 chunks | **1,899** after the ingest rebuild | Phase E |
 | GPT-4o-mini | `google/gemini-3.7-flash` via OpenRouter, provider pinned | Chapter 2 |
@@ -1262,26 +1537,29 @@ The single most important cost fact for planning: **experiments that do not gene
    | 5  REPORTER     |   the PDF
    +-----------------+
 
-   Two model calls only, at stages 1 and 4. Everything else is fixed
-   rules, because a measuring instrument that gives different answers
-   on different runs is not a measuring instrument.
+   Two model calls only, at stages 1 and 4, plus one embedding call
+   at stage 3. Everything else is fixed rules, because a measuring
+   instrument that gives different answers on different runs is not
+   a measuring instrument. (Date Resolver and Statute Mapper run only
+   when intervention mode is not "baseline"; the Verifier runs after
+   the Reporter in app.py.)
 ```
 
 ## 3.2 The agreed design, and what exists
 
-`docs/TARGET_ARCHITECTURE.md` specifies nine stages. **Twenty of its twenty-six specified items were never built.** *(Written 28 Aug. Superseded in part: `statute_consistency` was built in Wave 3 and the date resolver and statute mapper are now implemented and wired at `app.py:173-190`. The count is not re-derivable from any file and should be recomputed or dropped.)*
+`docs/TARGET_ARCHITECTURE.md` specifies nine stages. **Twenty of its twenty-six specified items were never built.** *(Written 28 Aug. Superseded in part: `statute_consistency` was built in Wave 3 and the date resolver and statute mapper are now implemented and wired at `app.py:175-191`. The count is not re-derivable from any file and should be recomputed or dropped.)*
 
 | Stage | Built | Missing |
 |---|---|---|
 | 0 Language handler | none | entire stage, deferred by agreement |
-| 1 Intake | `date_expression` | `date_mentioned`, `missing_facts_prompt` |
+| 1 Intake | none (✱ *Corrected Oct 2026:* `date_expression` was listed as built; it does not exist in Intake — dates are read by `core/dates.py`) | `date_expression`, `date_mentioned`, `missing_facts_prompt` |
 | 1.5 Date Resolver | era values | `event_date`, `date_confidence`, `date_range`, model fallback. **And it sits at 2.5, not 1.5** |
 | 2 Router | `target_corpora` as a list | `corpus_reason`, structured `Entity` objects, date-based routing, both-codes-when-date-unknown, **penal against procedural split** |
 | 2.5 Statute Mapper | basic translation | `MappedProvision`, one-to-many relations, `mapping_note`, **always-runs behaviour** |
 | 3 Retriever | none of the new work | **`statute_consistency`, the fourth confidence signal**, the corrective retry loop, `assess()` |
 | 4 Answer | none | **`DUAL_REGIME` prompt variant**, `date_caveat`, `cost_usd` |
 | 4.5 Verifier | complete | none |
-| 5 Reporter | citation audit section | Unicode font support |
+| 5 Reporter | none (✱ *Corrected Oct 2026:* no citation audit section exists in the PDF; the audit is returned in the JSON as `citation_audit`) | citation audit section, Unicode font support |
 | Ingest | `in_force_from` | `section_heading` |
 
 ## 3.3 The position error, and what it costs
@@ -1323,7 +1601,7 @@ The single most important cost fact for planning: **experiments that do not gene
 
 In plain terms, it measures: **did the passages we found come from the book this question implies?** The three existing signals only examine similarity numbers. This one examines whether the answer is in the right book at all.
 
-It was never built at the time this was written. It was built in Wave 3 and measured: AUROC 0.6845 pooled, and 0.8300 on the 197 dated-conflict questions (`results/statute_consistency.csv`).
+It was never built at the time this was written. It was built in Wave 3 and measured **offline from the logs** (it is not in the deployed pipeline): AUROC 0.6845 pooled, and 0.8300 on the 197 runs of the dated set — both arms, including the agree-controls (`results/statute_consistency.csv`).
 
 ---
 
@@ -1341,7 +1619,7 @@ All claims below come from arXiv searches run on 26 and 27 August, with paper id
 | The routing filter **concealing** the failure it exists to prevent | Methodological; reviewers value this kind of self-scrutiny |
 | Phase H as a controlled context-compliance experiment | Chen et al. 2605.14473 name this problem and describe it as open |
 | The verified IPC-to-BNS mapping table | A citable data artifact |
-| Nearest-neighbour mapping 28 percent wrong | New, 27 August |
+| Nearest-neighbour mapping 31 percent wrong (10 of 32) | New, 27 August; recounted Oct 2026 |
 
 ## 4.2 Where the work is not novel
 
@@ -1371,14 +1649,14 @@ Compared with the signals in this system:
 
 | Signal | Is it a QPP re-derivation? | AUROC |
 |---|---|---|
-| `top_k_mean` | **Yes**, essentially WIG without normalisation | 0.659 |
-| `score_gap` | **Yes**, a crude NQC | 0.645 |
+| `top_k_mean` | **Yes**, essentially WIG without normalisation | 0.757 |
+| `score_gap` | **Yes**, a crude NQC | 0.730 raw; 0.270 as deployed (inverted) |
 | `entity_coverage` | **No**, it examines content rather than scores | 0.581 |
 | **`statute_consistency`** | **No**, domain-specific | **0.685** pooled, **0.830** dated-conflict |
 
-**Two of four are re-derivations. Two are not.** But the two QPP-derived signals **outperformed** the novel one, and the novel one carried a defect for most of its life plus an undisclosed confound.
+**Two of four are re-derivations. Two are not.** The two QPP-derived signals outperform `entity_coverage`; `statute_consistency` beats neither overall but does on the dated set. ✱ *Corrected Oct 2026:* AUROCs updated to the September values in `results/ablation.csv` and `results/statute_consistency.csv` (label: retrieved@15). The August values 0.659 / 0.645 are superseded.
 
-**The question remains open, and one experiment settles it.** Building `statute_consistency` produces one of two outcomes, and both are publishable:
+**This was settled in September.** `statute_consistency` was built (Wave 3): 0.685 pooled — no better than existing signals — but 0.830 on the dated set, the hard case. The two outcomes as framed in August:
 
 | If it works | If it does not |
 |---|---|
@@ -1398,19 +1676,21 @@ Not recodification alone. Not confidence alone. **Both, joined.**
    CrPC at filtered_n, and names repealed law twice as often
           |
           v
-   Even when TOLD which book, meaning-based search finds the current
-   code 51.5 percent of the time, and the repealed one 97.0 percent
+   With the router's filter switched off, meaning-based search finds
+   the current code 51.5 percent of the time when the question names
+   it, and the repealed one 97.0 percent. (With the filter on, the
+   router sends named-code questions to the right book 33/33.)
           |
           v
-   Its own confidence signals detect none of this: three generic
-   signals between 0.49 and 0.66, all worse than one raw number
+   Its own confidence signals detect none of this: the deployed
+   composite scores 0.663, worse than one raw number (0.784)
           |
           v
    A domain-specific signal is the thing that could      <-- statute_consistency
           |
           v
-   And when retrieval is fixed from 0 to 100 percent, the ANSWER
-   barely follows. Retrieval-side fixes do not propagate.
+   And when corpus routing is fixed from 0 to 100 percent, the ANSWER
+   barely follows (39.4 -> 63.6 percent, intervals overlap).
 ```
 
 The recodification is the **setting** that makes the failure visible and measurable. Confidence is the **mechanism** that fails to catch it. Neither carries a paper alone; together they do, and together they satisfy all five of the supervisor's items.
@@ -1575,8 +1855,10 @@ Remote: `https://github.com/uditauniyal/legal-mvp.git`
 
 | | |
 |---|---|
-| Commits ahead of origin/main | **0** |
-| All source code, tests, query sets and results documents | **pushed** |
+| Live branch | **`metrics/sept-01`** (pushed). `main` stops at 28 August |
+| All source code, tests, query sets and results documents | **pushed** on `metrics/sept-01` |
+
+✱ *Corrected Oct 2026:* this section was written 28 August, when everything was on `main`.
 
 ## 6.2 What is not yet committed
 
@@ -1591,6 +1873,8 @@ Remote: `https://github.com/uditauniyal/legal-mvp.git`
 
 **`core/verifier.py` must be either finished or reverted before the next commit**, so the repository never contains a half-applied change.
 
+✱ *Corrected Oct 2026:* this table is a 28 August snapshot. All the files listed were committed later, and `core/verifier.py` was finished and committed.
+
 ## 6.3 Test suite
 
 ```
@@ -1599,15 +1883,20 @@ Remote: `https://github.com/uditauniyal/legal-mvp.git`
 
 | File | Tests |
 |---|---|
+| `tests/test_metrics_known_answers.py` | 41 |
 | `tests/test_dates.py` | 35 |
+| `tests/test_tier_bug.py` | 31 |
+| `tests/test_citations_bug.py` | 23 |
+| `tests/test_chunk_filters.py` | 20 |
+| `tests/test_citations.py` | 20 |
 | `tests/test_statute_mapper.py` | 18 |
-| `tests/test_chunk_filters.py` | 17 |
-| `tests/test_confidence.py` | 14 |
-| `tests/test_router.py` | 13 |
-| `tests/test_citations.py` | 12 |
-| `tests/test_corpus_tagging.py` | 12 |
+| `tests/test_confidence.py` | 12 |
+| `tests/test_router.py` | 12 |
 | `tests/test_verifier.py` | 11 |
-| `tests/test_run_logger.py` | 10 |
+| `tests/test_corpus_tagging.py` | 7 |
+| `tests/test_run_logger.py` | 7 |
+
+✱ *Corrected Oct 2026:* per-file counts updated to the current 12 files (total unchanged at 237).
 
 Every expected value in the metric tests is worked out by hand in its docstring. A test whose expectation was produced by running the code proves only that the code is deterministic.
 
@@ -1628,13 +1917,19 @@ Every expected value in the metric tests is worked out by hand in its docstring.
 | `docs/DECISIONS.md` | Why things are as they are. Append-only |
 | `docs/OPEN_QUESTIONS.md` | Unresolved questions, with how to settle each |
 | `docs/SESSION_LOG.md` | Automatic record of every prompt and command |
+| `docs/study/` | **Added Oct 2026.** Study guide: fundamentals, architecture, measurement, panel Q&A |
+| `docs/AUDIT_2026-10-10.md` | **Added Oct 2026.** Full audit, supersedes `AUDIT_2026-08-26.md` |
+| `docs/PROJECT_REPORT.md` | **Added Sep 2026.** The full report |
+| `docs/NUMBERS_AT_A_GLANCE.md`, `docs/SUPERVISOR_BRIEF.md` | **Added Sep 2026** |
+| `results/RESULTS.md`, `results/EXPLAIN.md` | **Added Sep 2026.** Results and plain-English explanations |
 
 `GAPS.md`, `ARCHITECTURE.md`, `FILE_STRUCTURE.md` and `DATAFLOW.md` predate Phase E and still describe defects that are now fixed. Where they disagree with `WORKLOG.md` or `docs/results/`, the latter are correct.
 
 ## 6.5 Reproducing the headline finding
 
 ```bash
-python scripts/ablate_filter.py
+python scripts/ablate_filter.py        # the August measurement
+python experiments/exp02_routing.py    # the September re-measurement -> results/routing_confusion.csv
 ```
 
 Retrieval only. No answers generated. Costs under one rupee.
@@ -1695,7 +1990,7 @@ Six findings. The full argument, with figures, is in
 
 ### The system is more reliable on the law that no longer applies
 
-A question naming the repealed Indian Penal Code retrieves mostly IPC text
+With the router's corpus filter **switched off** — search alone — a question naming the repealed Indian Penal Code retrieves mostly IPC text
 **97.0%** of the time, against a chance baseline of 31.3% — that is the share of
 the index the IPC occupies, so it is what a retriever ignoring the question
 entirely would score. A question naming the Bharatiya Nyaya Sanhita, which is
@@ -1711,6 +2006,8 @@ finding rather than noise.
 **This reproduced cell-for-cell** after three bug fixes, a rebuilt measurement
 library, and a fresh run against the live index — which is the strongest
 reproducibility evidence the project has.
+
+✱ *Corrected Oct 2026:* the deployed router, filter on, sends these same named-code questions to the right book **33/33** (IPC) and **33/33** (BNS). The failure therefore bites in the system as deployed only when a question names **no** code — which is how ordinary people ask.
 
 ### Keyword search does not fix it; it breaks the other half
 
@@ -1732,7 +2029,7 @@ single one is Bharatiya Nyaya Sanhita text — a perfect signpost, informativene
 Indian Penal Code while **82** are Code of Criminal Procedure.
 
 **Searching for the Penal Code by its own name points at the procedure code
-roughly three times more often than at the Penal Code itself.**
+about 3.6 times more often than at the Penal Code itself** (82 against 23).
 
 The reason is mundane once seen. The 1860 drafters had no occasion to write
 "penal" inside the Penal Code — you do not name the book you are in. The
@@ -1744,12 +2041,15 @@ their names, but whether saying the name identifies the book.
 This is a property of legal drafting, not of any retriever, and it should recur
 in any jurisdiction that replaces a statute rather than amending it.
 
+✱ *Corrected Oct 2026:* this explains the **keyword (BM25)** inversion directly, because BM25 matches words. For the **meaning-based** failure it is the likely cause, not a proven one: embeddings do not count words.
+
 ### The confidence score is worse than a number the system already had
 
-The deployed three-signal composite scores **0.6631** at separating right answers
-from wrong ones. The single highest similarity from the search — a number
-already sitting in the logs, costing nothing — scores **0.7837**. Two of the
-composite's own ingredients also beat it, at 0.7571 and 0.7298.
+The deployed three-signal composite scores AUROC **0.6631** at predicting whether
+the right section was retrieved. The single highest similarity from the search — a number
+already sitting in the logs, costing nothing — scores **0.7837**. Its own
+`top_k_mean` ingredient alone scores 0.7571, and the raw score gap — which
+enters the blend only in inverted form — 0.7298.
 
 **A blend of three signals is worse than one of the signals alone.**
 
@@ -1758,8 +2058,11 @@ See section 3.3 for what happened when that finding was stress-tested.
 ### There is no confidence setting that makes the system safe
 
 If the system answered only its most confident questions, what share could it
-answer while being wrong at most one time in ten? For the composite the answer
-is **0.0000** — no threshold anywhere on the curve reaches that error rate.
+answer while being wrong at most one time in ten? For the composite, judged on
+**whether the right section was retrieved**, the answer is **0.0000** — no
+threshold anywhere on the curve reaches that error rate. (Judged on whether the
+gold section was merely *cited*, it is 0.648; on *grounded*, 0.0 —
+`results/calibration.csv`.)
 
 The reason is visible in the shape of the curve rather than in any summary
 number. A well-behaved confidence score climbs steadily. This one rises through
@@ -1772,8 +2075,9 @@ which is the part that matters for safety.
 **One thing does work, in one place.** A fourth signal was built for the first
 time: the fraction of retrieved passages coming from the statute the question
 and its date imply. Overall it scores **0.6845**, no better than what already
-existed. But on the 197 questions where the named code and the offence date
-disagree — precisely the hard case — it reaches **0.8300**. The catch is that on
+existed. But on the 197 runs of the dated set — built around questions where the named
+code and the offence date disagree, and including the agree-controls — it reaches **0.8300**.
+It was computed offline from the logs; it is not in the deployed pipeline. The catch is that on
 most other questions the search filter was itself built from the same date
 information, so the signal cannot fail there by construction.
 
@@ -1788,12 +2092,15 @@ own training regardless of what the search returned. **Anyone evaluating this
 system by reading its answers would conclude it works.** A legal system whose
 failures are invisible is more dangerous than one whose failures are obvious.
 
+✱ *Corrected Oct 2026:* part of the retrieved gap is a reachability ceiling (see 3.5): the BNS arm's
+11/33 is exactly its ceiling, so the 0.5455 gap is not all retriever failure.
+
 ---
 
 ## 3.3 The corrected composite — stress-testing our own finding
 
 One of the composite's three ingredients turned out to be **wired backwards**.
-The gap between the best and second-best result is evidence of a clear winner,
+The gap between the best and fifth-best result is evidence of a clear winner,
 but the deployed code treats it as evidence of doubt. Measured alone, that
 inverted term scores **0.2702** — below 0.5, meaning it actively points the wrong
 way, while the same signal uninverted scores 0.7298.
@@ -1871,14 +2178,17 @@ presented as a retrieval failure. It is a **reachability ceiling**: 22 of the 33
 gold labels for that arm name a subsection the index stores only as a whole
 section, so no retriever of any kind can score them. Meaning-based and fused
 retrieval both reach 11 of 33 — **saturating the ceiling exactly**. On everything
-reachable, retrieval is perfect. Pooled, only **85.7%** [82.4, 88.5] of the 518
+reachable **in that arm**, retrieval is perfect (✱ *Corrected Oct 2026:* this said "on everything reachable", which is true only of the BNS-named arm). Pooled, only **85.7%** [82.4, 88.5] of the 518
 questions have a reachable answer, and every recall figure in this project must
 be read against that rather than against 100%.
 
 Three further corrections, all documentation rather than defects:
 
-- The confidence formula recorded in `CLAUDE.md` and in Part 1 is **wrong**. The
-  deployed code inverts the middle term. The logged scores were always right.
+- ✱ *Corrected Oct 2026:* this bullet said the formula in `CLAUDE.md` and Part 1 is wrong. That was
+  itself wrong: Part 1's formula, `0.15 × (1 − min(gap/0.3, 1))`, matches the code,
+  and `CLAUDE.md` contains no formula. The incorrect formula is the one written in
+  the notes column of `results/calibration.csv` (`0.15*score_gap`). The logged
+  scores were always right.
 - `GAPS.md` findings 1 and 2 describe **superseded code**. The entity-coverage
   signal does not exceed 1.0 and grants no free default; it takes only the values
   0, 0.5 and 1.0, and its discrimination is 0.5806, not the 0.492 repeatedly
@@ -1894,10 +2204,10 @@ Three further corrections, all documentation rather than defects:
 | | |
 |---|---|
 | Waves complete | 0, 1, 2, 3, 4, plus the gate |
-| Measurements | 2,959 rows across ten results files, one shared schema |
+| Measurements | 2,969 rows across eleven results files, one shared schema (✱ *Corrected Oct 2026:* was 2,959 / ten; `intervention.csv` added) |
 | Automated tests | 237 |
 | Explanation blocks | 14, eight fixed headings each |
-| Figures | 17 — 8 architecture diagrams, 9 data charts |
+| Figures | 21 PNG files in `figures/`, plus 9 Mermaid diagram sources in `figures/mermaid/` |
 | Total API spend, September | about ₹0.09 |
 
 **The documents.** [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md) is the one

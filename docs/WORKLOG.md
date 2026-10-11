@@ -1939,3 +1939,63 @@ links verified to resolve.
   whatever PDF already sits at that path. A false success message; fix it.
 - `exp01_retrieval.py:415-416` mislabels three deliberate drops as "SMOKE".
 - The grounded row's [0.000, 0.000] interval in `robustness.csv`.
+
+---
+
+## 2026-10-11 — README reconciled; audit, study guide and exp11 committed
+
+**Context.** Preparing for a panel presentation. Udita asked for (1) a study
+guide explaining the whole project from fundamentals up, (2) the README fixed —
+wrong claims removed after checking, the original structure kept, the file
+structure explained — and (3) the 10 October audit committed. Base SHA 47f6f77.
+
+### Added
+
+- `docs/AUDIT_2026-10-10.md` — read-only audit of every file; ranked findings
+  with reproduction commands. Supersedes `docs/AUDIT_2026-08-26.md`.
+- `docs/study/00`–`04` — reading order, fundamentals, architecture (every
+  stage's input/output fields and API calls), measurement, 67 panel Q&As.
+- `experiments/exp11_intervention.py`, `check11_intervention_check.py`,
+  `results/intervention.csv` — the September re-marking of the Phase H
+  intervention (conflicts 0/66 → 39/65; control 29/33 both arms).
+
+### README.md
+
+- New **Part 0** at the top: current pipeline with each stage's I/O, models and
+  pinning, key results each tied to a CSV, the full annotated file structure
+  (LIVE / EVAL / LEGACY / DEBUG), the eleven experiments, a docs map marking
+  each doc current or historical, run instructions, known issues.
+- **Part 1** kept in its original structure; 57 false claims corrected in place,
+  each marked "✱ Corrected Oct 2026" (OpenAI/GPT-4o-mini → OpenRouter/Gemini;
+  JSON-mode answer and validator that do not exist; refusal "only at zero
+  chunks"; sentence-overlap chunking → section-bounded; guess_corpus tags →
+  registry; corpus table tags; `.env.example` and `OPENAI_API_KEY`; `/diag/env`
+  shape; Validation Results flagged as unreproducible February runs).
+- **Parts 2–3**, 42 corrections: layman cited 63.3% → 66.7% (post-fix parser,
+  `robustness.csv`; the September pass had used the pre-fix value from
+  `retrieval_metrics.csv`); "83.8% absent" → 0/120 grounded and 136/985 cited
+  sections supplied; Result 5's AUROC label is retrieved@15 (327 positives), not
+  grounded (27); Result 6 rebuilt from `intervention.csv`; Result 7 recount — 10
+  of 32 disagree (31.3%), not 9 (28%); §4.3 AUROCs 0.659/0.645 → 0.757/0.730;
+  97.0 vs 51.5 now stated as filter-off, with the router's 33/33 routing beside
+  it; Part 3 §3.5's claim that Part 1's formula is wrong was itself wrong (the
+  wrong formula is in `calibration.csv`'s notes); 2,959/ten files → 2,969/eleven;
+  17 figures → 21 PNGs + 9 Mermaid; per-file test counts.
+
+Reproduce the counts: `pytest tests/ --collect-only -q` (237);
+`ls results/*.csv | wc -l` (11); the IPC↔BNS recount script is in the audit.
+
+### Not committed (deliberately)
+
+`docs/ABSTRACT_IT118.tex`, `experiments/make_abstract_tex.py` (college document),
+`assets/`, the Word lock file `docs/~$NOPSIS_IT118.docx`, and the hook-appended
+`docs/SESSION_LOG.md` (contains private correspondence; repo is public).
+
+### Open
+
+- `experiments/make_synopsis_tex.py` has a SyntaxError at line 63 (flagged in
+  the audit, not fixed).
+- ADR-00Z's "96.4% → 60.9%" has no source (flagged in the audit).
+- `docs/STATE.md`, `GAPS.md`, `ARCHITECTURE.md`, `DATAFLOW.md`,
+  `FILE_STRUCTURE.md` still describe the pre-August system; README Part 0 marks
+  them historical.
